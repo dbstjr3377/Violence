@@ -5,9 +5,6 @@ import dev.violence.math.Vec3;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
-import org.bukkit.Material;
-import org.bukkit.World;
-import org.bukkit.block.data.BlockData;
 
 /**
  * 맵 건축 도구. 층 높이 5 (바닥 y, 실내 y+1..y+4, 천장 y+5).
@@ -16,7 +13,7 @@ import org.bukkit.block.data.BlockData;
 public final class MapBuilder {
     public static final int H = 5;
 
-    public final World w;
+    public final BlockAccess w;
     public final Random rnd;
     public final Theme theme;
     public final GameMap map = new GameMap();
@@ -25,7 +22,7 @@ public final class MapBuilder {
     /** 문 위치 (이후 분할 벽이 문을 막지 않도록) */
     private final List<int[]> doorCells = new ArrayList<>();
 
-    public MapBuilder(World w, Random rnd, Theme theme) {
+    public MapBuilder(BlockAccess w, Random rnd, Theme theme) {
         this.w = w;
         this.rnd = rnd;
         this.theme = theme;
@@ -33,8 +30,8 @@ public final class MapBuilder {
 
     // ───────── 기본 배치 ─────────
 
-    public void set(int x, int y, int z, BlockData d) {
-        w.getBlockAt(x, y, z).setBlockData(d, false);
+    public void set(int x, int y, int z, String state) {
+        w.set(x, y, z, state);
         if (x < minX) minX = x;
         if (y < minY) minY = y;
         if (z < minZ) minZ = z;
@@ -43,23 +40,18 @@ public final class MapBuilder {
         if (z > maxZ) maxZ = z;
     }
 
-    public void set(int x, int y, int z, Material m) { set(x, y, z, m.createBlockData()); }
+    public void clear(int x, int y, int z) { w.set(x, y, z, "minecraft:air"); }
 
-    public void set(int x, int y, int z, String s) { set(x, y, z, Theme.b(s)); }
+    public boolean isAir(int x, int y, int z) { return w.isAir(x, y, z); }
 
-    public void clear(int x, int y, int z) { w.getBlockAt(x, y, z).setType(Material.AIR, false); }
+    /** 블록 이름 (상태 제외) */
+    public String type(int x, int y, int z) { return Theme.name(w.get(x, y, z)); }
 
-    public boolean isAir(int x, int y, int z) { return w.getBlockAt(x, y, z).getType().isAir(); }
-
-    public Material type(int x, int y, int z) { return w.getBlockAt(x, y, z).getType(); }
-
-    public void fill(int x1, int y1, int z1, int x2, int y2, int z2, BlockData d) {
+    public void fill(int x1, int y1, int z1, int x2, int y2, int z2, String d) {
         for (int x = Math.min(x1, x2); x <= Math.max(x1, x2); x++)
             for (int y = Math.min(y1, y2); y <= Math.max(y1, y2); y++)
                 for (int z = Math.min(z1, z2); z <= Math.max(z1, z2); z++) set(x, y, z, d);
     }
-
-    public void fill(int x1, int y1, int z1, int x2, int y2, int z2, Material m) { fill(x1, y1, z1, x2, y2, z2, m.createBlockData()); }
 
     public void clearBox(int x1, int y1, int z1, int x2, int y2, int z2) {
         for (int x = Math.min(x1, x2); x <= Math.max(x1, x2); x++)
@@ -68,16 +60,16 @@ public final class MapBuilder {
     }
 
     /** 바닥판 */
-    public void floor(Rect r, int y, BlockData d) { fill(r.x1(), y, r.z1(), r.x2(), y, r.z2(), d); }
+    public void floor(Rect r, int y, String d) { fill(r.x1(), y, r.z1(), r.x2(), y, r.z2(), d); }
 
     /** 체크무늬 바닥 */
-    public void checker(Rect r, int y, BlockData a, BlockData b) {
+    public void checker(Rect r, int y, String a, String b) {
         for (int x = r.x1(); x <= r.x2(); x++)
             for (int z = r.z1(); z <= r.z2(); z++) set(x, y, z, ((x + z) & 1) == 0 ? a : b);
     }
 
     /** 바깥 벽(외벽) 상자: 바닥, 사방 벽, 천장 */
-    public void shell(Rect r, int y, BlockData wall, BlockData floor, BlockData ceiling) {
+    public void shell(Rect r, int y, String wall, String floor, String ceiling) {
         floor(r, y, floor);
         floor(r, y + H, ceiling);
         for (int yy = y + 1; yy < y + H; yy++) {
@@ -93,13 +85,13 @@ public final class MapBuilder {
     }
 
     /** X 축을 따라 놓인 벽 (z 고정) */
-    public void wallX(int x1, int x2, int z, int y, BlockData d) {
+    public void wallX(int x1, int x2, int z, int y, String d) {
         for (int x = Math.min(x1, x2); x <= Math.max(x1, x2); x++)
             for (int yy = y + 1; yy < y + H; yy++) set(x, yy, z, d);
     }
 
     /** Z 축을 따라 놓인 벽 (x 고정) */
-    public void wallZ(int x, int z1, int z2, int y, BlockData d) {
+    public void wallZ(int x, int z1, int z2, int y, String d) {
         for (int z = Math.min(z1, z2); z <= Math.max(z1, z2); z++)
             for (int yy = y + 1; yy < y + H; yy++) set(x, yy, z, d);
     }
@@ -129,7 +121,7 @@ public final class MapBuilder {
 
     /** 벽에 유리창 (높이 y+2..y+3, 아래 y+1 은 창턱이라 넘어갈 수 없음) */
     public void window(int x, int y, int z, boolean alongX, int width, boolean pane) {
-        BlockData g = pane ? glassPane(alongX) : theme.glass;
+        String g = pane ? glassPane(alongX) : theme.glass;
         for (int i = 0; i < width; i++) {
             int xx = alongX ? x + i : x, zz = alongX ? z : z + i;
             set(xx, y + 2, zz, g);
@@ -139,18 +131,18 @@ public final class MapBuilder {
 
     /** 바닥까지 내려오는 유리벽 (사무실 칸막이) */
     public void glassWall(int x, int y, int z, boolean alongX, int width) {
-        BlockData g = glassPane(alongX);
+        String g = glassPane(alongX);
         for (int i = 0; i < width; i++) {
             int xx = alongX ? x + i : x, zz = alongX ? z : z + i;
             for (int yy = y + 1; yy < y + H; yy++) set(xx, yy, zz, g);
         }
     }
 
-    public BlockData glassPane(boolean alongX) {
-        String base = theme.glass.getMaterial().name().toLowerCase();
+    public String glassPane(boolean alongX) {
+        String base = Theme.name(theme.glass);
         String pane = base.endsWith("_pane") ? base : base + "_pane";
         if (pane.equals("tinted_glass_pane")) pane = "gray_stained_glass_pane";
-        return Theme.b("minecraft:" + pane + (alongX ? "[east=true,west=true]" : "[north=true,south=true]"));
+        return "minecraft:" + pane + (alongX ? "[east=true,west=true]" : "[north=true,south=true]");
     }
 
     // ───────── 계단 ─────────
@@ -159,7 +151,7 @@ public final class MapBuilder {
      * 반 블록 계단 (점프 없이 오를 수 있음). 시작점 (x,z) 에서 dx/dz 방향으로 10칸 올라가
      * 위층(y+H) 바닥과 이어진다. width 는 계단 폭.
      */
-    public void stairs(int x, int y, int z, int dx, int dz, int width, BlockData solid, BlockData slab) {
+    public void stairs(int x, int y, int z, int dx, int dz, int width, String solid, String slab) {
         int steps = H * 2;
         int px = dz != 0 ? 1 : 0, pz = dx != 0 ? 1 : 0; // 폭 방향
         for (int i = 0; i < steps; i++) {
@@ -184,7 +176,7 @@ public final class MapBuilder {
             set(cx, y + H, cz, solid);
         }
         // 위층 구멍 옆 난간 (떨어짐 방지)
-        BlockData rail = Theme.b("minecraft:dark_oak_fence");
+        String rail = "minecraft:dark_oak_fence";
         for (int i = 0; i < steps - 1; i++) {
             int ax = x + dx * i - px, az = z + dz * i - pz;
             int bx = x + dx * i + px * width, bz = z + dz * i + pz * width;
@@ -247,7 +239,7 @@ public final class MapBuilder {
      * @param doorChance 문짝을 달 확률 (나머지는 뚫린 출입구)
      * @param glassChance 나누는 벽에 유리창을 낼 확률
      */
-    public List<Room> subdivide(Rect area, int y, int minSize, int maxSize, BlockData wall, double doorChance, double glassChance) {
+    public List<Room> subdivide(Rect area, int y, int minSize, int maxSize, String wall, double doorChance, double glassChance) {
         List<Room> out = new ArrayList<>();
         split(area, y, minSize, maxSize, wall, doorChance, glassChance, out, 0);
         return out;
@@ -267,7 +259,7 @@ public final class MapBuilder {
         return false;
     }
 
-    private void split(Rect r, int y, int min, int max, BlockData wall, double doorChance, double glassChance, List<Room> out, int depth) {
+    private void split(Rect r, int y, int min, int max, String wall, double doorChance, double glassChance, List<Room> out, int depth) {
         boolean canX = r.width() >= min * 2 + 1;
         boolean canZ = r.depth() >= min * 2 + 1;
         boolean mustSplit = r.width() > max || r.depth() > max;

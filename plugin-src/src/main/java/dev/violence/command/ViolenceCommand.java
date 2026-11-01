@@ -146,7 +146,7 @@ public final class ViolenceCommand implements TabExecutor {
             for (MapGenerator g : gens) {
                 World w = plugin.maps().createWorld("vedit");
                 long t0 = System.currentTimeMillis();
-                var gm = g.generate(w, new Random(g.id().hashCode() * 31L + 7));
+                var gm = g.generate(new dev.violence.map.WorldBlockAccess(w), new Random(g.id().hashCode() * 31L + 7));
                 try {
                     plugin.maps().saveMap(w, gm);
                     var nav = plugin.maps().buildNav(w, gm);

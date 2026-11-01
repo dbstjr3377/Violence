@@ -3,7 +3,6 @@ package dev.violence.mapgen;
 import dev.violence.arena.GameMap;
 import java.util.List;
 import java.util.Random;
-import org.bukkit.World;
 
 /**
  * 아파트 B동: 2층 ㄷ자 건물이 가운데 안뜰을 둘러싼 구조.
@@ -14,7 +13,7 @@ public final class ApartmentB implements MapGenerator {
     @Override public String displayName() { return "아파트 B동"; }
 
     @Override
-    public GameMap generate(World world, Random rnd) {
+    public GameMap generate(BlockAccess world, Random rnd) {
         Theme t = Theme.of("minecraft:bricks", "minecraft:terracotta", "minecraft:spruce_planks",
                 "minecraft:mud_bricks", "minecraft:smooth_sandstone", "minecraft:ochre_froglight",
                 "minecraft:glass_pane", "minecraft:dark_oak_slab[type=top]", "minecraft:polished_granite",
@@ -23,43 +22,43 @@ public final class ApartmentB implements MapGenerator {
         int y0 = 64;
         // 안뜰 바닥 (지붕 없음)
         Rect yard = new Rect(-21, -13, 21, 33);
-        m.floor(yard, y0, Theme.b("minecraft:grass_block"));
-        for (int x = -2; x <= 2; x++) m.fill(x, y0, -12, x, y0, 33, Theme.b("minecraft:stone_bricks"));
-        for (int z = 8; z <= 12; z++) m.fill(-20, y0, z, 20, y0, z, Theme.b("minecraft:stone_bricks"));
+        m.floor(yard, y0, "minecraft:grass_block");
+        for (int x = -2; x <= 2; x++) m.fill(x, y0, -12, x, y0, 33, "minecraft:stone_bricks");
+        for (int z = 8; z <= 12; z++) m.fill(-20, y0, z, 20, y0, z, "minecraft:stone_bricks");
         // 분수
-        m.fill(-3, y0 + 1, 7, 3, y0 + 1, 13, Theme.b("minecraft:stone_brick_slab"));
-        m.fill(-2, y0 + 1, 8, 2, y0 + 1, 12, Theme.b("minecraft:stone_brick_slab[type=bottom,waterlogged=true]"));
-        m.set(0, y0 + 1, 10, Theme.b("minecraft:chiseled_stone_bricks"));
-        m.set(0, y0 + 2, 10, Theme.b("minecraft:stone_brick_wall"));
+        m.fill(-3, y0 + 1, 7, 3, y0 + 1, 13, "minecraft:stone_brick_slab");
+        m.fill(-2, y0 + 1, 8, 2, y0 + 1, 12, "minecraft:stone_brick_slab[type=bottom,waterlogged=true]");
+        m.set(0, y0 + 1, 10, "minecraft:chiseled_stone_bricks");
+        m.set(0, y0 + 2, 10, "minecraft:stone_brick_wall");
         // 나무와 벤치
         int[][] trees = {{-15, -6}, {15, -6}, {-15, 26}, {15, 26}, {-15, 10}, {15, 10}};
         for (int[] tr : trees) {
-            for (int h = 1; h <= 4; h++) m.set(tr[0], y0 + h, tr[1], Theme.b("minecraft:oak_log"));
+            for (int h = 1; h <= 4; h++) m.set(tr[0], y0 + h, tr[1], "minecraft:oak_log");
             for (int dx = -2; dx <= 2; dx++)
                 for (int dz = -2; dz <= 2; dz++)
                     for (int h = 4; h <= 6; h++)
                         if (Math.abs(dx) + Math.abs(dz) + (h - 4) <= 3 && !(dx == 0 && dz == 0 && h < 5))
-                            m.set(tr[0] + dx, y0 + h, tr[1] + dz, Theme.b("minecraft:oak_leaves[persistent=true]"));
+                            m.set(tr[0] + dx, y0 + h, tr[1] + dz, "minecraft:oak_leaves[persistent=true]");
         }
         for (int i = 0; i < 6; i++) {
             int bx = -12 + i * 5;
-            m.set(bx, y0 + 1, 0, Theme.b("minecraft:spruce_stairs[facing=north]"));
-            m.set(bx, y0 + 1, 20, Theme.b("minecraft:spruce_stairs[facing=south]"));
+            m.set(bx, y0 + 1, 0, "minecraft:spruce_stairs[facing=north]");
+            m.set(bx, y0 + 1, 20, "minecraft:spruce_stairs[facing=south]");
             m.weaponSpot(bx + 0.5, y0 + 1, 1.5);
         }
         // 남쪽 담장 (넘어갈 수 없음)
         for (int x = -22; x <= 22; x++) {
             m.set(x, y0, 34, t.wall);
             m.set(x, y0 + 1, 34, t.wall);
-            m.set(x, y0 + 2, 34, Theme.b("minecraft:iron_bars[east=true,west=true]"));
+            m.set(x, y0 + 2, 34, "minecraft:iron_bars[east=true,west=true]");
         }
         m.populate(yard, y0, 10, 4);
         // 가로등
         for (int z = -8; z <= 30; z += 12) {
             for (int x : new int[]{-6, 6}) {
-                m.set(x, y0 + 1, z, Theme.b("minecraft:dark_oak_fence"));
-                m.set(x, y0 + 2, z, Theme.b("minecraft:dark_oak_fence"));
-                m.set(x, y0 + 3, z, Theme.b("minecraft:ochre_froglight"));
+                m.set(x, y0 + 1, z, "minecraft:dark_oak_fence");
+                m.set(x, y0 + 2, z, "minecraft:dark_oak_fence");
+                m.set(x, y0 + 3, z, "minecraft:ochre_froglight");
             }
         }
 
@@ -117,12 +116,12 @@ public final class ApartmentB implements MapGenerator {
         m.door(-8, y0, -14, true);
         m.door(8, y0, -14, true);
         // 계단 (서동/동동 복도 끝)
-        var slab = Theme.b("minecraft:mud_brick_slab");
+        var slab = "minecraft:mud_brick_slab";
         m.stairs(-34, y0, 31, 1, 0, 2, t.floorAlt, slab);
         m.stairs(34, y0, 31, -1, 0, 2, t.floorAlt, slab);
-        m.floor(north, y0 + 2 * MapBuilder.H, Theme.b("minecraft:dark_oak_planks"));
-        m.floor(westW, y0 + 2 * MapBuilder.H, Theme.b("minecraft:dark_oak_planks"));
-        m.floor(eastW, y0 + 2 * MapBuilder.H, Theme.b("minecraft:dark_oak_planks"));
+        m.floor(north, y0 + 2 * MapBuilder.H, "minecraft:dark_oak_planks");
+        m.floor(westW, y0 + 2 * MapBuilder.H, "minecraft:dark_oak_planks");
+        m.floor(eastW, y0 + 2 * MapBuilder.H, "minecraft:dark_oak_planks");
         return m.finish(id(), displayName());
     }
 

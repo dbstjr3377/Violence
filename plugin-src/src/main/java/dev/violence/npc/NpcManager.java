@@ -33,7 +33,7 @@ public final class NpcManager {
             "Frankie", "Joey", "Paulie", "Victor", "Ivan", "Sergei", "Bruno", "Dante", "Enzo", "Gino"};
     private static final double SPEED = 0.235;
     private static final double HEAVY_SPEED = 0.19;
-    private static final int PATH_BUDGET = 8;
+    private static final int PATH_BUDGET = 4;
 
     private final ViolencePlugin plugin;
     private int pathsThisTick;

@@ -4,23 +4,23 @@ import dev.violence.arena.GameMap;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.HashSet;
 import java.util.Random;
-import org.bukkit.World;
-import org.bukkit.block.data.BlockData;
+import java.util.Set;
 
 /**
  * 하수구: 미로처럼 얽힌 터널(가운데 물길) + 교차로 공간 + 정비실/펌프실.
  * 1층 구조지만 넓고 시야가 짧다.
  */
 public final class Sewer implements MapGenerator {
-    private static final int CELL = 11;
-    private static final int GRID = 8;
+    private static final int CELL = 15;
+    private static final int GRID = 7;
 
     @Override public String id() { return "sewer"; }
     @Override public String displayName() { return "하수구"; }
 
     @Override
-    public GameMap generate(World world, Random rnd) {
+    public GameMap generate(BlockAccess world, Random rnd) {
         Theme t = Theme.of("minecraft:mossy_stone_bricks", "minecraft:stone_bricks", "minecraft:stone_bricks",
                 "minecraft:cracked_stone_bricks", "minecraft:deepslate_bricks", "minecraft:verdant_froglight",
                 "minecraft:glass_pane", "minecraft:spruce_slab[type=top]", "minecraft:polished_deepslate",
@@ -42,7 +42,7 @@ public final class Sewer implements MapGenerator {
             if (rnd.nextBoolean()) edges.add(new int[]{cx, cz, cx + 1, cz});
             else if (cz < GRID - 1) edges.add(new int[]{cx, cz, cx, cz + 1});
         }
-        BlockData water = Theme.b("minecraft:stone_brick_slab[type=bottom,waterlogged=true]");
+        String water = "minecraft:stone_brick_slab[type=bottom,waterlogged=true]";
         for (int[] e : edges) {
             int ax = origin + e[0] * CELL + CELL / 2, az = origin + e[1] * CELL + CELL / 2;
             int bx = origin + e[2] * CELL + CELL / 2, bz = origin + e[3] * CELL + CELL / 2;
@@ -79,32 +79,37 @@ public final class Sewer implements MapGenerator {
                 m.populate(new Rect(cx - r, cz - r, cx + r, cz + r), y, 2, rnd.nextInt(3) == 0 ? 2 : 1);
             }
         }
-        // 정비실 (문 달린 작은 방) 6곳
-        for (int i = 0; i < 6; i++) {
-            int gx = rnd.nextInt(GRID), gz = rnd.nextInt(GRID);
+        // 정비실: 동서 터널 남쪽 벽에 문을 내고 그 뒤 바위 속에 방을 판다
+        int roomsMade = 0;
+        List<int[]> eastEdges = new ArrayList<>();
+        for (int[] e : edges) if (e[1] == e[3] && Math.abs(e[0] - e[2]) == 1) eastEdges.add(e);
+        Collections.shuffle(eastEdges, rnd);
+        Set<String> used = new HashSet<>();
+        for (int[] e : eastEdges) {
+            if (roomsMade >= 8) break;
+            int gx = Math.min(e[0], e[2]), gz = e[1];
+            if (gz >= GRID - 1 || !used.add(gx + ":" + gz)) continue;
             int cx = origin + gx * CELL + CELL / 2, cz = origin + gz * CELL + CELL / 2;
-            int rx = cx + 5, rz = cz - 2;
-            if (rx + 5 >= x2) continue;
-            Rect room = new Rect(rx + 1, rz, rx + 5, rz + 4);
+            Rect room = new Rect(cx + 6, cz + 4, cx + 9, cz + 8);
             m.clearBox(room.x1(), y + 1, room.z1(), room.x2(), y + 3, room.z2());
-            m.door(rx, y, cz, false);
+            m.door(cx + 7, y, cz + 3, true);
             m.set(room.cx(), y + 4, room.cz(), t.light);
-            m.clear(room.cx(), y + 3, room.cz());
             Furnish.storage(m, room, y);
-            m.table(room.x2(), y, room.z1(), true);
+            m.table(room.x2(), y, room.z2(), true);
+            roomsMade++;
         }
         // 펌프실 (큰 방)
         int pcx = origin + (GRID / 2) * CELL, pcz = origin + (GRID / 2) * CELL;
         Rect pump = new Rect(pcx - 6, pcz - 6, pcx + 6, pcz + 6);
         m.clearBox(pump.x1(), y + 1, pump.z1(), pump.x2(), y + 4, pump.z2());
         for (int x = pcx - 4; x <= pcx + 4; x += 4) {
-            m.fill(x, y + 1, pcz - 1, x, y + 3, pcz + 1, Theme.b("minecraft:iron_block"));
-            m.set(x, y + 4, pcz, Theme.b("minecraft:lightning_rod"));
+            m.fill(x, y + 1, pcz - 1, x, y + 3, pcz + 1, "minecraft:iron_block");
+            m.set(x, y + 4, pcz, "minecraft:lightning_rod");
         }
         m.lights(pump, y - 1, 4);
         m.populate(pump, y, 4, 3);
         // 바깥 경계 (지붕)
-        m.fill(x1, y + 6, z1, x2, y + 6, z2, Theme.b("minecraft:stone"));
+        m.fill(x1, y + 6, z1, x2, y + 6, z2, "minecraft:stone");
         return m.finish(id(), displayName());
     }
 

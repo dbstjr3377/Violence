@@ -1,12 +1,11 @@
 package dev.violence.mapgen;
 
-import org.bukkit.block.data.BlockData;
 
 /** 방 종류별 가구 배치. 벽에 붙여 배치해 통로를 막지 않는다. */
 public final class Furnish {
     private Furnish() {}
 
-    private static BlockData b(String s) { return Theme.b(s); }
+    private static String b(String s) { return s; }
 
     /** 방 안쪽 벽을 따라 놓을 수 있는 칸인가 (출입구 바로 앞 제외) */
     static boolean freeCell(MapBuilder m, int x, int y, int z) {
@@ -22,7 +21,7 @@ public final class Furnish {
     }
 
     /** 벽을 따라 무작위로 소품 블록 놓기 */
-    static void alongWalls(MapBuilder m, Rect r, int y, int count, BlockData... props) {
+    static void alongWalls(MapBuilder m, Rect r, int y, int count, String... props) {
         for (int i = 0; i < count; i++) {
             int side = m.rnd.nextInt(4);
             int x, z;
@@ -70,7 +69,7 @@ public final class Furnish {
         for (int x = r.x1(); x <= r.x2(); x++) {
             if (!freeCell(m, x, y, r.z1())) continue;
             int roll = m.rnd.nextInt(6);
-            BlockData d = switch (roll) {
+            String d = switch (roll) {
                 case 0 -> b("minecraft:smoker[facing=south]");
                 case 1 -> b("minecraft:cauldron");
                 case 2 -> b("minecraft:iron_block");

@@ -3,7 +3,6 @@ package dev.violence.mapgen;
 import dev.violence.arena.GameMap;
 import java.util.List;
 import java.util.Random;
-import org.bukkit.World;
 
 /**
  * 아파트 A동: 3층 복도식 아파트.
@@ -14,7 +13,7 @@ public final class ApartmentA implements MapGenerator {
     @Override public String displayName() { return "아파트 A동"; }
 
     @Override
-    public GameMap generate(World world, Random rnd) {
+    public GameMap generate(BlockAccess world, Random rnd) {
         Theme t = Theme.of("minecraft:white_concrete", "minecraft:light_gray_concrete", "minecraft:oak_planks",
                 "minecraft:gray_concrete", "minecraft:smooth_stone", "minecraft:pearlescent_froglight",
                 "minecraft:glass_pane", "minecraft:spruce_slab[type=top]", "minecraft:polished_andesite",
@@ -70,12 +69,12 @@ public final class ApartmentA implements MapGenerator {
         }
         // 층간 계단: 각 계단실에 1→2층, 2→3층
         var solid = t.floorAlt;
-        var slab = Theme.b("minecraft:smooth_stone_slab");
+        var slab = "minecraft:smooth_stone_slab";
         m.stairs(-45, 64, -14, 0, 1, 2, solid, slab);
         m.stairs(-45, 64 + MapBuilder.H, 14, 0, -1, 2, solid, slab);
         m.stairs(44, 64, 14, 0, -1, 2, solid, slab);
         m.stairs(44, 64 + MapBuilder.H, -14, 0, 1, 2, solid, slab);
-        m.floor(outer, 64 + floors * MapBuilder.H, Theme.b("minecraft:gray_concrete"));
+        m.floor(outer, 64 + floors * MapBuilder.H, "minecraft:gray_concrete");
         return m.finish(id(), displayName());
     }
 }

@@ -3,7 +3,6 @@ package dev.violence.mapgen;
 import dev.violence.arena.GameMap;
 import java.util.List;
 import java.util.Random;
-import org.bukkit.World;
 
 /**
  * 오피스 빌딩: 3층. 가운데 코어(계단, 화장실) 둘레로 칸막이 사무실과
@@ -14,7 +13,7 @@ public final class BuildingA implements MapGenerator {
     @Override public String displayName() { return "오피스 빌딩"; }
 
     @Override
-    public GameMap generate(World world, Random rnd) {
+    public GameMap generate(BlockAccess world, Random rnd) {
         Theme t = Theme.of("minecraft:light_gray_concrete", "minecraft:gray_concrete", "minecraft:gray_wool",
                 "minecraft:polished_andesite", "minecraft:smooth_quartz", "minecraft:sea_lantern",
                 "minecraft:light_blue_stained_glass", "minecraft:smooth_quartz_slab[type=top]", "minecraft:white_concrete",
@@ -72,13 +71,13 @@ public final class BuildingA implements MapGenerator {
             m.exteriorWindows(outer, y, 3, 2);
         }
         // 계단 (코어 안 서쪽 x -6..-5, 층마다 방향 교대)
-        var slab = Theme.b("minecraft:polished_andesite_slab");
+        var slab = "minecraft:polished_andesite_slab";
         m.stairs(-6, 64, -4, 1, 0, 2, t.floorAlt, slab);
         // 2→3층은 동쪽 바깥 회의실 옆 복도
         m.stairs(15, 64 + MapBuilder.H, 24, 0, -1, 2, t.floorAlt, slab);
         // 1→2층 두 번째 계단 (남동쪽)
         m.stairs(29, 64, 24, 0, -1, 2, t.floorAlt, slab);
-        m.floor(outer, 64 + floors * MapBuilder.H, Theme.b("minecraft:gray_concrete"));
+        m.floor(outer, 64 + floors * MapBuilder.H, "minecraft:gray_concrete");
         return m.finish(id(), displayName());
     }
 
@@ -93,8 +92,8 @@ public final class BuildingA implements MapGenerator {
 
     /** 2x2 책상 + 낮은 유리 칸막이 */
     private void cubicle(MapBuilder m, int x, int y, int z, Random rnd) {
-        var low = Theme.b("minecraft:white_stained_glass_pane[east=true,west=true]");
-        var lowZ = Theme.b("minecraft:white_stained_glass_pane[north=true,south=true]");
+        var low = "minecraft:white_stained_glass_pane[east=true,west=true]";
+        var lowZ = "minecraft:white_stained_glass_pane[north=true,south=true]";
         for (int i = 0; i < 4; i++) {
             if (m.isAir(x + i, y + 1, z + 1)) m.set(x + i, y + 1, z + 1, low);
         }

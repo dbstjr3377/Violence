@@ -61,7 +61,7 @@ public final class MapEditor {
         } else {
             MapGenerator g = Generators.get(id);
             if (g != null) {
-                map = g.generate(world, new Random(id.hashCode() * 31L + 7));
+                map = g.generate(new dev.violence.map.WorldBlockAccess(world), new Random(id.hashCode() * 31L + 7));
             } else {
                 // 새 빈 맵
                 map = new GameMap();

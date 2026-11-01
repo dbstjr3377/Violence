@@ -103,7 +103,7 @@ public final class MapService {
                 return;
             }
             plugin.getLogger().info("내장 맵 생성 중: " + id);
-            GameMap m = g.generate(w, new Random(id.hashCode() * 31L + 7));
+            GameMap m = g.generate(new WorldBlockAccess(w), new Random(id.hashCode() * 31L + 7));
             try {
                 saveMap(w, m);
             } catch (IOException e) {
