@@ -98,7 +98,7 @@ public final class PlayerCombatant extends Combatant {
         PlayerInventory inv = player.getInventory();
         // 맨손: 1인칭에서만 보이는 장갑 낀 두 주먹 (3인칭에서는 보이지 않음)
         WeaponType held = weapon == null ? plugin().weapons().fist() : weapon.type();
-        inv.setItem(0, WeaponItems.create(held, weapon == null ? 0 : weapon.ammo()));
+        inv.setItem(0, WeaponItems.create(held, weapon == null ? 0 : weapon.ammo(), backhand));
         inv.setItemInOffHand(offhand != null ? WeaponItems.create(offhand.type(), offhand.ammo()) : null);
         if (inv.getHeldItemSlot() != 0) inv.setHeldItemSlot(0);
         plugin().game().syncHeld(this);
@@ -187,6 +187,17 @@ public final class PlayerCombatant extends Combatant {
         return move.dot(to) > 0.4;
     }
 
+    /** 지금 손에 든 아이템이 왼→오 휘두르기용("_b")인가 */
+    private boolean backhand;
+
+    /** 다음 휘두르기 방향에 맞는 1인칭 아이템으로 바꿔 낀다 (3인칭 표시는 그대로) */
+    public void setBackhand(boolean b) {
+        if (b == backhand) return;
+        backhand = b;
+        WeaponType held = weapon == null ? plugin().weapons().fist() : weapon.type();
+        player.getInventory().setItem(0, WeaponItems.create(held, weapon == null ? 0 : weapon.ammo(), b));
+    }
+
     /** 1인칭 키프레임 애니메이션 재생 (해당 쿨다운 그룹에 짧은 쿨다운) */
     public void playAnim(net.kyori.adventure.key.Key group, int ticks) {
         if (group != null) player.setCooldown(group, ticks);
@@ -195,6 +206,11 @@ public final class PlayerCombatant extends Combatant {
     @Override
     public void feelImpact(double amount) {
         plugin().shake().add(player, amount);
+    }
+
+    @Override
+    public void feelSustained(double level) {
+        plugin().shake().atLeast(player, level);
     }
 
     @Override

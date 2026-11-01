@@ -211,6 +211,11 @@ def main():
         ref = custom_model.get(w, "violence:weapon/" + w)
         if ref not in item_ids:
             err(f"weapons.yml 무기 모델 없음: {w} → {ref}")
+    # 좌우로 휘두르는 근접 무기는 번갈아 쓰는 왼→오 아이템("<id>_b")이 있어야 함 (WeaponItems.swings)
+    melee_ids = re.findall(r"^  ([a-z0-9_]+):\s*\n(?:    .*\n)*?    category:\s*MELEE", yml, re.M)
+    for w in melee_ids:
+        if w != "pool_cue_short" and ("violence:weapon/" + w + "_b") not in item_ids:
+            err(f"왼→오 휘두르기 아이템 없음: violence:weapon/{w}_b")
     # 사운드
     sounds = load(os.path.join(ASSETS, "violence", "sounds.json")) or {}
     used_sounds = set(re.findall(r'"violence:((?:gun|melee|hit|world|weapon|ui)\.[a-z_]+)"', java + yml))
@@ -219,7 +224,7 @@ def main():
             err(f"사운드 정의 없음: violence:{s}")
     # 폰트 키
     for f in set(re.findall(r'Key\.key\("violence", "([a-z_]+)"\)', java)):
-        if f.startswith("blood") or f.startswith("misc/") or f in ("gunfire", "melee", "fist"):
+        if f.startswith("blood") or f.startswith("misc/") or f in ("gunfire", "melee", "melee_b", "fist"):
             continue
         if not os.path.isfile(os.path.join(ASSETS, "violence", "font", f + ".json")):
             err(f"자바 코드가 쓰는 폰트 없음: violence:{f}")

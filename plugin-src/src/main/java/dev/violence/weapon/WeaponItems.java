@@ -24,6 +24,26 @@ public final class WeaponItems {
     public static final Key GUNFIRE = Key.key("violence", "gunfire");
     public static final Key MELEE = Key.key("violence", "melee");
     public static final Key FIST = Key.key("violence", "fist");
+    /** 연속 공격 때 번갈아 나오는 왼→오 휘두르기 ("<id>_b" 아이템 전용) */
+    public static final Key MELEE_B = Key.key("violence", "melee_b");
+
+    /** 좌우로 휘두르는 근접 무기 (부러진 큐대만 찌르기) */
+    public static boolean swings(WeaponType t) {
+        return t.isMelee() && !t.id().equals("pool_cue_short");
+    }
+
+    /**
+     * 1인칭 손 아이템. backhand 이면 왼→오 휘두르기 프레임을 가진 "<id>_b" 모델과 별도 쿨다운 그룹을 쓴다.
+     * (같은 무기라도 두 아이템을 번갈아 끼워 오→왼→오→왼 연속 동작을 만든다)
+     */
+    public static ItemStack create(WeaponType type, int ammo, boolean backhand) {
+        ItemStack it = create(type, ammo);
+        if (backhand && swings(type)) {
+            it.setData(DataComponentTypes.ITEM_MODEL, Key.key(type.model() + "_b"));
+            it.setData(DataComponentTypes.USE_COOLDOWN, io.papermc.paper.datacomponent.item.UseCooldown.useCooldown(0.05f).cooldownGroup(MELEE_B).build());
+        }
+        return it;
+    }
 
     public static Key animGroup(WeaponType t) {
         return switch (t.category()) {

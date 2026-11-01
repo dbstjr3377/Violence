@@ -49,12 +49,26 @@ def bat():
 
 
 def pipe():
-    m = Model("pipe", seed=103, auto_round=0.16)
-    rust = lambda f, p, u, v: (120, 64, 34) if (int(p[1] * 2.3) * 7 + int(p[0] * 3)) % 11 == 0 else None
-    rod(m, 0, 27, 0.8, "dark_steel", painter=rust)
-    rod(m, 0, 1.6, 1.05, "steel", painter=lambda f, p, u, v: (70, 72, 78) if int(p[1] * 4) % 2 == 0 else None)
-    rod(m, 25.4, 27.4, 1.15, "steel")
-    m.box([6.6, 26.9, 6.6], [9.4, 27.6, 9.4], "dark_steel")
+    m = Model("pipe", seed=103, auto_round=0.12)
+    rust = lambda f, p, u, v: (120, 64, 34) if (int(p[1] * 2.3) * 7 + int(p[0] * 3 + p[2] * 3)) % 11 == 0 else None
+    rod(m, 1.6, 20.6, 0.85, "dark_steel", painter=rust)                    # 파이프 몸통
+    for i in range(5):                                                      # 아래 끝 나사산
+        y = 0.1 + i * 0.32
+        rod(m, y, y + 0.18, 0.95, "dark_steel")
+    rod(m, 0, 1.7, 0.8, "dark_steel", painter=rust)
+    for i in range(6):                                                      # 위 끝 나사산
+        y = 20.6 + i * 0.32
+        rod(m, y, y + 0.18, 0.95, "dark_steel")
+    rod(m, 20.5, 22.6, 0.8, "dark_steel", painter=rust)
+    rod(m, 22.0, 22.5, 1.35, "steel")                                       # 와셔
+    rod(m, 22.5, 25.6, 1.25, "dark_steel", painter=rust)                    # 엘보 세로
+    m.box([6.75, 24.2, 6.75], [9.25, 26.8, 10.4], "dark_steel", painter=rust)   # 꺾이는 부분
+    octagon_rod(m, "z", 8, 25.6, 1.25, 9.6, 12.6, "dark_steel", painter=rust)  # 엘보 가로 (앞쪽으로)
+    for i in range(3):
+        z = 12.6 + i * 0.32
+        octagon_rod(m, "z", 8, 25.6, 1.05, z, z + 0.18, "dark_steel")
+    hole = lambda f, p, u, v: (12, 12, 12) if f == "south" and (p[0] - 8) ** 2 + (p[1] - 25.6) ** 2 < 0.25 else None
+    octagon_rod(m, "z", 8, 25.6, 0.95, 12.6, 14.0, "dark_steel", painter=hole)  # 마개 (육각 구멍)
     return m
 
 
@@ -65,7 +79,7 @@ def golf_club():
     m.box([7.4, 24.5, 7.0], [8.6, 26.8, 9.0], "chrome")
     m.box([7.2, 24.2, 3.2], [8.8, 26.6, 9.0], "chrome", rot=rot("x", -22.5, [8, 24.5, 8]),
           painter=lambda f, p, u, v: (60, 62, 68) if f in ("east",) and int(p[1] * 4) % 2 == 0 else None)
-    return m
+    return m.mirror_z()
 
 
 def fire_axe():
@@ -76,7 +90,7 @@ def fire_axe():
     m.box([7.45, 20.2, 1.6], [8.55, 27.0, 3.6], "steel", painter=edge_line(("east", "west"), (235, 238, 245), 0.0, 0.3))
     m.box([7.5, 22.6, 9.4], [8.5, 24.6, 13.2], "red_paint")                   # 뒤쪽 뿔
     m.box([7.65, 22.9, 13.2], [8.35, 24.3, 14.4], "steel")
-    return m
+    return m.mirror_z()
 
 
 def machete():
@@ -90,11 +104,14 @@ def machete():
 
 def pot():
     m = Model("pot", seed=107, auto_round=0.16)
-    rod(m, 0, 9, 0.65, "black")
-    m.box([7.5, 7.5, 7.5], [8.5, 10.2, 8.5], "steel")
-    disc(m, "y", 8, 13, 8, 5.2, 6.0, "steel")
-    disc(m, "y", 8, 16.1, 8, 5.5, 0.4, "chrome")
-    disc(m, "y", 8, 15.9, 8, 4.6, 0.2, flat((30, 30, 34)))
+    rod(m, 0, 9.6, 0.62, "black")
+    m.box([7.3, 0.6, 7.3], [8.7, 1.2, 8.7], "steel")                      # 손잡이 끝 고리
+    m.box([7.45, 9.4, 7.45], [8.55, 11.0, 8.55], "steel")                  # 연결 쇠
+    inside = lambda f, p, u, v: (28, 28, 32) if f == "south" and (p[0] - 8) ** 2 + (p[1] - 15.4) ** 2 < 17 else None
+    octagon_rod(m, "z", 8, 15.4, 5.0, 4.4, 11.0, "steel", painter=inside)   # 몸통 (입구가 앞)
+    octagon_rod(m, "z", 8, 15.4, 5.4, 10.6, 11.3, "chrome", painter=inside)  # 테두리
+    octagon_rod(m, "z", 8, 15.4, 4.6, 4.0, 4.5, "dark_steel")              # 바닥
+    m.box([2.0, 14.6, 7.0], [3.0, 16.2, 9.0], "black")                     # 반대쪽 보조 손잡이
     return m
 
 
@@ -156,21 +173,22 @@ def hammer(name="hammer", short=False):
     m.box([7.0, top - 0.6, 5.0], [9.0, top + 2.2, 10.0], "dark_steel")
     m.box([7.2, top - 0.3, 3.4], [8.8, top + 1.9, 5.0], "steel")            # 치는 면
     m.box([7.35, top + 0.2, 10.0], [8.65, top + 1.8, 13.0], "dark_steel", rot=rot("x", -22.5, [8, top + 1, 10]))
-    return m
+    return m.mirror_z()
 
 
 def briefcase():
+    """손잡이를 쥐고 가방 몸통이 위로 서도록 (몽둥이처럼 휘두름)"""
     m = Model("briefcase", seed=114, auto_round=0.16)
-    m.box([1.5, 1.5, 6.4], [14.5, 12.5, 9.6], "leather")
-    m.box([1.4, 1.4, 7.85], [14.6, 12.6, 8.15], "leather_dark")             # 이음매
+    m.box([6.0, 0.0, 7.4], [10.0, 1.0, 8.6], "leather_dark")              # 손잡이 (쥐는 부분)
+    m.box([6.0, 0.0, 7.4], [6.8, 2.6, 8.6], "leather_dark")
+    m.box([9.2, 0.0, 7.4], [10.0, 2.6, 8.6], "leather_dark")
+    m.box([1.5, 2.6, 6.4], [14.5, 14.6, 9.6], "leather")                  # 가방 몸통 (손잡이 위)
+    m.box([1.4, 2.5, 7.85], [14.6, 14.7, 8.15], "leather_dark")           # 이음매
     for x in (1.3, 14.2):
-        m.box([x, 1.2, 6.2], [x + 0.5, 2.2, 9.8], "brass")
-        m.box([x, 11.8, 6.2], [x + 0.5, 12.8, 9.8], "brass")
-    m.box([4.0, 11.0, 6.2], [5.4, 12.0, 6.4], "brass")
-    m.box([10.6, 11.0, 6.2], [12.0, 12.0, 6.4], "brass")
-    m.box([6.0, 12.5, 7.4], [6.8, 14.0, 8.6], "leather_dark")
-    m.box([9.2, 12.5, 7.4], [10.0, 14.0, 8.6], "leather_dark")
-    m.box([6.0, 13.6, 7.4], [10.0, 14.6, 8.6], "leather_dark")
+        m.box([x, 2.3, 6.2], [x + 0.5, 3.3, 9.8], "brass")
+        m.box([x, 13.9, 6.2], [x + 0.5, 14.9, 9.8], "brass")
+    m.box([4.0, 3.1, 6.2], [5.4, 4.1, 6.4], "brass")                      # 잠금쇠
+    m.box([10.6, 3.1, 6.2], [12.0, 4.1, 6.4], "brass")
     return m
 
 
@@ -267,6 +285,6 @@ THROWABLES = {
 }
 # 오른손으로 쥐는 위치 (손잡이 중앙)
 GRIP = {k: (8, 3.5, 8) for k in list(MELEE) + list(THROWABLES)}
-GRIP.update({"briefcase": (8, 13.6, 8), "pot": (8, 4, 8), "frying_pan": (8, 5, 8), "bottle": (8, 9.5, 8),
+GRIP.update({"briefcase": (8, 0.5, 8), "pot": (8, 4, 8), "frying_pan": (8, 5, 8), "bottle": (8, 9.5, 8),
              "brick": (8, 6.4, 8), "scissors": (8, 3.8, 8), "dart": (8, 6.5, 8), "throwing_knife": (8, 2.6, 8),
              "small_hammer": (8, 3.0, 8), "cleaver": (8, 3.0, 8)})

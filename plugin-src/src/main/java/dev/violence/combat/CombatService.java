@@ -120,7 +120,9 @@ public final class CombatService {
         int pellets = t.pelletsMin() + (t.pelletsMax() > t.pelletsMin() ? plugin.random().nextInt(t.pelletsMax() - t.pelletsMin() + 1) : 0);
         boolean silenced = t.silenced() || c.mask == Mask.PETER;
         Vec3 right = dir.cross(Vec3.UP).normalize();
-        Vec3 muzzle = eye.add(dir.mul(0.6)).add(right.mul(leftHand ? -0.25 : 0.25)).add(0, -0.2, 0);
+        // 궤적 시작점: 1인칭 총 모델의 총구가 보이는 방향 (화면 중앙에서 오른쪽 아래)
+        Vec3 camUp = right.cross(dir).normalize();
+        Vec3 muzzle = eye.add(dir.mul(0.6)).add(right.mul(leftHand ? -0.15 : 0.15)).add(camUp.mul(-0.13));
         for (int i = 0; i < pellets; i++) {
             Vec3 d = Spread.jitter(dir, spread, plugin.random());
             TraceResult r = hitscan(a, c, eye, d, t.range(), t.pierce());
@@ -134,14 +136,20 @@ public final class CombatService {
         plugin.fx().muzzle(a, eye, dir, silenced, c instanceof PlayerCombatant shooter ? shooter.player() : null);
         if (c instanceof PlayerCombatant pcs && !leftHand) {
             // 1인칭: 총구 화염 → 반동 → 반동 잡기 키프레임 (조준점은 움직이지 않음)
-            pcs.playAnim(WeaponItems.GUNFIRE, 6);
+            pcs.playAnim(WeaponItems.GUNFIRE, t.fireAnimTicks());
         }
         float vol = silenced ? 0.35f : (pellets > 1 ? 3.2f : 2.6f);
         plugin.fx().sound(c.world(), eye, silenced ? "violence:gun.silenced" : t.sound(), vol, 0.95f + plugin.random().nextFloat() * 0.1f);
         if (!silenced && plugin.npcs() != null) plugin.npcs().hearNoise(eye, pellets > 1 ? 45 : 40);
-        double kick = pellets > 1 ? 0.45 : (t.pierce() ? 0.4 : 0.12);
-        c.feelImpact(kick);
+        if (t.automatic()) {
+            // 연사: 발마다 쌓지 않고 일정한 잔떨림만 유지 (조준이 크게 흔들리지 않게)
+            c.feelSustained(0.3);
+        } else {
+            double kick = pellets > 1 ? 0.45 : (t.pierce() ? 0.4 : 0.12);
+            c.feelImpact(kick);
+        }
     }
+
 
     /** 히트스캔 판정: 유리는 깨며 관통, 문/벽에서 멈춤, 개체는 머리/몸통 판정. */
     public TraceResult hitscan(Arena a, Combatant shooter, Vec3 origin, Vec3 dir, double range, boolean pierce) {
@@ -248,12 +256,27 @@ public final class CombatService {
         Arena a = arena();
         WeaponType t = c.weaponType(fist());
         c.meleeReadyAt = now + t.meleeCooldown();
+        // 왼클릭을 이어서 누르면 오→왼→오→왼 으로 번갈아 휘두른다 (잠깐 쉬면 다시 오→왼부터)
+        boolean chained = now - c.lastSwingTick <= t.meleeCooldown() + 12;
+        c.swingChain = chained ? c.swingChain + 1 : 0;
+        boolean swings = WeaponItems.swings(t);
+        boolean backhand = swings && (c.swingChain & 1) == 1;
         c.lastSwingTick = now;
         c.entity().swingMainHand();
-        if (c instanceof PlayerCombatant pcm) pcm.playAnim(WeaponItems.animGroup(t), Math.max(6, Math.min(9, t.meleeCooldown())));
-        plugin.fx().sound(c.world(), c.eye(), t.isFist() ? "violence:melee.punch_swing" : "violence:melee.swing", 0.9f, t.meleeCooldown() <= 6 ? 1.4f : 1.0f);
+        int animTicks = Math.max(6, Math.min(9, t.meleeCooldown()));
+        if (c instanceof PlayerCombatant pcm) {
+            if (swings) {
+                pcm.setBackhand(backhand);
+                pcm.playAnim(backhand ? WeaponItems.MELEE_B : WeaponItems.MELEE, animTicks);
+            } else {
+                pcm.playAnim(WeaponItems.animGroup(t), animTicks);
+            }
+        }
+        plugin.fx().sound(c.world(), c.eye(), t.isFist() ? "violence:melee.punch_swing" : "violence:melee.swing", 0.9f,
+                (t.meleeCooldown() <= 6 ? 1.4f : 1.0f) * (backhand ? 1.08f : 1.0f));
         Vec3 eye = c.eye();
         Vec3 dir = c.look();
+        if (swings) plugin.fx().slash(arena(), eye, dir, backhand, (float) c.scale());
         double range = t.meleeRange();
         // 유리 깨기 / 벽까지 거리
         double wallDist = range;

@@ -34,6 +34,12 @@ public final class Shake {
         s.trauma = Math.min(1.0, s.trauma + amount);
     }
 
+    /** 흔들림을 최소 amount 로 유지 (연사 잔떨림) */
+    public void atLeast(Player p, double amount) {
+        State s = st(p);
+        s.trauma = Math.max(s.trauma, Math.min(1.0, amount));
+    }
+
     /** 총기 반동: 위로 살짝 튀었다가 돌아옴 */
     public void recoil(Player p, double degrees) {
         st(p).recoilPitch += degrees;

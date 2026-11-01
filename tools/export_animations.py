@@ -41,6 +41,16 @@ def melee_ticks():
     return out
 
 
+def gun_ticks(gid):
+    """WeaponType.fireAnimTicks(): 단발 6틱, 연사는 발사 간격의 약 2배"""
+    yml = open(os.path.join(ROOT, "plugin-src", "src", "main", "resources", "weapons.yml"), encoding="utf-8").read()
+    block = re.search(r"^  " + gid + r":\s*\n((?:    .*\n)+)", yml, re.M).group(1)
+    if not re.search(r"automatic:\s*true", block):
+        return GUN_TICKS
+    rpm = float(re.search(r"rpm:\s*([\d.]+)", block).group(1))
+    return int(max(2, min(6, round(1200.0 / rpm * 2))))
+
+
 def anim_of(item):
     d = json.load(open(os.path.join(NS, "items", "weapon", item + ".json"), encoding="utf-8"))
     fp = d["model"]["cases"][0]["model"] if d["model"]["type"] == "minecraft:select" else d["model"]
@@ -66,10 +76,13 @@ def main():
         frames = anim_of(item)
         if not frames:
             continue
+        base = item[:-2] if item.endswith("_b") else item
         kind = "gun" if item in ("m16", "uzi", "mp5", "shotgun", "double_barrel", "magnum", "silenced_pistol", "silenced_uzi") else ("fist" if item == "fist" else "melee")
-        ticks = GUN_TICKS if kind == "gun" else (FIST_TICKS if kind == "fist" else mt.get(item, 7))
-        entry = {"type": {"gun": "사격 + 반동 잡기", "fist": "잽", "melee": "찌르기" if item == "pool_cue_short" else "좌우 베기"}[kind],
-                 "cooldown_group": {"gun": "violence:gunfire", "fist": "violence:fist", "melee": "violence:melee"}[kind],
+        ticks = gun_ticks(item) if kind == "gun" else (FIST_TICKS if kind == "fist" else mt.get(base, 7))
+        melee_type = "찌르기" if item == "pool_cue_short" else ("휘두르기 왼→오 (연속 공격 짝수 번째)" if item.endswith("_b") else "휘두르기 오→왼")
+        entry = {"type": {"gun": "사격 + 반동 잡기", "fist": "잽", "melee": melee_type}[kind],
+                 "cooldown_group": {"gun": "violence:gunfire", "fist": "violence:fist",
+                                    "melee": "violence:melee_b" if item.endswith("_b") else "violence:melee"}[kind],
                  "length_ticks": ticks, "frames": []}
         imgs, durs = [], []
         for i, (model, hi, lo) in enumerate(frames):
@@ -101,7 +114,7 @@ def main():
                 z.writestr(f"gif/{item}.gif", b)
         for f in glob.glob(os.path.join(NS, "models", "item", "weapon", "*.json")):
             n = os.path.basename(f)
-            if re.search(r"_fp(_fire|_r\d|_a\d|_jab|_half)?\.json$|_tp\.json$|^fist_fp", n):
+            if re.search(r"_fp(_fire|_r\d|_a\d|_b\d|_jab|_half)?\.json$|_tp\.json$|^fist_fp", n):
                 z.write(f, "assets/violence/models/item/weapon/" + n)
         for f in glob.glob(os.path.join(NS, "items", "weapon", "*.json")):
             z.write(f, "assets/violence/items/weapon/" + os.path.basename(f))
@@ -113,7 +126,8 @@ def main():
                    "- assets/         : 리소스팩의 프레임 모델 json, 아이템 정의 json\n"
                    "- source/anim.py  : 키프레임 원본 (build_pack.py 가 이 값으로 프레임을 만듦)\n"
                    "동작 원리: 공격할 때 쿨다운 그룹에 짧은 쿨다운을 걸면, 아이템 정의의 range_dispatch(cooldown)가\n"
-                   "남은 쿨다운 비율에 따라 프레임 모델을 바꿔 보여 준다.\n")
+                   "남은 쿨다운 비율에 따라 프레임 모델을 바꿔 보여 준다.\n"
+                   "근접 연속 공격: 홀수 번째는 <무기> (오→왼), 짝수 번째는 <무기>_b (왼→오) 아이템으로 바꿔 끼워 번갈아 재생한다.\n")
     print(OUT, os.path.getsize(OUT) // 1024, "KB")
 
 

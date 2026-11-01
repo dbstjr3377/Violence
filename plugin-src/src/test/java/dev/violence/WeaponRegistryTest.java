@@ -20,6 +20,17 @@ class WeaponRegistryTest {
     }
 
     @Test
+    void fireAnimationFollowsFireRate() {
+        WeaponRegistry r = load();
+        // 연사 무기는 발사 간격의 약 2배 → 쏠 때마다 화염이 깜빡임
+        assertEquals(2, r.get("uzi").fireAnimTicks());
+        assertEquals(3, r.get("m16").fireAnimTicks());
+        // 단발 무기는 반동 잡기 동작을 끝까지
+        assertEquals(6, r.get("magnum").fireAnimTicks());
+        assertEquals(6, r.get("shotgun").fireAnimTicks());
+    }
+
+    @Test
     void specValues() {
         WeaponRegistry r = load();
         WeaponType sg = r.get("shotgun");

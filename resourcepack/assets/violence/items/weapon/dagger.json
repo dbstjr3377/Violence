@@ -13,28 +13,28 @@
      "property": "minecraft:cooldown",
      "entries": [
       {
-       "threshold": 0.15,
+       "threshold": 0.18,
        "model": {
         "type": "minecraft:model",
         "model": "violence:item/weapon/dagger_fp_a3"
        }
       },
       {
-       "threshold": 0.38,
+       "threshold": 0.42,
        "model": {
         "type": "minecraft:model",
         "model": "violence:item/weapon/dagger_fp_a2"
        }
       },
       {
-       "threshold": 0.6,
+       "threshold": 0.62,
        "model": {
         "type": "minecraft:model",
         "model": "violence:item/weapon/dagger_fp_a1"
        }
       },
       {
-       "threshold": 0.8,
+       "threshold": 0.82,
        "model": {
         "type": "minecraft:model",
         "model": "violence:item/weapon/dagger_fp_a0"
@@ -52,5 +52,6 @@
    "type": "minecraft:model",
    "model": "violence:item/weapon/dagger"
   }
- }
+ },
+ "hand_animation_on_swap": false
 }

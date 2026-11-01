@@ -35,6 +35,16 @@ public record WeaponType(
         int spawnWeight
 ) {
     public boolean isGun() { return category == WeaponCategory.GUN; }
+    /**
+     * 1인칭 사격 애니메이션 길이(틱). 단발 무기는 화염 → 반동 → 반동 잡기를 끝까지 보여 주고,
+     * 연사 무기는 발사 간격의 약 2배로 줄여 쏠 때마다 화염이 깜빡이고 총이 떨리게 한다.
+     */
+    public int fireAnimTicks() {
+        if (!automatic) return 6;
+        double interval = 1200.0 / Math.max(1.0, rpm);
+        return (int) Math.max(2, Math.min(6, Math.round(interval * 2)));
+    }
+
     public boolean isMelee() { return category == WeaponCategory.MELEE; }
     public boolean isFist() { return category == WeaponCategory.FIST; }
     public boolean isThrowable() { return category == WeaponCategory.THROWABLE; }

@@ -115,6 +115,39 @@ public final class Fx {
         removeLater(a, d, 2);
     }
 
+    /**
+     * 근접 휘두르기 궤적: 눈앞에서 하얀 호가 베는 방향으로 쓸고 지나간다.
+     * @param leftToRight false = 오른쪽 → 왼쪽, true = 왼쪽 → 오른쪽 (좌우 반전)
+     */
+    public void slash(Arena a, Vec3 eye, Vec3 dir, boolean leftToRight, float size) {
+        Vec3 d = dir.normalize();
+        Vec3 at = eye.add(d.mul(1.0 * size)).add(0, -0.1 * size, 0);
+        ItemDisplay e = spawnDisplay(a, at, "violence:fx/slash", true);
+        e.setViewRange(1.0f);
+        float yaw = (float) Math.toRadians(d.yaw());
+        float pitch = (float) Math.toRadians(d.pitch());
+        // 판의 법선을 시선 방향에 맞추고, 베는 끝(왼쪽 아래)으로 살짝 기울임
+        Quaternionf face = new Quaternionf().rotateY(-yaw).rotateX(pitch).rotateZ(-0.22f);
+        float mirror = leftToRight ? -1f : 1f;
+        // 표시 엔티티 기준 +x 가 보는 사람의 왼쪽 → 오→왼 은 -x 에서 +x 로 이동
+        float w = 1.7f * size, h = 1.0f * size;
+        e.setTransformation(new Transformation(rotate(face, -0.35f * mirror * size, 0.05f * size), face,
+                new Vector3f(w * 0.45f * mirror, h * 0.8f, 1f), new Quaternionf()));
+        plugin.later(1, () -> {
+            if (!e.isValid()) return;
+            e.setInterpolationDelay(0);
+            e.setInterpolationDuration(3);
+            e.setTransformation(new Transformation(rotate(face, 0.3f * mirror * size, -0.08f * size), face,
+                    new Vector3f(w * mirror, h, 1f), new Quaternionf()));
+        });
+        removeLater(a, e, 5);
+    }
+
+    /** 판 기준 좌표 (x, y) 를 월드 방향 이동량으로 */
+    private static Vector3f rotate(Quaternionf q, float x, float y) {
+        return q.transform(new Vector3f(x, y, 0));
+    }
+
     /** 표면에 납작하게 붙는 데칼 (혈흔, 탄흔) */
     public void decal(Arena a, Vec3 point, Vec3 normal, String model, float scale) {
         Vec3 n = normal.normalize();

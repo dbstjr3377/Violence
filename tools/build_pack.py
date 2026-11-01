@@ -7,6 +7,7 @@ bukkit/plugins/ViolenceCore/resourcepack.zip 으로 압축한다.
 
 사용법:  python3 tools/build_pack.py
 """
+import json
 import math
 import os
 import random
@@ -100,6 +101,60 @@ def fp_display(base, grip, recoil=False, align=True):
     return {"firstperson_righthand": disp, "firstperson_lefthand": left}
 
 
+AIM_DISTANCE = 12.0   # 총구 연장선이 화면 중앙(조준점)과 만나는 거리 (블록)
+
+
+def _aim_error(disp, muzzle):
+    """총열 방향과 '총구 → 조준점' 방향의 차이 (좌우°, 상하°). +면 오른쪽/위로 벗어남"""
+    import fp_sim
+    m, _ = fp_sim.muzzle_screen(disp, muzzle)
+    b, _ = fp_sim.muzzle_screen(disp, (muzzle[0], muzzle[1], muzzle[2] - 8))
+    d = [m[i] - b[i] for i in range(3)]
+    t = [-m[0], -m[1], -AIM_DISTANCE - m[2]]
+    yaw = math.degrees(math.atan2(d[0], -d[2]) - math.atan2(t[0], -t[2]))
+    pitch = math.degrees(math.atan2(d[1], math.hypot(d[0], d[2])) - math.atan2(t[1], math.hypot(t[0], t[2])))
+    return yaw, pitch
+
+
+def aim_at_crosshair(display, muzzle, anchor):
+    """
+    1인칭 총이 조준점을 겨누도록 회전을 보정한다.
+    오른손 그립(anchor)의 화면 위치는 그대로 두고 총열 연장선이 화면 중앙으로 모이게 한다.
+    """
+    import fp_sim
+    disp = json.loads(json.dumps(display["firstperson_righthand"]))
+    grip0, _ = fp_sim.muzzle_screen(disp, anchor)
+
+    def with_rot(rx, ry):
+        d = {"rotation": [rx, ry, disp["rotation"][2]], "translation": list(disp["translation"]), "scale": disp["scale"]}
+        g, _ = fp_sim.muzzle_screen(d, anchor)
+        d["translation"] = [d["translation"][i] + (grip0[i] - g[i]) * 16 for i in range(3)]
+        return d
+
+    rx, ry = disp["rotation"][0], disp["rotation"][1]
+    for _ in range(40):
+        e = _aim_error(with_rot(rx, ry), muzzle)
+        if abs(e[0]) < 0.02 and abs(e[1]) < 0.02:
+            break
+        h = 0.05
+        ex = _aim_error(with_rot(rx + h, ry), muzzle)
+        ey = _aim_error(with_rot(rx, ry + h), muzzle)
+        # 야코비안 [[d yaw/d rx, d yaw/d ry], [d pitch/d rx, d pitch/d ry]]
+        a, b = (ex[0] - e[0]) / h, (ey[0] - e[0]) / h
+        c, d_ = (ex[1] - e[1]) / h, (ey[1] - e[1]) / h
+        det = a * d_ - b * c
+        drx = (-e[0] * d_ + b * e[1]) / det
+        dry = (-a * e[1] + c * e[0]) / det
+        rx += max(-5, min(5, drx))
+        ry += max(-5, min(5, dry))
+    disp = with_rot(rx, ry)
+    disp["rotation"] = [round(v, 2) for v in disp["rotation"]]
+    disp["translation"] = [round(v, 3) for v in disp["translation"]]
+    left = {"rotation": [disp["rotation"][0], 360 - disp["rotation"][1], -disp["rotation"][2]],
+            "translation": [-disp["translation"][0], disp["translation"][1], disp["translation"][2]], "scale": disp["scale"]}
+    return {"firstperson_righthand": disp, "firstperson_lefthand": left}
+
+
 def save_model(kind, name, vm, display):
     tex_ref = f"violence:item/{kind}/{name}"
     mj, img = vm.build(tex_ref)
@@ -156,7 +211,7 @@ def weapons():
         save_model("weapon", gid, make(), M.GUN_DISPLAY)
         base_cfg = custom.get(gid, FP_GUN)
         align = gid not in custom
-        rest_disp = fp_display(base_cfg, right, align=align)
+        rest_disp = aim_at_crosshair(fp_display(base_cfg, right, align=align), models_guns.MUZZLE[gid], right)
         fp = make()
         models_hands.hands_for(fp, gid, right, left)
         save_model("weapon", gid + "_fp", fp, rest_disp)
@@ -192,13 +247,27 @@ def weapons():
             save_model("weapon", wid + "_fp", fp, rest_disp)
             fp_model = ref(f"violence:item/weapon/{wid}_fp")
             if animated:
+                rest_fr = rest_disp["firstperson_righthand"]
                 keys = anim.STAB if wid in STAB_WEAPONS else anim.SWING
                 frames = []
                 for i, (th, dr, dt) in enumerate(keys):
-                    write_frame(f"{wid}_fp_a{i}", wid + "_fp", {"firstperson_righthand": anim.apply(rest_disp["firstperson_righthand"], dr, dt)})
+                    write_frame(f"{wid}_fp_a{i}", wid + "_fp", {"firstperson_righthand": anim.apply(rest_fr, dr, dt)})
                     frames.append((th, f"{wid}_fp_a{i}"))
                 fp_model = dispatch(frames, wid + "_fp")
-            write(os.path.join(NS, "items", "weapon", wid + ".json"), select_by_context(fp_model, ref(f"violence:item/weapon/{wid}")))
+                if wid not in STAB_WEAPONS:
+                    # 연속 공격 시 번갈아 쓰는 왼→오 휘두르기 (플러그인이 "<id>_b" 아이템으로 바꿔 끼움)
+                    frames_b = []
+                    for i, (th, dr, dt) in enumerate(anim.SWING_L2R):
+                        write_frame(f"{wid}_fp_b{i}", wid + "_fp", {"firstperson_righthand": anim.apply(rest_fr, dr, dt)})
+                        frames_b.append((th, f"{wid}_fp_b{i}"))
+                    item_b = select_by_context(dispatch(frames_b, wid + "_fp"), ref(f"violence:item/weapon/{wid}"))
+                    item_b["hand_animation_on_swap"] = False
+                    write(os.path.join(NS, "items", "weapon", wid + "_b.json"), item_b)
+            item = select_by_context(fp_model, ref(f"violence:item/weapon/{wid}"))
+            if animated:
+                # 오→왼 / 왼→오 아이템을 바꿔 낄 때 손이 내려갔다 올라오지 않게
+                item["hand_animation_on_swap"] = False
+            write(os.path.join(NS, "items", "weapon", wid + ".json"), item)
             count += 1
     # ── 맨주먹: 장갑 낀 두 주먹 (가드 / 잽 / 회수), 1인칭에서만 보임 ──
     fist_disp = {"firstperson_righthand": FP_FIST,
@@ -350,6 +419,25 @@ def fx():
     d.polygon([(2, 3), (14, 1), (11, 14), (4, 10)], fill=(200, 235, 240, 150), outline=(240, 255, 255, 220))
     save_png(img, os.path.join(T, "glass_shard.png"))
     write(os.path.join(NS, "models", "fx", "glass_shard.json"), plane_model("violence:fx/glass_shard", axis="z"))
+    # 근접 휘두르기 궤적 (오른쪽 → 왼쪽 기준. 왼→오는 플러그인이 좌우를 뒤집어 씀)
+    W_, H_ = 64, 64
+    img = Image.new("RGBA", (W_, H_), (0, 0, 0, 0))
+    px = img.load()
+    for y in range(H_):
+        for x in range(W_):
+            u = (x + 0.5) / W_ * 2 - 1          # -1 = 왼쪽(베는 방향 끝), 1 = 오른쪽(시작)
+            v = (y + 0.5) / H_
+            top = 0.30 + 0.30 * u * u            # 가운데가 높은 완만한 호
+            thick = 0.20 * (1 - u * u) * (0.55 + 0.45 * (1 - u) / 2)
+            if thick <= 0 or not (top <= v <= top + thick):
+                continue
+            k = (v - top) / thick                # 0 = 바깥쪽 날, 1 = 안쪽 꼬리
+            lead = (1 - u) / 2                   # 베는 방향 앞쪽일수록 진하게
+            a = int(255 * (1 - k) ** 0.7 * (0.25 + 0.75 * lead))
+            c = 255 if k < 0.35 else int(235 - 60 * k)
+            px[x, y] = (c, c, min(255, c + 10), a)
+    save_png(img, os.path.join(T, "slash.png"))
+    write(os.path.join(NS, "models", "fx", "slash.json"), plane_model("violence:fx/slash", axis="z"))
 
 
 def misc():
@@ -384,7 +472,7 @@ def misc():
     write(os.path.join(NS, "items", "misc", "blank.json"), item_def("violence:misc/blank"))
     # FX 아이템 정의
     for name in ["tracer", "tracer_orange", "muzzle", "muzzle_small", "blood_decal_0", "blood_decal_1", "blood_decal_2",
-                 "blood_decal_3", "blood_pool", "blood_mist", "blood_drop", "bullet_hole", "impact", "glass_shard"]:
+                 "blood_decal_3", "blood_pool", "blood_mist", "blood_drop", "bullet_hole", "impact", "glass_shard", "slash"]:
         write(os.path.join(NS, "items", "fx", name + ".json"), item_def("violence:fx/" + name))
     _ = uvf
 

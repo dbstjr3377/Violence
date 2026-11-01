@@ -54,6 +54,8 @@ public abstract class Combatant {
     private String fireAccWeapon;
     public long lastFireTick = -100;
     public long lastSwingTick = -100;
+    /** 끊기지 않고 이어진 휘두르기 횟수 (홀수 번째는 왼→오) */
+    public int swingChain;
     public long dualToggle;
 
     protected Combatant(UUID id) {
@@ -94,6 +96,9 @@ public abstract class Combatant {
 
     /** 처형 시 화면 흔들림 등 타격감 */
     public void feelImpact(double amount) {}
+
+    /** 연사 중 잔떨림 (흔들림을 최소 이 정도로 유지, 누적되지 않음) */
+    public void feelSustained(double level) {}
 
     /** 다음 리스폰 틱 (사망 상태일 때) */
     public long respawnAt = -1;

@@ -172,6 +172,21 @@ class Model:
         self.boxes.append(Box(frm, to, mat, rot, painter, faces, light))
         return self
 
+    def mirror_z(self, center=8.0):
+        """Z 축 방향 뒤집기 (머리/날이 반대쪽을 보도록)"""
+        for b in self.boxes:
+            z0, z1 = b.frm[2], b.to[2]
+            b.frm[2], b.to[2] = 2 * center - z1, 2 * center - z0
+            if b.rot:
+                r = dict(b.rot)
+                o = list(r["origin"])
+                o[2] = 2 * center - o[2]
+                r["origin"] = o
+                if r["axis"] in ("x", "y"):
+                    r["angle"] = -r["angle"]
+                b.rot = r
+        return self
+
     def add(self, other):
         self.boxes.extend(other.boxes)
         return self
