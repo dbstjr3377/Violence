@@ -1,0 +1,44 @@
+{
+ "providers": [
+  {
+   "type": "bitmap",
+   "file": "violence:font/bullet.png",
+   "ascent": 7,
+   "height": 8,
+   "chars": [
+    ""
+   ]
+  },
+  {
+   "type": "bitmap",
+   "file": "violence:font/skull.png",
+   "ascent": 7,
+   "height": 8,
+   "chars": [
+    ""
+   ]
+  },
+  {
+   "type": "ttf",
+   "file": "violence:bungee.ttf",
+   "size": 13.8,
+   "oversample": 4.0,
+   "shift": [
+    0,
+    0.0
+   ],
+   "skip": ""
+  },
+  {
+   "type": "ttf",
+   "file": "violence:blackhansans.ttf",
+   "size": 15,
+   "oversample": 4.0,
+   "shift": [
+    0,
+    0.0
+   ],
+   "skip": ""
+  }
+ ]
+}

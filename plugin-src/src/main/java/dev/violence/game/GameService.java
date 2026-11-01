@@ -259,6 +259,8 @@ public final class GameService {
         for (PlayerCombatant pc : a.players.values()) {
             Player p = pc.player();
             plugin.hud().tick(p, now);
+            // 연속 5킬: 심장 박동
+            if (pc.streak.value() >= 5 && pc.isAlive() && now % 24 == 0) p.playSound(p.getLocation(), "violence:ui.heartbeat", 0.7f, 1f);
             if (now % 2 == 0) plugin.hud().combo(p, pc.combo.count(), pc.combo.remaining(now, scores.comboWindow(pc)));
             if (now % 5 != 0) continue;
             Component status = Component.empty()

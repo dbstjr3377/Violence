@@ -1,0 +1,38 @@
+# ─────────────────────────────────────────────────────────────
+#  VIOLENCE - 점수 규칙
+#  어렵게 죽일수록 점수가 높습니다: 총 → 투척 → 근접 → 맨손 → 처형
+#  여기 숫자를 바꾸고 /sk reload violence 하면 바로 적용됩니다.
+# ─────────────────────────────────────────────────────────────
+
+options:
+	gun: 100
+	throw: 200
+	melee: 300
+	fist: 400
+	execution: 500
+	door: 350
+	headshot: 50
+
+# 처치 점수. type = GUN / THROW / MELEE / FIST / EXECUTION / DOOR
+function violenceKillPoints(type: text, headshot: text, combo: number) :: number:
+	set {_p} to {@gun}
+	if {_type} is "THROW":
+		set {_p} to {@throw}
+	else if {_type} is "MELEE":
+		set {_p} to {@melee}
+	else if {_type} is "FIST":
+		set {_p} to {@fist}
+	else if {_type} is "EXECUTION":
+		set {_p} to {@execution}
+	else if {_type} is "DOOR":
+		set {_p} to {@door}
+	if {_headshot} is "true":
+		add {@headshot} to {_p}
+	return {_p}
+
+# 콤보 보너스 (10초 안에 연속 처치, 콤보가 끝나면 지급)
+#   100 × 콤보수² + 처치 점수 합 × 10% × (콤보수 - 1)
+function violenceComboBonus(count: number, base: number) :: number:
+	if {_count} < 2:
+		return 0
+	return 100 * {_count} * {_count} + round({_base} * 0.1 * ({_count} - 1))

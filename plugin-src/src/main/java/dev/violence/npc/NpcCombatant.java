@@ -115,15 +115,15 @@ public final class NpcCombatant extends Combatant {
         switch (state) {
             case DOWNED, BEING_EXECUTED -> {
                 body.setInvisible(false);
-                body.setPose(Pose.SWIMMING, true);
+                dev.violence.fx.Poses.lying(body);
             }
             case DEAD -> {
-                body.setPose(Pose.STANDING, false);
+                dev.violence.fx.Poses.standing(body);
                 body.setInvisible(true);
             }
             default -> {
                 body.setInvisible(false);
-                body.setPose(Pose.STANDING, false);
+                dev.violence.fx.Poses.standing(body);
             }
         }
     }

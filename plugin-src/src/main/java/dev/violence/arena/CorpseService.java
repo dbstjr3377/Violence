@@ -50,7 +50,7 @@ public final class CorpseService {
                 if (s != null) s.setBaseValue(1.2);
             }
         }));
-        m.setPose(Pose.SWIMMING, true);
+        dev.violence.fx.Poses.lying(m);
         corpses.addLast(m);
         int max = plugin.getConfig().getInt("fx.max-corpses", 30);
         while (corpses.size() > max) {

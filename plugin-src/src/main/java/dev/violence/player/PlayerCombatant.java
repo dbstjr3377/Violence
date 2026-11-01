@@ -81,7 +81,7 @@ public final class PlayerCombatant extends Combatant {
         setAttr(Attribute.FALL_DAMAGE_MULTIPLIER, 1.0);
         setAttr(Attribute.CAMERA_DISTANCE, 4.0);
         clearCrawl();
-        player.setPose(Pose.STANDING, false);
+        dev.violence.fx.Poses.standing(player);
         player.setFoodLevel(20);
         player.getInventory().clear();
         player.setInvisible(false);
@@ -127,18 +127,18 @@ public final class PlayerCombatant extends Combatant {
         setAttr(Attribute.MOVEMENT_SPEED, speedValue(now));
         switch (state) {
             case DOWNED, BEING_EXECUTED -> {
-                player.setPose(Pose.SWIMMING, true);
+                dev.violence.fx.Poses.lying(player);
                 applyCrawl();
                 player.setInvisible(false);
             }
             case DEAD -> {
                 clearCrawl();
-                player.setPose(Pose.STANDING, false);
+                dev.violence.fx.Poses.standing(player);
                 player.setInvisible(true);
             }
             default -> {
                 clearCrawl();
-                player.setPose(Pose.STANDING, false);
+                dev.violence.fx.Poses.standing(player);
                 player.setInvisible(false);
             }
         }

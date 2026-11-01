@@ -95,6 +95,11 @@ public final class ViolencePlugin extends JavaPlugin {
         game = new GameService(this);
         pack = new PackServer(this);
         maps.cleanupLeftovers();
+        try {
+            lobby.setupWorld();
+        } catch (RuntimeException e) {
+            getLogger().warning("로비 월드 설정 실패: " + e);
+        }
         pack.start();
 
         getServer().getPluginManager().registerEvents(new PlayerListener(this), this);

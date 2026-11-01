@@ -22,6 +22,20 @@ public final class LobbyService {
 
     public World world() { return Bukkit.getWorlds().getFirst(); }
 
+    /** 로비 월드: 밤낮/날씨/몹 고정 */
+    public void setupWorld() {
+        World w = world();
+        w.setGameRule(org.bukkit.GameRules.ADVANCE_TIME, false);
+        w.setGameRule(org.bukkit.GameRules.ADVANCE_WEATHER, false);
+        w.setGameRule(org.bukkit.GameRules.SPAWN_MOBS, false);
+        w.setGameRule(org.bukkit.GameRules.SPAWN_MONSTERS, false);
+        w.setGameRule(org.bukkit.GameRules.SHOW_ADVANCEMENT_MESSAGES, false);
+        w.setGameRule(org.bukkit.GameRules.FALL_DAMAGE, false);
+        w.setGameRule(org.bukkit.GameRules.LOCATOR_BAR, false);
+        w.setTime(18000);
+        w.setStorm(false);
+    }
+
     public boolean isLobby(World w) { return w.equals(world()); }
 
     public Location spawn() {

@@ -52,7 +52,7 @@ public final class MaskService {
         pc.maskOffer = new ArrayList<>(all.subList(0, 3));
         PlayerInventory inv = pc.player().getInventory();
         for (int i = 0; i < 3; i++) inv.setItem(OFFER_SLOTS[i], WeaponItems.mask(pc.maskOffer.get(i), true));
-        plugin.hud().prompt(pc.player(), "E키를 눌러 가면을 착용하세요");
+        plugin.hud().prompt(pc.player(), Glyphs.PROMPT_MASK);
         plugin.fx().sound(pc.world(), pc.eye(), "violence:ui.mask_offer", 1f, 1f);
     }
 

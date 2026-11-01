@@ -39,8 +39,8 @@ public final class GroundWeaponService {
     }
 
     private static Transformation lyingTransform(float yaw, float scale) {
-        // 무기 모델을 바닥에 눕힘 (X 축 -90도) + 무작위 방향
-        Quaternionf q = new Quaternionf().rotateY((float) Math.toRadians(-yaw)).rotateX((float) Math.toRadians(-90));
+        // 모델의 fixed 표시 설정이 무기를 바닥에 눕힌다. 여기서는 방향(yaw)만 돌림
+        Quaternionf q = new Quaternionf().rotateY((float) Math.toRadians(-yaw));
         return new Transformation(new Vector3f(0, 0.04f, 0), q, new Vector3f(scale, scale, scale), new Quaternionf());
     }
 
