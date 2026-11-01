@@ -101,6 +101,7 @@ public final class PlayerCombatant extends Combatant {
         inv.setItem(0, WeaponItems.create(held, weapon == null ? 0 : weapon.ammo()));
         inv.setItemInOffHand(offhand != null ? WeaponItems.create(offhand.type(), offhand.ammo()) : null);
         if (inv.getHeldItemSlot() != 0) inv.setHeldItemSlot(0);
+        plugin().game().syncHeld(this);
         inv.setHelmet(mask != null ? WeaponItems.mask(mask, false) : null);
         int blood = streak.bloodLevel();
         int overlay = streak.value() >= 5 ? 2 : (streak.value() >= 3 ? 1 : 0);

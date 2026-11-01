@@ -105,8 +105,8 @@ public final class NpcCombatant extends Combatant {
             eq.setItemInOffHand(null);
             return;
         }
-        eq.setItemInMainHand(weapon != null ? WeaponItems.create(weapon.type(), weapon.ammo()) : null);
-        eq.setItemInOffHand(offhand != null ? WeaponItems.create(offhand.type(), offhand.ammo()) : null);
+        eq.setItemInMainHand(weapon != null ? WeaponItems.world(weapon.type()) : null);
+        eq.setItemInOffHand(offhand != null ? WeaponItems.world(offhand.type()) : null);
         if (eq.getChestplate() == null || eq.getChestplate().getType() == Material.AIR) copyOutfitTo(eq);
     }
 

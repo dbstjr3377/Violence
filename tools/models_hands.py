@@ -45,9 +45,8 @@ def left_hand_support(m, g):
 def hands_for(m, gun, right, left):
     right_hand(m, right)
     if gun in ("magnum", "silenced_pistol"):
-        left_hand_support(m, right)
-    else:
-        left_hand_rail(m, left)
+        return  # 권총은 한 손
+    left_hand_rail(m, left)
 
 
 def right_fist(m, g, forearm=4.5):

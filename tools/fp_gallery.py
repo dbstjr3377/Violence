@@ -82,11 +82,12 @@ if __name__ == "__main__":
     recoil = ["발사 (총구 화염)", "반동", "반동 잡기", "평소"]
     for g in ["m16", "uzi", "mp5", "shotgun", "double_barrel", "magnum", "silenced_pistol", "silenced_uzi"]:
         strip(g, g, recoil, os.path.join(OUT, f"{g}.png"), shakes=[1.2, 0.6, 0.2, 0])
-    swing = ["내려치기", "휘두름", "되돌림", "마무리", "평소"]
+    swing = ["휘두르기 시작", "좌우로 베기", "되돌림", "마무리", "평소"]
     for w in ["bat", "katana", "fire_axe", "frying_pan", "crowbar", "pipe"]:
         strip(w, w, swing, os.path.join(OUT, f"{w}.png"))
+    strip("dagger", "dagger", swing, os.path.join(OUT, "dagger.png"))
     stab = ["찌르기", "빼기", "되돌림", "평소"]
-    strip("dagger", "dagger", stab, os.path.join(OUT, "dagger.png"))
+    strip("pool_cue_short", "부러진 큐대", stab, os.path.join(OUT, "pool_cue_short.png"))
     strip("fist", "맨주먹", ["잽", "회수", "가드"], os.path.join(OUT, "fist.png"))
     for t in ["bottle", "brick", "throwing_knife"]:
         strip(t, t, ["들고 있음"], os.path.join(OUT, f"{t}.png"))

@@ -65,7 +65,10 @@ FP_GUN = {"rotation": [3, 196, 0], "translation": [-3, 0, -1], "scale": [0.8, 0.
 FP_MELEE = {"rotation": [-30, 195, -8], "translation": [-2, 4.5, 0], "scale": [0.55, 0.55, 0.55]}
 REF_GRIP = (8, 6.0, 4.0)
 # 권총은 양손으로 쥐고 화면 중앙 아래 (그립 정렬 없이 직접 지정)
-FP_PISTOL = {"rotation": [4, 184, 0], "translation": [-6, 3.6, -1.6], "scale": [0.88, 0.88, 0.88]}
+FP_PISTOL = {"rotation": [4, 190, 0], "translation": [-2.5, 2.6, -1], "scale": [0.8, 0.8, 0.8]}
+# 다른 플레이어가 보는 양손 총 (장전된 석궁 자세: 양팔 조준) — tp_sim.py 로 맞춤
+TP_CROSSBOW = {"rotation": [0, 180, 0], "translation": [0, 0, 0], "scale": [0.75, 0.75, 0.75]}
+ONE_HANDED = {"magnum", "silenced_pistol"}
 FP_SMG = {"rotation": [3, 194, 0], "translation": [-3, 1.2, -3], "scale": [0.7, 0.7, 0.7]}
 
 
@@ -115,7 +118,7 @@ def ref(model):
     return {"type": "minecraft:model", "model": model}
 
 
-STAB_WEAPONS = {"dagger", "pool_cue_short", "throwing_knife"}
+STAB_WEAPONS = {"pool_cue_short"}
 FP_FIST = {"rotation": [0, 180, 0], "translation": [-6.5, 4.5, 0], "scale": [0.9, 0.9, 0.9]}
 
 
@@ -170,6 +173,12 @@ def weapons():
                 frames.append((th, f"{gid}_fp_r{i}"))
         write(os.path.join(NS, "items", "weapon", gid + ".json"),
               select_by_context(dispatch(frames, gid + "_fp"), ref(f"violence:item/weapon/{gid}")))
+        if gid not in ONE_HANDED:
+            # 다른 플레이어/NPC 용: 석궁 자세에 맞춘 3인칭 표시
+            write(os.path.join(NS, "models", "item", "weapon", gid + "_tp.json"),
+                  {"parent": "violence:item/weapon/" + gid,
+                   "display": {"thirdperson_righthand": TP_CROSSBOW, "thirdperson_lefthand": TP_CROSSBOW}})
+            write(os.path.join(NS, "items", "weapon", gid + "_world.json"), item_def(f"violence:item/weapon/{gid}_tp"))
         count += 1
     # ── 근접: 휘두르기/찌르기 프레임, 투척: 오른손 ──
     for table, disp, animated in ((models_melee.MELEE, M.MELEE_DISPLAY, True), (models_melee.THROWABLES, M.THROW_DISPLAY, False)):

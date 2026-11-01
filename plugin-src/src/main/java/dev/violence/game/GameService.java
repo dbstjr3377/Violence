@@ -237,6 +237,8 @@ public final class GameService {
             }
             plugin.doors().tick(a, now);
             plugin.ground().tick(a, now);
+            // 새로 시야에 들어온 사람에게도 3인칭 손 아이템이 보이도록 주기적으로 다시 보냄
+            if (now % 10 == 0) for (PlayerCombatant pc : a.players.values()) syncHeld(pc);
             updateHud(a, now);
             List<Player> online = new ArrayList<>();
             for (PlayerCombatant pc : a.players.values()) online.add(pc.player());
@@ -319,6 +321,25 @@ public final class GameService {
         }
         if (pc.bulletShield > 0) c = c.append(Glyphs.text("  ◆".repeat(pc.bulletShield), Glyphs.HUD, Glyphs.CYAN));
         return c;
+    }
+
+    // ───────── 3인칭 손 아이템 ─────────
+
+    /**
+     * 다른 플레이어들에게 pc 가 든 아이템을 3인칭용으로 바꿔 보낸다 (본인 인벤토리는 1인칭용 그대로).
+     * 양손 총은 장전된 석궁으로 보여 양팔 조준 자세가 되고, 근접 무기는 휘두르기 동작이 보인다.
+     */
+    public void syncHeld(PlayerCombatant pc) {
+        Arena a = plugin.arena();
+        if (a == null) return;
+        java.util.Map<org.bukkit.inventory.EquipmentSlot, org.bukkit.inventory.ItemStack> eq = new java.util.EnumMap<>(org.bukkit.inventory.EquipmentSlot.class);
+        WeaponType held = pc.weaponType(plugin.weapons().fist());
+        eq.put(org.bukkit.inventory.EquipmentSlot.HAND, pc.state == CombatState.DEAD ? null : dev.violence.weapon.WeaponItems.world(held));
+        eq.put(org.bukkit.inventory.EquipmentSlot.OFF_HAND, pc.offhand != null && pc.state != CombatState.DEAD ? dev.violence.weapon.WeaponItems.world(pc.offhand.type()) : null);
+        for (PlayerCombatant viewer : a.players.values()) {
+            if (viewer == pc || !viewer.player().isOnline()) continue;
+            viewer.player().sendEquipmentChange(pc.player(), eq);
+        }
     }
 
     // ───────── 처치 ─────────

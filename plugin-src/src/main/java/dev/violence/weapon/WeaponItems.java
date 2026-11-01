@@ -50,6 +50,37 @@ public final class WeaponItems {
         return it;
     }
 
+    /** 한 손으로 드는 총 (나머지 총은 양손 조준 자세) */
+    public static boolean oneHanded(WeaponType t) {
+        return t.id().equals("magnum") || t.id().equals("silenced_pistol");
+    }
+
+    /**
+     * 다른 플레이어와 NPC 에게 보이는 손 아이템 (3인칭 상체 애니메이션용).
+     * - 양손 총: 장전된 석궁 → 바닐라의 양팔 조준 자세 (다리는 이동하며 따로 움직임)
+     * - 권총: 한 손으로 들기
+     * - 근접: 공격 시 휘두르기 동작이 보이도록 (부러진 큐대만 찌르기)
+     * - 맨손: 손에 보이는 것 없이 주먹 휘두르기
+     */
+    public static ItemStack world(WeaponType type) {
+        if (type.isGun() && !oneHanded(type)) {
+            ItemStack it = new ItemStack(Material.CROSSBOW);
+            it.setData(DataComponentTypes.ITEM_MODEL, Key.key(type.model() + "_world"));
+            it.setData(DataComponentTypes.CHARGED_PROJECTILES,
+                    io.papermc.paper.datacomponent.item.ChargedProjectiles.chargedProjectiles(java.util.List.of(new ItemStack(Material.ARROW))));
+            it.setData(DataComponentTypes.TOOLTIP_DISPLAY, TooltipDisplay.tooltipDisplay().hideTooltip(true).build());
+            it.setData(DataComponentTypes.ATTACK_ANIMATION, SwingAnimation.swingAnimation().type(SwingAnimation.Animation.NONE).duration(1).build());
+            return it;
+        }
+        ItemStack it = create(type, 0);
+        if (type.isFist()) it.setData(DataComponentTypes.ITEM_MODEL, Key.key("violence:misc/blank"));
+        if (type.isMelee() || type.isFist()) {
+            SwingAnimation.Animation a = type.id().equals("pool_cue_short") ? SwingAnimation.Animation.STAB : SwingAnimation.Animation.WHACK;
+            it.setData(DataComponentTypes.ATTACK_ANIMATION, SwingAnimation.swingAnimation().type(a).duration(Math.max(5, Math.min(10, type.meleeCooldown()))).build());
+        }
+        return it;
+    }
+
     /** 가면 아이템 (머리 칸 착용, 착용 시 머리 위 모델 표시) */
     public static ItemStack mask(Mask mask, boolean selectable) {
         ItemStack it = new ItemStack(Material.PAPER);
