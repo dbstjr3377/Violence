@@ -131,7 +131,11 @@ public final class CombatService {
             if (r.door != null) plugin.doors().bulletHit(r.door, d, c);
             else if (r.wallNormal != null && i < 6) plugin.fx().bulletHole(a, r.end, r.wallNormal);
         }
-        plugin.fx().muzzle(a, eye, dir, silenced);
+        plugin.fx().muzzle(a, eye, dir, silenced, c instanceof PlayerCombatant shooter ? shooter.player() : null);
+        if (c instanceof PlayerCombatant pcs && !leftHand) {
+            // 1인칭 총구 화염 + 반동 모델 (리소스팩 cooldown 조건)
+            pcs.player().setCooldown(dev.violence.weapon.WeaponItems.GUNFIRE, 3);
+        }
         float vol = silenced ? 0.35f : (pellets > 1 ? 3.2f : 2.6f);
         plugin.fx().sound(c.world(), eye, silenced ? "violence:gun.silenced" : t.sound(), vol, 0.95f + plugin.random().nextFloat() * 0.1f);
         if (!silenced && plugin.npcs() != null) plugin.npcs().hearNoise(eye, pellets > 1 ? 45 : 40);

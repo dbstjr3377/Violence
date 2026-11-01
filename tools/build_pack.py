@@ -60,22 +60,116 @@ def mcmeta():
 
 # ───────────────────────── 무기 / 가면 모델 ─────────────────────────
 
+# 1인칭 표시 (fp_sim.py 로 화면 구도를 맞춤)
+FP_GUN = {"rotation": [3, 196, 0], "translation": [-3, 0, -1], "scale": [0.8, 0.8, 0.8]}
+FP_MELEE = {"rotation": [-30, 195, -8], "translation": [-2, 4.5, 0], "scale": [0.55, 0.55, 0.55]}
+REF_GRIP = (8, 6.0, 4.0)
+# 권총은 양손으로 쥐고 화면 중앙 아래 (그립 정렬 없이 직접 지정)
+FP_PISTOL = {"rotation": [4, 184, 0], "translation": [-6, 3.6, -1.6], "scale": [0.88, 0.88, 0.88]}
+FP_SMG = {"rotation": [3, 194, 0], "translation": [-3, 1.2, -3], "scale": [0.7, 0.7, 0.7]}
+
+
+def fp_display(base, grip, recoil=False, align=True):
+    """그립 위치가 달라도 손이 화면 같은 자리에 오도록 보정"""
+    import math as _m
+    rx, ry, rz = (_m.radians(v) for v in base["rotation"])
+    s = base["scale"][0]
+    d = [REF_GRIP[i] - grip[i] for i in range(3)]
+
+    def rot_xyz(v):
+        x, y, z = v
+        # Rz → Ry → Rx (마인크래프트 rotationXYZ)
+        x, y = x * _m.cos(rz) - y * _m.sin(rz), x * _m.sin(rz) + y * _m.cos(rz)
+        x, z = x * _m.cos(ry) + z * _m.sin(ry), -x * _m.sin(ry) + z * _m.cos(ry)
+        y, z = y * _m.cos(rx) - z * _m.sin(rx), y * _m.sin(rx) + z * _m.cos(rx)
+        return [x, y, z]
+
+    off = rot_xyz([v * s for v in d]) if align else [0, 0, 0]
+    t = [round(base["translation"][i] + off[i], 3) for i in range(3)]
+    r = list(base["rotation"])
+    if recoil:
+        t = [t[0], round(t[1] + 0.4, 3), round(t[2] + 1.4, 3)]
+        r = [r[0] + 4, r[1], r[2]]
+    disp = {"rotation": r, "translation": t, "scale": base["scale"]}
+    left = {"rotation": [r[0], 360 - r[1], -r[2]], "translation": [-t[0], t[1], t[2]], "scale": base["scale"]}
+    return {"firstperson_righthand": disp, "firstperson_lefthand": left}
+
+
+def save_model(kind, name, vm, display):
+    tex_ref = f"violence:item/{kind}/{name}"
+    mj, img = vm.build(tex_ref)
+    mj["display"] = display
+    write(os.path.join(NS, "models", "item", kind, name + ".json"), mj)
+    save_png(img, os.path.join(NS, "textures", "item", kind, name + ".png"))
+
+
+def select_by_context(fp_model, other_model):
+    return {"model": {
+        "type": "minecraft:select", "property": "minecraft:display_context",
+        "cases": [{"when": ["firstperson_righthand", "firstperson_lefthand"], "model": fp_model}],
+        "fallback": other_model,
+    }}
+
+
+def ref(model):
+    return {"type": "minecraft:model", "model": model}
+
+
 def weapons():
-    tex = os.path.join(NS, "textures", "item", "palette.png")
-    palette_texture(tex)
-    ref = "violence:item/palette"
-    groups = [(M.MELEE, M.MELEE_DISPLAY), (M.GUNS, M.GUN_DISPLAY), (M.THROWABLES, M.THROW_DISPLAY)]
+    import models_flash
+    import models_guns
+    import models_hands
+    import models_masks
+    import models_melee
     count = 0
-    for shapes, disp in groups:
-        for wid, elems in shapes.items():
-            write(os.path.join(NS, "models", "item", "weapon", wid + ".json"), model(elems, ref, disp))
-            write(os.path.join(NS, "items", "weapon", wid + ".json"), item_def("violence:item/weapon/" + wid))
+    # 총기: 기본 / 1인칭(양손) / 1인칭 사격(총구 화염 + 반동)
+    for gid, make in models_guns.GUNS.items():
+        right, left = models_guns.HAND_POS[gid]
+        save_model("weapon", gid, make(), M.GUN_DISPLAY)
+        fp = make()
+        models_hands.hands_for(fp, gid, right, left)
+        custom = {"magnum": FP_PISTOL, "silenced_pistol": FP_PISTOL, "uzi": FP_SMG, "silenced_uzi": FP_SMG}
+        pistol = gid in custom
+        base = custom.get(gid, FP_GUN)
+        save_model("weapon", gid + "_fp", fp, fp_display(base, right, align=not pistol))
+        fire = make()
+        models_hands.hands_for(fire, gid, right, left)
+        models_flash.add_flash(fire, models_guns.MUZZLE[gid], 2.6 if "silenced" in gid else 3.4)
+        save_model("weapon", gid + "_fp_fire", fire, fp_display(base, right, recoil=True, align=not pistol))
+        fp_sel = {"type": "minecraft:range_dispatch", "property": "minecraft:cooldown",
+                  "entries": [{"threshold": 0.34, "model": ref(f"violence:item/weapon/{gid}_fp_fire")}],
+                  "fallback": ref(f"violence:item/weapon/{gid}_fp")}
+        write(os.path.join(NS, "items", "weapon", gid + ".json"), select_by_context(fp_sel, ref(f"violence:item/weapon/{gid}")))
+        count += 1
+    # 근접 / 투척: 기본 / 1인칭(오른손)
+    for table, disp in ((models_melee.MELEE, M.MELEE_DISPLAY), (models_melee.THROWABLES, M.THROW_DISPLAY)):
+        for wid, make in table.items():
+            grip = models_melee.GRIP[wid]
+            save_model("weapon", wid, make(), disp)
+            fp = make()
+            models_hands.right_fist(fp, grip)
+            fd = fp_display({**FP_MELEE}, grip)
+            # 근접 무기는 그립 기준점이 총과 다르므로 별도 보정
+            save_model("weapon", wid + "_fp", fp, melee_fp_display(grip))
+            write(os.path.join(NS, "items", "weapon", wid + ".json"),
+                  select_by_context(ref(f"violence:item/weapon/{wid}_fp"), ref(f"violence:item/weapon/{wid}")))
+            _ = fd
             count += 1
-    for mid, elems in M.MASKS.items():
-        write(os.path.join(NS, "models", "item", "mask", mid + ".json"), model(elems, ref, M.MASK_DISPLAY))
+    for mid, make in models_masks.MASKS.items():
+        save_model("mask", mid, make(), M.MASK_DISPLAY)
         write(os.path.join(NS, "items", "mask", mid + ".json"), item_def("violence:item/mask/" + mid))
         count += 1
     return count
+
+
+def melee_fp_display(grip):
+    global REF_GRIP
+    saved = REF_GRIP
+    REF_GRIP = (8, 3.5, 8)
+    try:
+        return fp_display(FP_MELEE, grip)
+    finally:
+        REF_GRIP = saved
 
 
 # ───────────────────────── 연출 (FX) 텍스처/모델 ─────────────────────────
@@ -219,13 +313,12 @@ def misc():
     uvf = [0, 0, 16, 16]
     door_model = {
         "textures": {"d": "violence:misc/door", "particle": "violence:misc/door"},
-        "texture_size": [16, 32],
         "elements": [{
             "from": [0, 0, 7], "to": [16, 32, 9],
             "faces": {
-                "north": {"uv": [0, 0, 16, 32], "texture": "#d"}, "south": {"uv": [16, 0, 0, 32], "texture": "#d"},
-                "east": {"uv": [0, 0, 2, 32], "texture": "#d"}, "west": {"uv": [14, 0, 16, 32], "texture": "#d"},
-                "up": {"uv": [0, 0, 16, 2], "texture": "#d"}, "down": {"uv": [0, 30, 16, 32], "texture": "#d"},
+                "north": {"uv": [0, 0, 16, 16], "texture": "#d"}, "south": {"uv": [16, 0, 0, 16], "texture": "#d"},
+                "east": {"uv": [0, 0, 2, 16], "texture": "#d"}, "west": {"uv": [14, 0, 16, 16], "texture": "#d"},
+                "up": {"uv": [0, 0, 16, 1], "texture": "#d"}, "down": {"uv": [0, 15, 16, 16], "texture": "#d"},
             }}],
     }
     write(os.path.join(NS, "models", "misc", "door.json"), door_model)

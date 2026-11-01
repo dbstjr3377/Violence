@@ -17,6 +17,9 @@ import org.bukkit.inventory.ItemStack;
 public final class WeaponItems {
     private WeaponItems() {}
 
+    /** 총기 사격 연출용 쿨다운 그룹 */
+    public static final Key GUNFIRE = Key.key("violence", "gunfire");
+
     public static ItemStack create(WeaponType type, int ammo) {
         ItemStack it = new ItemStack(Material.STICK);
         it.setData(DataComponentTypes.ITEM_MODEL, Key.key(type.model()));
@@ -31,6 +34,10 @@ public final class WeaponItems {
         };
         it.setData(DataComponentTypes.ATTACK_ANIMATION, SwingAnimation.swingAnimation().type(anim).duration(Math.max(4, Math.min(10, type.meleeCooldown()))).build());
         it.setData(DataComponentTypes.INTERACT_ANIMATION, SwingAnimation.swingAnimation().type(SwingAnimation.Animation.NONE).duration(1).build());
+        if (type.isGun()) {
+            // 사격 연출: 이 그룹에 짧은 쿨다운을 걸면 리소스팩이 1인칭 사격 모델(총구 화염 + 반동)로 바꿔 보여준다
+            it.setData(DataComponentTypes.USE_COOLDOWN, io.papermc.paper.datacomponent.item.UseCooldown.useCooldown(0.05f).cooldownGroup(GUNFIRE).build());
+        }
         return it;
     }
 

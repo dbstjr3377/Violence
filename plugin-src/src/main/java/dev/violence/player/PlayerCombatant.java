@@ -96,9 +96,8 @@ public final class PlayerCombatant extends Combatant {
     @Override
     public void refreshEquipment() {
         PlayerInventory inv = player.getInventory();
-        WeaponType fist = plugin().weapons().fist();
-        WeaponType t = weaponType(fist);
-        inv.setItem(0, WeaponItems.create(t, weapon == null ? 0 : weapon.ammo()));
+        // 맨손은 아이템 없이 바닐라 팔로 보인다
+        inv.setItem(0, weapon == null ? null : WeaponItems.create(weapon.type(), weapon.ammo()));
         inv.setItemInOffHand(offhand != null ? WeaponItems.create(offhand.type(), offhand.ammo()) : null);
         if (inv.getHeldItemSlot() != 0) inv.setHeldItemSlot(0);
         inv.setHelmet(mask != null ? WeaponItems.mask(mask, false) : null);

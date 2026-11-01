@@ -1,6 +1,35 @@
 {
  "model": {
-  "type": "minecraft:model",
-  "model": "violence:item/weapon/mp5"
+  "type": "minecraft:select",
+  "property": "minecraft:display_context",
+  "cases": [
+   {
+    "when": [
+     "firstperson_righthand",
+     "firstperson_lefthand"
+    ],
+    "model": {
+     "type": "minecraft:range_dispatch",
+     "property": "minecraft:cooldown",
+     "entries": [
+      {
+       "threshold": 0.34,
+       "model": {
+        "type": "minecraft:model",
+        "model": "violence:item/weapon/mp5_fp_fire"
+       }
+      }
+     ],
+     "fallback": {
+      "type": "minecraft:model",
+      "model": "violence:item/weapon/mp5_fp"
+     }
+    }
+   }
+  ],
+  "fallback": {
+   "type": "minecraft:model",
+   "model": "violence:item/weapon/mp5"
+  }
  }
 }

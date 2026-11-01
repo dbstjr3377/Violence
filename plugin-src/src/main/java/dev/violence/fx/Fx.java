@@ -101,12 +101,17 @@ public final class Fx {
     }
 
     public void muzzle(Arena a, Vec3 eye, Vec3 dir, boolean silenced) {
+        muzzle(a, eye, dir, silenced, null);
+    }
+
+    public void muzzle(Arena a, Vec3 eye, Vec3 dir, boolean silenced, org.bukkit.entity.Player shooter) {
         Vec3 right = dir.cross(Vec3.UP).normalize();
         Vec3 at = eye.add(dir.mul(0.85)).add(right.mul(0.22)).add(0, -0.18, 0);
         ItemDisplay d = spawnDisplay(a, at, silenced ? "violence:fx/muzzle_small" : "violence:fx/muzzle", true);
         d.setBillboard(Display.Billboard.CENTER);
         float s = silenced ? 0.25f : 0.45f + rnd.nextFloat() * 0.2f;
         d.setTransformation(new Transformation(new Vector3f(), new Quaternionf().rotateZ(rnd.nextFloat() * 6.28f), new Vector3f(s, s, s), new Quaternionf()));
+        if (shooter != null) shooter.hideEntity(plugin, d);
         removeLater(a, d, 2);
     }
 

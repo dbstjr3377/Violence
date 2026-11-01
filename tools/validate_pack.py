@@ -85,18 +85,44 @@ def main():
     # items → models
     item_files = glob.glob(os.path.join(ASSETS, "*", "items", "**", "*.json"), recursive=True)
     models_used = set()
+    contexts = {"none", "thirdperson_lefthand", "thirdperson_righthand", "firstperson_lefthand", "firstperson_righthand",
+                "head", "gui", "ground", "fixed", "on_shelf"}
+
+    def walk(node, where):
+        t = node.get("type")
+        if t == "minecraft:model":
+            r = node["model"]
+            models_used.add(r)
+            if not os.path.isfile(res_path(r, "models", ".json")):
+                err(f"{where} → 모델 없음: {r}")
+        elif t == "minecraft:select":
+            if node.get("property") != "minecraft:display_context":
+                err(f"{where} select 속성 확인 필요: {node.get('property')}")
+            for case in node.get("cases", []):
+                whens = case["when"] if isinstance(case["when"], list) else [case["when"]]
+                for w in whens:
+                    if w not in contexts:
+                        err(f"{where} 알 수 없는 표시 상황 {w}")
+                walk(case["model"], where)
+            if "fallback" in node:
+                walk(node["fallback"], where)
+        elif t == "minecraft:range_dispatch":
+            if node.get("property") not in ("minecraft:cooldown", "minecraft:damage", "minecraft:count", "minecraft:use_duration"):
+                err(f"{where} range_dispatch 속성 확인 필요: {node.get('property')}")
+            for e in node.get("entries", []):
+                if not isinstance(e.get("threshold"), (int, float)):
+                    err(f"{where} threshold 누락")
+                walk(e["model"], where)
+            if "fallback" in node:
+                walk(node["fallback"], where)
+        else:
+            err(f"{where} 알 수 없는 item model 타입 {t}")
+
     for it in item_files:
         d = load(it)
         if not d:
             continue
-        m = d.get("model", {})
-        if m.get("type") != "minecraft:model":
-            err(f"알 수 없는 item model 타입 {it}")
-            continue
-        ref = m["model"]
-        models_used.add(ref)
-        if not os.path.isfile(res_path(ref, "models", ".json")):
-            err(f"{os.path.relpath(it, PACK)} → 모델 없음: {ref}")
+        walk(d.get("model", {}), os.path.relpath(it, PACK))
     # models → textures, 좌표 범위
     for mp in glob.glob(os.path.join(ASSETS, "*", "models", "**", "*.json"), recursive=True):
         d = load(mp)
@@ -178,7 +204,7 @@ def main():
         mm = re.match(r'^    model:\s*"?([^"]+)"?', line)
         if mm and current:
             custom_model[current] = mm.group(1)
-    weapon_ids = re.findall(r"^  ([a-z0-9_]+):\s*$", yml, re.M)
+    weapon_ids = [w for w in re.findall(r"^  ([a-z0-9_]+):\s*$", yml, re.M) if w != "fist"]
     for w in weapon_ids:
         ref = custom_model.get(w, "violence:weapon/" + w)
         if ref not in item_ids:
@@ -191,7 +217,7 @@ def main():
             err(f"사운드 정의 없음: violence:{s}")
     # 폰트 키
     for f in set(re.findall(r'Key\.key\("violence", "([a-z_]+)"\)', java)):
-        if f.startswith("blood") or f.startswith("misc/"):
+        if f.startswith("blood") or f.startswith("misc/") or f == "gunfire":
             continue
         if not os.path.isfile(os.path.join(ASSETS, "violence", "font", f + ".json")):
             err(f"자바 코드가 쓰는 폰트 없음: violence:{f}")

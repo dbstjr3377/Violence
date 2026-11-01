@@ -67,7 +67,7 @@ Violence/
 | 입력 | 동작 |
 |---|---|
 | 이동(WASD) | 기본 이동속도가 빠릅니다. 점프와 달리기는 할 수 없습니다. |
-| **왼클릭** | 사용: 근접 무기는 휘두르고, 총은 발사합니다. 자동소총은 꾹 누르면 연사됩니다. |
+| **왼클릭** | 사용: 근접 무기는 휘두르고, 총은 발사합니다. 자동소총은 꾹 누르면 연사됩니다. 맨손은 아이템 없이 바닐라 팔로 주먹을 날립니다. |
 | **우클릭** | 들고 있는 무기를 던집니다. 조준선에 바닥 무기(하얀 테두리)가 있으면 바로 이어서 줍습니다. |
 | **Space** | 쓰러진 적 위에서 누르면 올라타 처형합니다. 문 앞에서 누르면 발차기, 가면에 따라 구르기나 무기 빼앗기도 됩니다. |
 | **E** | 연속 3/5킬을 하면 인벤토리가 "가면 선택" 화면이 됩니다. 클릭해서 착용합니다. |
@@ -124,7 +124,29 @@ Violence/
 
 ## 모델 미리보기
 
-![무기](docs/images/weapons_preview.png)
+모든 이미지는 리소스팩의 실제 모델 파일을 렌더링한 것입니다.
+1인칭 화면은 마인크래프트의 1인칭 아이템 변환(손 위치, FOV 70, 표시 변환)을 그대로 계산해 그렸습니다(`tools/fp_sim.py`). 실제 게임 화면 캡처가 아닙니다.
+
+**1인칭 (평소 / 사격 순간)**
+
+총은 장갑 낀 양손으로 쥐고 있습니다. 쏘면 노란 총구 화염과 반동이 나오고 화면이 흔들립니다.
+
+![M16](docs/images/firstperson/m16.png)
+![UZI](docs/images/firstperson/uzi.png)
+![샷건](docs/images/firstperson/shotgun.png)
+![매그넘](docs/images/firstperson/magnum.png)
+![근접 무기](docs/images/firstperson/melee.png)
+
+**총기 (TACZ 스타일)**
+
+![총기](docs/images/guns_preview.png)
+
+**근접 / 투척 무기**
+
+![근접](docs/images/melee_preview.png)
+
+**가면 21종 (복셀)**
+
 ![가면](docs/images/masks_preview.png)
 
 ## 설정과 수정
