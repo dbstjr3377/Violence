@@ -1,37 +1,41 @@
 """
-가면 21종 (참고 그림을 복셀로 옮긴 모습).
-좌표: 0..16 정육면체가 머리를 감싸고, 얼굴은 북쪽(-Z)을 향한다. 위는 +Y.
-면 무늬는 painter 로 직접 그린다 (pt = 면 위의 3D 좌표).
+가면 21종 (참고 그림을 고해상도 복셀로 옮김).
+좌표: 0..16 이 머리를 감싸는 영역, 얼굴(정면)은 북쪽(-Z), 위는 +Y.
+둥근 머리(rbox), 털 뭉치(tufts), 움푹한 눈, 이빨 하나하나 등 큐브를 많이 써서 조각한다.
 """
 import math
+import random
 
-from voxel import Material, Model, hnoise, rot
+from voxel import Material, Model, hnoise, rbox, rot
 
-BLACK = (12, 10, 12)
-WHITE = (245, 245, 240)
-
-
-def fur(base, noise=0.12, edge=0.8):
-    return Material(base, noise=noise, edge=edge, top=1.08)
+BLACK = (14, 12, 14)
+WHITE = (246, 244, 236)
+PINK = (236, 140, 160)
+MOUTH = (110, 20, 40)
 
 
-def dark(c, k=0.6):
+def mat(rgb, noise=0.08):
+    return Material(rgb, noise=noise)
+
+
+def dark(c, k=0.62):
     return tuple(int(v * k) for v in c)
 
 
-def light(c, k=1.25):
+def light(c, k=1.22):
     return tuple(min(255, int(v * k)) for v in c)
 
 
-def ellipse(px, py, cx, cy, rx, ry):
+def ell(px, py, cx, cy, rx, ry):
     return ((px - cx) / rx) ** 2 + ((py - cy) / ry) ** 2 <= 1
 
 
-def fur_streaks(base, seed=0, amt=0.18):
-    """털 결 (세로 줄무늬 노이즈)"""
+def fur(base, seed=0, amt=0.16, scale=1.4):
+    """털 결: 세로로 흐르는 노이즈"""
     def p(face, pt, fu, fv):
-        n = hnoise(round(pt[0] * 3 + pt[2] * 3), round(pt[1] * 1.2), 0, seed)
-        k = 1 + (n - 0.5) * amt * 2
+        n = hnoise(math.floor(pt[0] * scale * 2 + pt[2] * scale * 2), math.floor(pt[1] * scale * 0.7), 0, seed)
+        n2 = hnoise(math.floor(pt[0] * 6), math.floor(pt[1] * 6), math.floor(pt[2] * 6), seed + 9)
+        k = 1 + (n - 0.5) * amt * 2 + (n2 - 0.5) * 0.08
         return tuple(max(0, min(255, int(v * k))) for v in base)
     return p
 
@@ -48,409 +52,579 @@ def chain(*ps):
     return p
 
 
-def eyes_front(cx_list, cy, rx, ry, color=BLACK, pupil=None):
-    """정면(north)의 눈 구멍"""
+def spots(color, seed, freq=0.6, thresh=0.8):
     def p(face, pt, fu, fv):
-        if face != "north":
-            return None
-        for cx in cx_list:
-            if ellipse(pt[0], pt[1], cx, cy, rx, ry):
-                if pupil and ellipse(pt[0], pt[1], cx, cy, rx * 0.45, ry * 0.45):
-                    return pupil
-                return color
-        return None
+        n = hnoise(math.floor(pt[0] * freq), math.floor(pt[1] * freq), math.floor(pt[2] * freq), seed)
+        return color if n > thresh else None
     return p
 
 
-def eyes_side(cz, cy, rz, ry, color=BLACK, pupil=None, ring=None):
-    """옆면(east/west)의 눈"""
+def stripes(color, period=3.2, width=1.0, slope=(0.25, 0.3)):
     def p(face, pt, fu, fv):
-        if face not in ("east", "west"):
-            return None
-        if ring and ellipse(pt[2], pt[1], cz, cy, rz * 1.3, ry * 1.3) and not ellipse(pt[2], pt[1], cz, cy, rz, ry):
-            return ring
-        if ellipse(pt[2], pt[1], cz, cy, rz, ry):
-            if pupil and ellipse(pt[2], pt[1], cz, cy, rz * 0.5, ry * 0.5):
-                return pupil
-            return color
-        return None
+        v = pt[1] + pt[0] * slope[0] + pt[2] * slope[1] + math.sin(pt[0] * 0.9 + pt[2] * 0.7) * 0.9
+        return color if v % period < width else None
     return p
 
 
-def spots(color, seed, freq=0.9, thresh=0.82):
-    def p(face, pt, fu, fv):
-        n = hnoise(int(pt[0] * freq), int(pt[1] * freq), int(pt[2] * freq), seed)
-        if n > thresh:
-            return color
-        return None
-    return p
+class Sculpt:
+    """가면 조각 도우미"""
+
+    def __init__(self, name, seed):
+        self.m = Model(name, seed=seed, density=4)
+        self.rng = random.Random(seed)
+
+    def head(self, base, painter=None, r=2.2, frm=(0, 0, 0), to=(16, 16, 16)):
+        rbox(self.m, list(frm), list(to), r, mat(base), painter=painter)
+
+    def box(self, frm, to, rgb, painter=None, rot_=None, noise=0.06):
+        self.m.box(list(frm), list(to), mat(rgb, noise), painter=painter, rot=rot_)
+
+    def rbox(self, frm, to, r, rgb, painter=None, noise=0.06):
+        rbox(self.m, list(frm), list(to), r, mat(rgb, noise), painter=painter)
+
+    def tufts(self, region, n, size, rgb, painter=None, jitter=0.15):
+        (x0, y0, z0), (x1, y1, z1) = region
+        for _ in range(n):
+            w = self.rng.uniform(*size)
+            h = self.rng.uniform(*size) * 1.2
+            x = self.rng.uniform(x0, x1 - w)
+            y = self.rng.uniform(y0, y1 - h)
+            z = self.rng.uniform(z0, z1 - w)
+            c = tuple(max(0, min(255, int(v * (1 + self.rng.uniform(-jitter, jitter))))) for v in rgb)
+            self.m.box([x, y, z], [x + w, y + h, z + w], mat(c, 0.1), painter=painter)
+
+    def eye_socket(self, cx, cy, z, rx, ry, socket=BLACK, iris=None, pupil=None, brow=None, brow_h=0.9, depth=0.35):
+        """정면 눈: 움푹한 구멍(어두운 판) + 선택적 눈동자 + 눈썹뼈"""
+        self.m.box([cx - rx, cy - ry, z - 0.05], [cx + rx, cy + ry, z + depth], mat(socket, 0.03),
+                   painter=(lambda f, p, u, v: (iris if pupil is None or not ell(p[0], p[1], cx, cy, rx * 0.42, ry * 0.5) else pupil)
+                            if iris and f == "north" and ell(p[0], p[1], cx, cy, rx * 0.85, ry * 0.85) else None) if iris else None)
+        if brow:
+            self.m.box([cx - rx - 0.4, cy + ry - 0.2, z - 0.6], [cx + rx + 0.4, cy + ry + brow_h, z + 0.4], mat(brow, 0.08))
+
+    def side_eye(self, cz, cy, rz, ry, x_left=0.0, x_right=16.0, color=BLACK, ring=None):
+        for x, sgn in ((x_left, -1), (x_right, 1)):
+            x0, x1 = (x - 0.25, x + 0.05) if sgn < 0 else (x - 0.05, x + 0.25)
+            if ring:
+                self.m.box([x0 - 0.02 * sgn, cy - ry - 0.4, cz - rz - 0.4], [x1 - 0.02 * sgn, cy + ry + 0.4, cz + rz + 0.4], mat(ring, 0.03))
+                x0, x1 = (x0 - 0.1, x1 - 0.1) if sgn < 0 else (x0 + 0.1, x1 + 0.1)
+            self.m.box([x0, cy - ry, cz - rz], [x1, cy + ry, cz + rz], mat(color, 0.03))
+
+    def teeth(self, x0, x1, y_top, z, n, h, rgb=WHITE, down=True, fang_every=0, w_ratio=0.75, depth=0.6):
+        step = (x1 - x0) / n
+        for i in range(n):
+            x = x0 + step * i + step * (1 - w_ratio) / 2
+            hh = h * (1.7 if fang_every and i % fang_every == 0 else 1.0)
+            y0, y1 = (y_top - hh, y_top) if down else (y_top, y_top + hh)
+            self.m.box([x, y0, z], [x + step * w_ratio, y1, z + depth], mat(rgb, 0.02))
+
+    def done(self):
+        return self.m
 
 
-def stripes(color, period=3.0, width=0.9, axis_mix=(1, 0.35, 0.6)):
-    def p(face, pt, fu, fv):
-        v = pt[1] * axis_mix[0] + pt[0] * axis_mix[1] + pt[2] * axis_mix[2] + math.sin(pt[0] + pt[2]) * 0.6
-        if v % period < width:
-            return color
-        return None
-    return p
-
-
-def teeth_row(face_set, y_top, y_bot, x0, x1, axis="x", tooth=1.0, color=WHITE, gum=(150, 30, 60)):
-    """이빨 줄 (뾰족한 송곳니 모양)"""
-    def p(face, pt, fu, fv):
-        if face not in face_set:
-            return None
-        a = pt[0] if axis == "x" else pt[2]
-        if not (min(x0, x1) <= a <= max(x0, x1) and y_bot <= pt[1] <= y_top):
-            return None
-        phase = ((a - min(x0, x1)) % tooth) / tooth
-        tip = abs(phase - 0.5) * 2
-        h = (y_top - y_bot)
-        if pt[1] >= y_top - h * (1 - tip * 0.85):
-            return color
-        return gum
-    return p
-
-
-# ───────────────────────── 가면 ─────────────────────────
+# ───────────────────────── 1. 리처드 (닭) ─────────────────────────
 
 def richard():
-    m = Model("richard", seed=301)
-    red = (225, 52, 48)
-    m.box([0, 0, 0], [16, 16, 16], fur(red, 0.1),
-          painter=chain(eyes_side(4.5, 10.5, 1.4, 1.2, BLACK, ring=(250, 230, 120)),
-                        lambda f, p, u, v: (245, 245, 235) if f in ("east", "west") and ellipse(p[2], p[1], 7.5, 6.5, 1.3, 1.0) else None,
-                        fur_streaks(red, 1, 0.12)))
-    # 볏 (톱니)
-    for i, (z0, h) in enumerate([(1, 5), (3.5, 7), (6, 6.2), (8.5, 7.4), (11, 5.6), (13, 4)]):
-        m.box([6.4, 15.5, z0], [9.6, 16 + h, z0 + 2.6], fur((235, 40, 40), 0.08))
-    m.box([6.6, 13, -1], [9.4, 18, 2], fur((235, 40, 40), 0.08))
-    # 부리 (벌어짐)
-    m.box([5.4, 7.6, -5], [10.6, 10.0, 0.2], Material((250, 200, 40), noise=0.05))
-    m.box([6.0, 5.4, -3.6], [10.0, 6.8, 0.2], Material((240, 180, 30), noise=0.05))
-    m.box([6.2, 6.8, -3.0], [9.8, 7.6, 0.1], Material((90, 10, 20), noise=0.05))
-    # 볏 아래 육수
-    m.box([6.4, 0.5, -2.6], [9.6, 5.4, 0.4], fur((210, 30, 36), 0.08))
-    m.box([7.0, -2.0, -2.0], [9.0, 0.6, 0.2], fur((200, 26, 32), 0.08))
-    return m
+    s = Sculpt("richard", 301)
+    red = (222, 50, 46)
+    s.head(red, fur(red, 1, 0.14))
+    # 볏: 둥근 덩어리 여러 개
+    for i, (z0, h, w) in enumerate([(-0.6, 4.2, 2.6), (1.6, 6.2, 2.8), (4.0, 7.4, 3.0), (6.6, 6.8, 3.0), (9.2, 7.6, 2.8), (11.8, 6.0, 2.6), (14.0, 4.0, 2.2)]):
+        s.rbox((8 - w / 2, 15.2, z0), (8 + w / 2, 15.6 + h, z0 + 2.5), 0.7, (236, 36, 40), fur((236, 36, 40), 2, 0.1))
+    s.rbox((6.6, 12.5, -1.6), (9.4, 17.0, 1.2), 0.8, (236, 36, 40))
+    # 눈 (옆) + 노란 테
+    s.side_eye(4.8, 10.6, 1.0, 0.9, ring=(250, 220, 90))
+    # 흰 귓불
+    s.box((-0.3, 6.0, 6.6), (0.1, 7.8, 8.6), (246, 244, 236))
+    s.box((15.9, 6.0, 6.6), (16.3, 7.8, 8.6), (246, 244, 236))
+    # 부리 (위/아래, 벌어짐)
+    beak = (250, 196, 40)
+    s.rbox((5.4, 8.0, -4.6), (10.6, 10.4, 0.6), 0.6, beak)
+    s.box((6.2, 8.4, -6.2), (9.8, 10.0, -4.4), beak)
+    s.box((7.0, 8.6, -7.0), (9.0, 9.6, -6.0), dark(beak, 0.9))
+    s.box((6.6, 9.6, -3.2), (7.2, 10.1, -2.6), (90, 50, 10))   # 콧구멍
+    s.box((8.8, 9.6, -3.2), (9.4, 10.1, -2.6), (90, 50, 10))
+    s.box((6.0, 6.8, -3.8), (10.0, 8.0, 0.4), MOUTH)
+    s.rbox((6.0, 5.6, -3.6), (10.0, 6.9, 0.4), 0.4, (236, 176, 30))
+    # 육수 (두 갈래)
+    for x0 in (6.0, 8.2):
+        s.rbox((x0, 1.4, -2.6), (x0 + 1.9, 5.8, 0.2), 0.7, (210, 28, 34))
+        s.rbox((x0 + 0.2, -0.8, -2.2), (x0 + 1.7, 1.8, -0.2), 0.6, (200, 24, 30))
+    # 목 깃털
+    s.tufts(((-0.6, -0.6, 1), (16.6, 2.4, 16.6)), 26, (1.2, 2.2), (200, 40, 40))
+    return s.done()
 
+
+# ───────────────────────── 2. 돈 후안 (말) ─────────────────────────
 
 def don_juan():
-    m = Model("don_juan", seed=302)
+    s = Sculpt("don_juan", 302)
     gray = (128, 128, 134)
-    m.box([0, 0, 0], [16, 16, 16], fur(gray), painter=chain(eyes_side(5.5, 10.5, 1.6, 1.1), fur_streaks(gray, 2)))
-    m.box([3.0, 0.5, -9.5], [13.0, 9.5, 0.5], fur(gray), painter=chain(
-        lambda f, p, u, v: BLACK if f == "north" and (ellipse(p[0], p[1], 5.4, 6.2, 1.0, 1.4) or ellipse(p[0], p[1], 10.6, 6.2, 1.0, 1.4)) else None,
-        lambda f, p, u, v: (40, 40, 44) if f == "north" and abs(p[1] - 2.5) < 0.35 and abs(p[0] - 8) < 3 else None,
-        lambda f, p, u, v: (98, 98, 104) if p[2] < -6.0 or f == "north" else None,
-        fur_streaks(gray, 22)))
+    s.head(gray, fur(gray, 2))
+    # 긴 주둥이 (단계적으로 좁아짐)
+    s.rbox((3.0, 0.2, -5.0), (13.0, 10.2, 1.0), 1.6, gray, fur(gray, 3))
+    s.rbox((3.6, 0.0, -9.6), (12.4, 8.6, -4.0), 1.8, (116, 116, 122), fur((116, 116, 122), 4))
+    s.rbox((4.0, 0.2, -10.6), (12.0, 7.6, -9.0), 1.4, (96, 96, 102))
+    for x in (5.0, 9.6):                                      # 콧구멍
+        s.box((x, 4.4, -10.75), (x + 1.4, 6.6, -10.2), BLACK)
+    s.box((5.0, 1.6, -10.7), (11.0, 2.0, -9.0), (50, 50, 54))  # 입 선
+    s.side_eye(3.2, 10.6, 1.3, 0.9)
+    s.box((-0.4, 11.4, 1.6), (0.2, 12.0, 4.8), dark(gray))    # 눈썹
+    s.box((15.8, 11.4, 1.6), (16.4, 12.0, 4.8), dark(gray))
     # 귀
-    m.box([2.5, 16, 7], [5.0, 21, 9], fur(gray))
-    m.box([11.0, 16, 7], [13.5, 21, 9], fur(gray))
-    # 갈기
-    mane = fur((26, 26, 30), 0.15)
-    m.box([6.0, 15.5, 3], [10.0, 19, 16.5], mane)
-    m.box([6.5, 4, 15.5], [9.5, 17, 18.5], mane)
-    m.box([4.5, 13, 0], [11.5, 17.5, 4], mane)
-    return m
+    for x0 in (2.0, 11.0):
+        s.rbox((x0, 15.0, 6.5), (x0 + 3.0, 20.5, 9.0), 0.8, gray)
+        s.box((x0 + 0.8, 16.0, 6.3), (x0 + 2.2, 19.8, 6.6), dark(gray, 0.7))
+        s.box((x0 + 0.8, 20.5, 7.2), (x0 + 2.2, 21.8, 8.4), gray)
+    # 검은 갈기 (가닥)
+    mane = (26, 26, 30)
+    s.tufts(((5.0, 13.5, -0.5), (11.0, 19.5, 17.0)), 30, (1.0, 2.6), mane, jitter=0.25)
+    s.tufts(((5.5, 1.0, 14.5), (10.5, 15.0, 18.0)), 16, (1.2, 2.4), mane, jitter=0.25)
+    s.tufts(((2.5, 12.0, -2.0), (13.5, 16.0, 1.5)), 10, (1.0, 2.0), mane, jitter=0.25)
+    return s.done()
 
+
+# ───────────────────────── 3. 그레이엄 (토끼) ─────────────────────────
 
 def graham():
-    m = Model("graham", seed=303)
-    orange = (220, 140, 66)
-    m.box([0, 0, 0], [16, 16, 16], fur(orange), painter=chain(
-        eyes_front([4.2, 11.8], 10.0, 2.0, 2.2, (40, 22, 12)),
-        lambda f, p, u, v: light(orange, 1.18) if f == "north" and p[1] < 7 else None,
-        lambda f, p, u, v: (120, 70, 40) if f == "north" and p[1] < 6 and int(p[0] * 2) % 3 == 0 and int(p[1] * 2) % 3 == 0 else None,
-        fur_streaks(orange, 3)))
-    # 귀 (긴, 안쪽 분홍)
-    for x0 in (2.5, 10.0):
-        m.box([x0, 16, 6], [x0 + 3.5, 30, 8.5], fur(orange), painter=lambda f, p, u, v, x0=x0: (240, 150, 160) if f == "north" and x0 + 0.7 < p[0] < x0 + 2.8 and 17 < p[1] < 29 else None)
-    m.box([6.6, 5.6, -1.2], [9.4, 7.4, 0.2], Material((240, 130, 150), noise=0.04))   # 코
-    m.box([6.4, 1.2, -0.8], [9.6, 4.8, 0.1], Material((248, 246, 236), noise=0.03),
-          painter=lambda f, p, u, v: (150, 140, 120) if f == "north" and abs(p[0] - 8) < 0.15 else None)  # 앞니
-    return m
+    s = Sculpt("graham", 303)
+    tan = (222, 140, 64)
+    s.head(tan, fur(tan, 3))
+    s.rbox((2.0, 1.0, -1.6), (14.0, 8.0, 3.0), 2.0, light(tan, 1.12), fur(light(tan, 1.12), 4))  # 볼
+    for cx in (4.4, 11.6):
+        s.eye_socket(cx, 10.2, -0.05, 1.8, 2.0, (44, 24, 12), brow=dark(tan, 0.8))
+    s.rbox((6.5, 6.0, -2.4), (9.5, 7.8, -0.6), 0.6, (240, 130, 150))                     # 코
+    s.box((7.9, 4.2, -2.0), (8.1, 6.0, -1.5), dark(tan, 0.6))
+    s.box((6.6, 1.0, -2.0), (7.9, 4.4, -1.2), WHITE)                                      # 앞니 두 개
+    s.box((8.1, 1.0, -2.0), (9.4, 4.4, -1.2), WHITE)
+    for x, y in ((3.2, 5.0), (4.6, 4.2), (3.6, 3.4), (12.8, 5.0), (11.4, 4.2), (12.4, 3.4)):
+        s.box((x, y, -1.75), (x + 0.4, y + 0.4, -1.5), dark(tan, 0.5))                    # 수염 점
+    # 긴 귀 (두 마디, 살짝 기울어짐) + 분홍 안쪽
+    for x0, ang in ((2.2, 22.5), (10.2, -22.5)):
+        s.rbox((x0, 15.0, 6.0), (x0 + 3.6, 23.5, 8.8), 1.0, tan)
+        s.box((x0 + 0.8, 15.6, 5.8), (x0 + 2.8, 23.0, 6.1), (240, 150, 160))
+        s.m.box([x0 + 0.2, 23.0, 6.2], [x0 + 3.4, 30.5, 8.6], mat(tan), rot=rot("z", ang / 2, [x0 + 1.8, 23, 7.4]))
+        s.m.box([x0 + 0.9, 23.4, 6.0], [x0 + 2.7, 30.0, 6.25], mat((240, 150, 160)), rot=rot("z", ang / 2, [x0 + 1.8, 23, 7.4]))
+    s.tufts(((0, 0, 0), (16, 16, 16)), 0, (1, 1), tan)
+    return s.done()
 
+
+# ───────────────────────── 4. 데니스 (늑대) ─────────────────────────
 
 def dennis():
-    m = Model("dennis", seed=304)
-    gray = (118, 118, 124)
-    m.box([0, 0, 0], [16, 16, 16], fur(gray, 0.18), painter=chain(
-        eyes_front([4.0, 12.0], 10.5, 1.6, 1.1, BLACK),
-        lambda f, p, u, v: (200, 200, 205) if f == "north" and p[1] < 8 else None,
-        fur_streaks(gray, 4, 0.25)))
-    # 주둥이 + 벌린 입
-    m.box([4.0, 5.2, -6.0], [12.0, 9.6, 0.5], fur((175, 175, 180)), painter=lambda f, p, u, v: BLACK if p[2] < -5 and p[1] > 7.6 and abs(p[0] - 8) < 1.6 else None)
-    m.box([4.6, 4.2, -5.6], [11.4, 5.2, 0.4], Material((220, 70, 140), noise=0.06))       # 입 안/혀
-    m.box([4.6, 3.2, -5.2], [11.4, 4.2, 0.4], fur((170, 170, 176)))
-    m.box([4.8, 4.1, -5.9], [11.2, 5.4, -5.3], Material(WHITE, noise=0.02),
-          painter=teeth_row(("north",), 5.4, 4.1, 4.8, 11.2, tooth=1.6, gum=(200, 60, 120)))
-    m.box([2.0, 16, 6], [6.0, 21, 9], fur(gray, 0.15))
-    m.box([10.0, 16, 6], [14.0, 21, 9], fur(gray, 0.15))
-    # 볼 털
-    m.box([-1.5, 2, 2], [0.5, 9, 10], fur((150, 150, 156), 0.2))
-    m.box([15.5, 2, 2], [17.5, 9, 10], fur((150, 150, 156), 0.2))
-    return m
+    s = Sculpt("dennis", 304)
+    gray = (118, 118, 126)
+    s.head(gray, fur(gray, 5, 0.26))
+    # 주둥이 (위턱) + 아래턱 (으르렁 벌림)
+    s.rbox((4.0, 6.0, -6.8), (12.0, 10.0, 1.0), 1.4, (176, 176, 184), fur((176, 176, 184), 6))
+    s.rbox((5.6, 8.2, -7.6), (10.4, 9.8, -5.8), 0.6, (30, 28, 32))                       # 코
+    s.box((4.6, 4.4, -6.2), (11.4, 6.0, 0.6), MOUTH)
+    s.rbox((5.0, 2.2, -5.4), (11.0, 4.4, 0.8), 0.8, (170, 170, 178))                      # 아래턱
+    s.box((6.4, 4.4, -5.0), (9.6, 5.0, -1.0), (230, 70, 150))                             # 혀
+    s.teeth(4.8, 11.2, 6.0, -6.6, 6, 1.0, fang_every=5)
+    s.teeth(5.2, 10.8, 4.4, -5.8, 5, 0.8, down=False, fang_every=4)
+    for cx in (4.2, 11.8):
+        s.eye_socket(cx, 11.0, -0.05, 1.5, 0.9, BLACK, brow=dark(gray, 0.75), brow_h=1.2)
+    # 뾰족한 귀
+    for x0 in (1.6, 10.4):
+        s.rbox((x0, 15.0, 5.5), (x0 + 4.0, 19.0, 9.0), 0.8, gray)
+        s.box((x0 + 0.8, 19.0, 6.4), (x0 + 3.2, 21.2, 8.2), gray)
+        s.box((x0 + 1.4, 21.2, 6.9), (x0 + 2.6, 22.6, 7.8), dark(gray))
+        s.box((x0 + 0.9, 15.6, 5.3), (x0 + 3.1, 20.0, 5.6), (60, 56, 60))
+    # 덥수룩한 털 (뺨, 이마, 목)
+    s.tufts(((-1.4, 1.0, 1.0), (1.0, 12.0, 14.0)), 14, (1.2, 2.4), (150, 150, 158), jitter=0.2)
+    s.tufts(((15.0, 1.0, 1.0), (17.4, 12.0, 14.0)), 14, (1.2, 2.4), (150, 150, 158), jitter=0.2)
+    s.tufts(((1.0, -1.0, 0.0), (15.0, 2.0, 15.0)), 18, (1.2, 2.2), (200, 200, 206), jitter=0.15)
+    s.tufts(((3.0, 13.0, -0.6), (13.0, 16.4, 4.0)), 10, (1.0, 1.8), gray, jitter=0.2)
+    return s.done()
 
+
+# ───────────────────────── 5. 조지 (기린) ─────────────────────────
 
 def george():
-    m = Model("george", seed=305)
-    yel = (238, 214, 90)
-    sp = spots((150, 90, 30), 5, 0.55, 0.78)
-    m.box([0, 0, 0], [16, 16, 16], fur(yel, 0.06), painter=chain(eyes_side(4.5, 10.5, 1.3, 1.0), sp))
-    m.box([3.5, 0.5, -7.0], [12.5, 8.0, 0.5], fur(yel, 0.06), painter=chain(
-        lambda f, p, u, v: BLACK if f == "north" and (ellipse(p[0], p[1], 5.6, 4.8, 0.7, 1.2) or ellipse(p[0], p[1], 10.4, 4.8, 0.7, 1.2)) else None,
-        lambda f, p, u, v: (210, 160, 70) if p[1] < 2.6 else None, sp))
-    for x0 in (4.0, 10.5):
-        m.box([x0, 16, 6], [x0 + 1.6, 22.5, 7.6], fur(yel, 0.05))
-        m.box([x0 - 0.4, 22.5, 5.6], [x0 + 2.0, 24.5, 8.0], fur((110, 70, 30), 0.05))
-    m.box([-3, 11, 7], [0, 13, 9], fur(yel))
-    m.box([16, 11, 7], [19, 13, 9], fur(yel))
-    return m
+    s = Sculpt("george", 305)
+    yel = (240, 214, 92)
+    sp = spots((150, 92, 30), 5, 0.5, 0.74)
+    s.head(yel, chain(sp, fur(yel, 7, 0.08)))
+    s.rbox((3.4, 0.2, -7.6), (12.6, 8.4, 1.0), 1.8, yel, chain(sp, fur(yel, 8, 0.08)))
+    s.rbox((3.8, 0.0, -8.4), (12.2, 4.0, -3.0), 1.4, (220, 180, 90))
+    for x in (5.0, 9.8):
+        s.box((x, 4.6, -7.75), (x + 1.2, 6.4, -7.4), BLACK)
+    s.side_eye(3.8, 10.4, 1.2, 1.0)
+    for x in (-0.3, 15.9):
+        s.box((x, 11.4, 2.6), (x + 0.4, 12.0, 5.2), (120, 80, 30))                       # 속눈썹
+    # 뿔 (오시콘) + 검은 털 끝
+    for x0 in (4.0, 10.4):
+        s.rbox((x0, 15.2, 6.0), (x0 + 1.8, 21.5, 7.8), 0.5, yel)
+        s.rbox((x0 - 0.5, 21.2, 5.5), (x0 + 2.3, 23.8, 8.3), 0.8, (90, 56, 24))
+    # 귀 (옆으로)
+    s.rbox((-4.0, 11.0, 6.5), (0.4, 13.0, 9.0), 0.6, yel)
+    s.rbox((15.6, 11.0, 6.5), (20.0, 13.0, 9.0), 0.6, yel)
+    # 갈기 짧게
+    s.tufts(((7.0, 15.0, 9.0), (9.0, 17.0, 17.0)), 8, (0.8, 1.4), (150, 92, 30))
+    return s.done()
 
+
+# ───────────────────────── 6. 루퍼스 (코끼리) ─────────────────────────
 
 def rufus():
-    m = Model("rufus", seed=306)
-    teal = (60, 150, 162)
-    wr = lambda f, p, u, v: dark(teal, 0.75) if int(p[1] * 1.3) % 3 == 0 and f not in ("up", "down") else None
-    m.box([0, 0, 0], [16, 16, 16], fur(teal, 0.08), painter=chain(eyes_front([4.0, 12.0], 10.0, 1.3, 1.0), wr))
-    # 큰 귀
-    for x0, x1 in ((-6.5, 0.2), (15.8, 22.5)):
-        m.box([x0, 2.0, 5.0], [x1, 15.0, 9.0], fur(dark(teal, 0.9), 0.08), painter=wr)
-    # 코 (아래로 휨)
-    m.box([5.5, 2.5, -3.0], [10.5, 8.5, 0.5], fur(teal, 0.08), painter=wr)
-    m.box([6.0, -4.0, -4.0], [10.0, 3.0, -0.5], fur(teal, 0.08), painter=wr)
-    m.box([6.4, -9.0, -5.0], [9.6, -3.5, -1.5], fur(teal, 0.08), painter=wr)
-    m.box([6.6, -10.5, -6.2], [9.4, -8.6, -2.4], fur(dark(teal, 0.85), 0.08))
-    # 상아
-    ivory = Material((245, 240, 220), noise=0.03)
-    for x0 in (2.8, 11.4):
-        m.box([x0, 1.0, -2.5], [x0 + 1.8, 3.0, 0.5], ivory)
-        m.box([x0, -3.0, -4.0], [x0 + 1.8, 1.5, -1.5], ivory)
-        m.box([x0 + 0.2, -4.5, -5.6], [x0 + 1.6, -2.5, -3.6], ivory)
-    return m
+    s = Sculpt("rufus", 306)
+    teal = (58, 150, 164)
+    wr = lambda f, p, u, v: dark(teal, 0.78) if (p[1] * 1.4 + math.sin(p[0]) * 0.3) % 2.2 < 0.35 and f not in ("up", "down") else None
+    s.head(teal, chain(wr, fur(teal, 9, 0.08)))
+    for cx in (3.8, 12.2):
+        s.eye_socket(cx, 10.0, -0.05, 1.4, 1.1, (20, 40, 46), brow=dark(teal, 0.8), brow_h=1.3)
+    # 큰 귀 (두 겹)
+    for x0, x1 in ((-7.0, 0.4), (15.6, 23.0)):
+        s.rbox((x0, 1.0, 5.0), (x1, 15.5, 8.6), 1.6, teal, chain(wr, fur(teal, 10, 0.08)))
+        s.box((x0 + 1.2, 2.4, 4.8), (x1 - 1.2, 14.0, 5.1), (230, 140, 150) if x0 < 0 else (230, 140, 150))
+    # 코 (아래로 휘어짐, 마디)
+    segs = [(5.4, 3.0, -2.6, 10.6, 9.0, 0.6), (5.8, -1.0, -3.6, 10.2, 4.0, -0.6), (6.0, -5.2, -4.6, 10.0, 0.0, -1.6),
+            (6.3, -9.0, -5.8, 9.7, -4.0, -2.8), (6.4, -12.0, -7.4, 9.6, -8.0, -4.2)]
+    for x0, y0, z0, x1, y1, z1 in segs:
+        s.rbox((x0, y0, z0), (x1, y1, z1), 1.0, teal, wr)
+    s.rbox((6.2, -13.6, -9.0), (9.8, -11.0, -6.6), 0.8, dark(teal, 0.85))
+    s.box((7.0, -12.8, -9.1), (7.8, -12.0, -8.9), BLACK)
+    s.box((8.2, -12.8, -9.1), (9.0, -12.0, -8.9), BLACK)
+    # 상아 (휘어짐)
+    ivory = (246, 240, 220)
+    for x0 in (2.6, 11.6):
+        s.rbox((x0, 1.6, -2.2), (x0 + 1.8, 4.0, 0.6), 0.5, ivory)
+        s.rbox((x0 + 0.1, -1.6, -3.8), (x0 + 1.7, 2.0, -1.2), 0.5, ivory)
+        s.rbox((x0 + 0.2, -4.4, -5.6), (x0 + 1.6, -1.2, -3.2), 0.5, ivory)
+        s.box((x0 + 0.4, -5.6, -6.8), (x0 + 1.4, -3.8, -5.2), ivory)
+    return s.done()
 
+
+# ───────────────────────── 7. 라미 (낙타) ─────────────────────────
 
 def rami():
-    m = Model("rami", seed=307)
-    tan = (226, 182, 112)
-    hair = fur((150, 76, 36), 0.18)
-    m.box([0, 0, 0], [16, 16, 16], fur(tan, 0.08), painter=chain(eyes_side(4.5, 10.0, 1.4, 1.0), fur_streaks(tan, 7)))
-    m.box([3.5, 0, -8.5], [12.5, 8.5, 0.5], fur(tan, 0.08), painter=chain(
-        lambda f, p, u, v: BLACK if f == "north" and (ellipse(p[0], p[1], 5.6, 5.5, 0.6, 1.0) or ellipse(p[0], p[1], 10.4, 5.5, 0.6, 1.0)) else None,
-        lambda f, p, u, v: (190, 140, 80) if p[1] < 3 else None))
-    m.box([4.0, -1.6, -7.0], [12.0, 0.4, 0.4], fur((200, 150, 90), 0.08))          # 늘어진 입술
-    m.box([-0.8, 11, 0], [16.8, 18, 13], hair)                                       # 정수리 털
-    m.box([-1.2, 2, 6], [0.4, 14, 17], hair)
-    m.box([15.6, 2, 6], [17.2, 14, 17], hair)
-    m.box([3, 17, 6], [5, 20, 8], fur(tan))
-    m.box([11, 17, 6], [13, 20, 8], fur(tan))
-    return m
+    s = Sculpt("rami", 307)
+    tan = (228, 184, 112)
+    hair = (150, 76, 36)
+    s.head(tan, fur(tan, 11, 0.1))
+    s.rbox((3.4, 0.0, -9.0), (12.6, 9.0, 1.0), 2.0, tan, fur(tan, 12, 0.1))
+    s.rbox((3.6, -1.8, -8.4), (12.4, 1.2, -1.0), 1.0, (210, 160, 96))               # 처진 아랫입술
+    s.box((4.4, 1.2, -9.05), (11.6, 1.6, -6.0), (130, 80, 50))
+    for x in (5.0, 9.8):
+        s.box((x, 5.6, -9.1), (x + 1.2, 6.2, -8.6), (60, 30, 14))                     # 가는 콧구멍
+    s.side_eye(3.8, 10.4, 1.2, 1.0)
+    for x in (-0.6, 15.6):
+        s.box((x, 11.4, 2.2), (x + 1.0, 12.2, 5.6), hair)                              # 눈썹 털
+    # 덥수룩한 머리털 + 옆머리
+    s.tufts(((-1.4, 11.5, -0.8), (17.4, 18.5, 15.0)), 40, (1.4, 2.8), hair, jitter=0.25)
+    s.tufts(((-1.6, 1.0, 6.0), (0.6, 12.0, 17.0)), 14, (1.2, 2.6), hair, jitter=0.25)
+    s.tufts(((15.4, 1.0, 6.0), (17.6, 12.0, 17.0)), 14, (1.2, 2.6), hair, jitter=0.25)
+    for x0 in (2.0, 12.0):
+        s.rbox((x0, 15.8, 6.2), (x0 + 2.2, 19.0, 8.2), 0.6, tan)
+    return s.done()
 
+
+# ───────────────────────── 8. 윌럼 (원숭이) ─────────────────────────
 
 def willem():
-    m = Model("willem", seed=308)
-    brown = (118, 72, 40)
-    face = (218, 168, 120)
-    m.box([0, 0, 0], [16, 16, 16], fur(brown, 0.14), painter=chain(
-        lambda f, p, u, v: face if f == "north" and ellipse(p[0], p[1], 8, 7, 6.6, 6.8) else None,
-        fur_streaks(brown, 8, 0.2)))
-    m.box([2.5, 1.5, -1.6], [13.5, 13.0, 0.2], Material(face, noise=0.05), painter=chain(
-        eyes_front([5.2, 10.8], 9.2, 1.6, 1.4, (40, 20, 10)),
-        lambda f, p, u, v: dark(face, 0.75) if f == "north" and ellipse(p[0], p[1], 8, 5.4, 1.8, 0.8) else None,
-        lambda f, p, u, v: (150, 80, 70) if f == "north" and abs(p[1] - 3.0) < 0.35 and abs(p[0] - 8) < 3.4 else None))
-    m.box([2.8, 10.6, -2.2], [13.2, 12.2, -1.4], Material(dark(face, 0.82), noise=0.05))   # 눈썹뼈
-    m.box([5.6, 3.6, -3.2], [10.4, 6.6, -1.4], Material(face, noise=0.05))                  # 입 부분
-    for x0, x1 in ((-3.2, 0.2), (15.8, 19.2)):
-        m.box([x0, 7, 6], [x1, 11.5, 9], Material(face, noise=0.06))
-    return m
+    s = Sculpt("willem", 308)
+    brown = (116, 70, 38)
+    face = (218, 168, 122)
+    s.head(brown, fur(brown, 13, 0.22))
+    s.rbox((2.2, 1.0, -1.6), (13.8, 13.4, 2.0), 2.4, face, fur(face, 14, 0.06))       # 얼굴판
+    s.rbox((2.6, 10.6, -2.8), (13.4, 12.4, -0.8), 0.8, dark(face, 0.85))              # 눈썹뼈
+    for cx in (5.3, 10.7):
+        s.eye_socket(cx, 9.0, -1.65, 1.6, 1.3, (60, 32, 16), iris=(70, 40, 20), pupil=BLACK)
+    s.rbox((5.0, 2.0, -3.6), (11.0, 7.4, -1.2), 1.4, light(face, 1.05))               # 주둥이
+    s.box((6.6, 6.0, -3.7), (7.4, 6.8, -3.4), (90, 50, 30))
+    s.box((8.6, 6.0, -3.7), (9.4, 6.8, -3.4), (90, 50, 30))
+    s.box((5.4, 3.4, -3.7), (10.6, 3.9, -3.4), (150, 80, 70))                         # 입선
+    for x0, x1 in ((-3.4, 0.4), (15.6, 19.4)):
+        s.rbox((x0, 6.4, 5.8), (x1, 12.0, 9.2), 1.2, face)
+        s.box((x0 + 0.8, 7.4, 5.6), (x1 - 0.8, 11.0, 5.9), dark(face, 0.75))
+    s.tufts(((0.0, 13.0, 0.0), (16.0, 17.0, 14.0)), 16, (1.2, 2.2), brown, jitter=0.2)
+    return s.done()
 
+
+# ───────────────────────── 9. 피터 (유니콘) ─────────────────────────
 
 def peter():
-    m = Model("peter", seed=309)
-    wh = (246, 246, 250)
-    m.box([0, 0, 0], [16, 16, 16], fur(wh, 0.03), painter=eyes_side(4.8, 10.5, 1.3, 1.1, (40, 140, 220), pupil=BLACK))
-    m.box([3.5, 0.5, -8.0], [12.5, 9.0, 0.5], fur(wh, 0.03), painter=lambda f, p, u, v: (180, 180, 190) if f == "north" and (ellipse(p[0], p[1], 5.6, 5.0, 0.8, 1.2) or ellipse(p[0], p[1], 10.4, 5.0, 0.8, 1.2)) else None)
-    spiral = lambda f, p, u, v: (205, 205, 215) if (p[1] + p[0] * 0.5 + p[2] * 0.5) % 1.6 < 0.5 else (250, 250, 255)
-    m.box([6.7, 15.5, 0.5], [9.3, 21, 3.1], fur(wh), painter=spiral)
-    m.box([7.1, 21, 0.9], [8.9, 26, 2.7], fur(wh), painter=spiral)
-    m.box([7.5, 26, 1.3], [8.5, 30.5, 2.3], fur(wh), painter=spiral)
-    mane = Material((236, 236, 244), noise=0.1)
-    m.box([6, 13, 6], [10, 18, 17], mane)
-    m.box([6.5, 2, 15.5], [9.5, 15, 18.5], mane)
-    m.box([3, 16, 7], [5, 20, 9], fur(wh))
-    m.box([11, 16, 7], [13, 20, 9], fur(wh))
-    return m
+    s = Sculpt("peter", 309)
+    wh = (246, 246, 252)
+    s.head(wh, fur(wh, 15, 0.04))
+    s.rbox((3.4, 0.2, -6.0), (12.6, 9.6, 1.0), 1.8, wh, fur(wh, 16, 0.04))
+    s.rbox((3.8, 0.0, -8.6), (12.2, 7.6, -4.0), 1.6, (236, 236, 244))
+    for x in (5.0, 9.8):
+        s.box((x, 4.6, -8.7), (x + 1.2, 6.2, -8.4), (170, 170, 190))
+    # 파란 눈 (옆)
+    s.side_eye(3.6, 10.6, 1.2, 1.0, color=(60, 150, 230))
+    for x in (-0.35, 16.05):
+        s.box((x, 10.4, 3.4), (x + 0.3, 11.0, 4.0), BLACK)
+    # 나선 뿔
+    spiral = lambda f, p, u, v: (196, 196, 210) if (p[1] * 1.0 + p[0] * 0.6 + p[2] * 0.6) % 1.4 < 0.45 else (252, 252, 255)
+    for i, (r, y0, y1) in enumerate([(1.4, 15.0, 19.0), (1.1, 19.0, 23.0), (0.8, 23.0, 27.0), (0.5, 27.0, 30.6)]):
+        dz = -i * 0.9
+        s.box((8 - r, y0, 2.0 - r + dz), (8 + r, y1, 2.0 + r + dz), wh, spiral)
+    # 갈기 가닥
+    s.tufts(((5.5, 12.0, 4.0), (10.5, 19.0, 17.5)), 26, (1.0, 2.4), (238, 238, 248), jitter=0.06)
+    s.tufts(((6.0, 1.0, 15.0), (10.0, 14.0, 18.5)), 14, (1.0, 2.2), (238, 238, 248), jitter=0.06)
+    for x0 in (2.6, 11.4):
+        s.rbox((x0, 15.2, 6.4), (x0 + 2.0, 19.4, 8.2), 0.6, wh)
+    return s.done()
 
+
+# ───────────────────────── 10. 잭 (개구리) ─────────────────────────
 
 def zack():
-    m = Model("zack", seed=310)
-    green = (112, 212, 60)
-    sp = spots(dark(green, 0.7), 10, 0.6, 0.86)
-    m.box([0, 0, 0], [16, 16, 16], fur(green, 0.06), painter=chain(
-        lambda f, p, u, v: (236, 220, 120) if f == "north" and 2.0 < p[1] < 6.5 else None,
-        lambda f, p, u, v: (60, 110, 30) if f == "north" and abs(p[1] - 4.2) < 0.4 else None, sp))
-    m.box([-0.6, 1.5, -0.4], [16.6, 6.8, 13], fur(green, 0.06), painter=chain(
-        lambda f, p, u, v: (236, 220, 120) if p[1] < 5.5 else None,
-        lambda f, p, u, v: (60, 110, 30) if abs(p[1] - 4.2) < 0.4 and f != "up" else None))
-    # 큰 눈
-    for x0 in (0.5, 10.0):
-        m.box([x0, 13, -1.5], [x0 + 5.5, 19.5, 5], fur(green, 0.06), painter=eyes_front([x0 + 2.75], 16.2, 2.3, 2.6, (250, 230, 60), pupil=BLACK))
-    return m
+    s = Sculpt("zack", 310)
+    green = (112, 214, 58)
+    sp = spots(dark(green, 0.72), 10, 0.55, 0.84)
+    s.head(green, chain(sp, fur(green, 17, 0.06)), frm=(0, 0, 0), to=(16, 14, 16))
+    # 넓은 입 (노란 입술 + 입선)
+    s.rbox((-0.8, 1.4, -1.2), (16.8, 6.6, 12.0), 2.0, (236, 222, 120))
+    s.box((-0.9, 3.9, -1.3), (16.9, 4.3, 11.0), (70, 120, 30))
+    s.rbox((-0.4, 5.6, -0.8), (16.4, 7.4, 13.0), 1.0, green, sp)
+    # 큰 눈 (돌출, 노란 홍채 + 가로 동공)
+    for cx in (3.2, 12.8):
+        s.rbox((cx - 3.0, 11.5, -1.6), (cx + 3.0, 18.5, 5.0), 2.2, green, sp)
+        s.rbox((cx - 2.4, 12.4, -2.0), (cx + 2.4, 17.6, 0.6), 1.4, (250, 232, 60))
+        s.box((cx - 1.6, 14.4, -2.15), (cx + 1.6, 15.6, -1.9), BLACK)
+        s.box((cx - 2.6, 17.0, -1.0), (cx + 2.6, 18.0, 2.0), dark(green, 0.8))     # 눈꺼풀
+    for x in (6.6, 9.0):
+        s.box((x, 9.0, -0.15), (x + 0.6, 9.6, 0.1), dark(green, 0.5))              # 콧구멍
+    return s.done()
 
+
+# ───────────────────────── 11. 릭 (여우) ─────────────────────────
 
 def rick():
-    m = Model("rick", seed=311)
-    orng = (242, 122, 38)
-    m.box([0, 0, 0], [16, 16, 16], fur(orng, 0.1), painter=chain(
-        eyes_front([4.2, 11.8], 10.6, 1.5, 0.9, BLACK),
-        lambda f, p, u, v: WHITE if f in ("north", "east", "west") and p[1] < 7 and (f != "north" or abs(p[0] - 8) > 2.4) else None,
-        fur_streaks(orng, 11)))
-    m.box([5.0, 2.5, -6.0], [11.0, 7.6, 0.3], fur(orng, 0.08), painter=lambda f, p, u, v: WHITE if p[1] < 4.5 else None)
-    m.box([6.8, 6.0, -6.6], [9.2, 7.8, -5.6], Material(BLACK, noise=0.05))
-    m.box([5.4, 2.0, -5.4], [10.6, 2.8, 0.2], Material((230, 110, 140), noise=0.05))
-    for x0 in (1.5, 10.5):
-        m.box([x0, 16, 6], [x0 + 4.0, 22, 9], fur(orng), painter=lambda f, p, u, v: BLACK if p[1] > 20 else None)
-    return m
+    s = Sculpt("rick", 311)
+    org = (242, 124, 38)
+    s.head(org, chain(lambda f, p, u, v: WHITE if p[1] < 6.5 and f in ("east", "west", "down") else None, fur(org, 19)))
+    s.rbox((1.0, 0.6, -2.0), (15.0, 7.0, 4.0), 2.0, WHITE, fur(WHITE, 20, 0.05))        # 흰 볼
+    s.rbox((4.8, 3.0, -7.6), (11.2, 8.6, 0.6), 1.4, org, chain(lambda f, p, u, v: WHITE if p[1] < 5.0 else None, fur(org, 21)))
+    s.rbox((6.6, 6.6, -8.4), (9.4, 8.4, -7.0), 0.6, (24, 22, 24))                       # 코
+    s.box((5.4, 2.4, -6.8), (10.6, 3.2, 0.2), MOUTH)
+    s.box((6.2, 2.5, -6.6), (9.8, 3.1, -4.0), (236, 110, 140))
+    s.teeth(5.4, 10.6, 3.2, -6.9, 5, 0.6)
+    for cx in (4.2, 11.8):
+        s.eye_socket(cx, 10.4, -0.05, 1.6, 0.8, BLACK, brow=dark(org, 0.8))
+    for x0 in (1.2, 10.8):
+        s.rbox((x0, 15.0, 5.6), (x0 + 4.0, 19.0, 8.8), 0.8, org)
+        s.box((x0 + 0.8, 19.0, 6.2), (x0 + 3.2, 21.6, 8.2), org)
+        s.box((x0 + 1.2, 21.6, 6.6), (x0 + 2.8, 23.0, 7.8), (40, 20, 10))
+        s.box((x0 + 0.9, 15.6, 5.4), (x0 + 3.1, 20.6, 5.7), WHITE)
+    s.tufts(((-1.0, 0.5, 2.0), (1.0, 6.5, 12.0)), 8, (1.0, 2.0), WHITE, jitter=0.05)
+    s.tufts(((15.0, 0.5, 2.0), (17.0, 6.5, 12.0)), 8, (1.0, 2.0), WHITE, jitter=0.05)
+    return s.done()
 
+
+# ───────────────────────── 12. 브랜던 (흑표범) ─────────────────────────
 
 def brandon():
-    m = Model("brandon", seed=312)
-    purp = (112, 40, 140)
-    m.box([0, 0, 0], [16, 16, 16], fur(purp, 0.1), painter=chain(eyes_front([4.2, 11.8], 10.6, 1.6, 0.9, (250, 210, 60), pupil=BLACK), fur_streaks(purp, 12)))
-    m.box([4.0, 5.0, -4.0], [12.0, 9.5, 0.4], fur(dark(purp, 0.85)), painter=lambda f, p, u, v: (40, 10, 50) if p[1] > 8.4 and abs(p[0] - 8) < 1.4 and p[2] < -3.5 else None)
-    m.box([4.4, 2.8, -3.6], [11.6, 5.0, 0.3], Material((220, 80, 160), noise=0.06))
-    m.box([4.4, 4.4, -4.1], [11.6, 5.4, -3.5], Material(WHITE, noise=0.02), painter=teeth_row(("north",), 5.4, 4.4, 4.4, 11.6, tooth=1.8, gum=(200, 60, 140)))
-    m.box([4.4, 2.4, -4.1], [11.6, 3.4, -3.5], Material(WHITE, noise=0.02))
-    m.box([2.0, 16, 7], [5.0, 19, 9], fur(purp))
-    m.box([11.0, 16, 7], [14.0, 19, 9], fur(purp))
-    return m
+    s = Sculpt("brandon", 312)
+    purp = (112, 40, 142)
+    s.head(purp, fur(purp, 23, 0.1))
+    s.rbox((3.6, 4.8, -4.6), (12.4, 10.0, 1.0), 1.6, dark(purp, 0.88), fur(dark(purp, 0.88), 24))
+    s.rbox((6.4, 8.4, -5.4), (9.6, 9.8, -4.2), 0.5, (50, 14, 60))
+    s.box((4.0, 2.4, -4.0), (12.0, 4.8, 0.6), (210, 70, 160))                          # 입 안
+    s.rbox((4.4, 0.6, -3.6), (11.6, 2.6, 0.6), 0.7, dark(purp, 0.85))                  # 아래턱
+    s.teeth(4.0, 12.0, 4.8, -4.5, 6, 1.0, fang_every=5)
+    s.teeth(4.4, 11.6, 2.6, -3.9, 5, 0.9, down=False, fang_every=4)
+    for cx in (4.2, 11.8):
+        s.eye_socket(cx, 11.0, -0.05, 1.6, 0.8, (250, 210, 60), iris=(250, 210, 60), pupil=BLACK, brow=dark(purp, 0.7), brow_h=1.3)
+    for x0 in (1.6, 11.0):
+        s.rbox((x0, 15.0, 6.6), (x0 + 3.4, 18.6, 9.2), 1.0, purp)
+        s.box((x0 + 0.8, 15.6, 6.4), (x0 + 2.6, 17.8, 6.7), (220, 120, 200))
+    return s.done()
 
+
+# ───────────────────────── 13. 얼 (바다코끼리) ─────────────────────────
 
 def earl():
-    m = Model("earl", seed=313)
-    gray = (72, 70, 74)
-    m.box([0, 0, 0], [16, 16, 16], fur(gray, 0.1), painter=chain(eyes_front([4.0, 12.0], 11.0, 0.9, 0.7, BLACK), fur_streaks(gray, 13)))
-    whisk = lambda f, p, u, v: (240, 210, 90) if f in ("north", "east", "west", "down") and hnoise(int(p[0] * 2), int(p[1] * 2), int(p[2] * 2), 13) > 0.7 else None
-    m.box([2.0, 2.0, -5.0], [14.0, 9.0, 0.5], fur((90, 86, 88), 0.1), painter=chain(whisk, lambda f, p, u, v: (210, 90, 120) if f == "north" and abs(p[0] - 8) < 1.6 and 2 < p[1] < 3.6 else None))
-    ivory = Material((248, 244, 228), noise=0.03)
-    for x0 in (3.6, 10.6):
-        m.box([x0, -6.0, -4.0], [x0 + 1.8, 2.5, -2.0], ivory)
-        m.box([x0 + 0.3, -10.0, -4.6], [x0 + 1.5, -6.0, -2.8], ivory)
-    return m
+    s = Sculpt("earl", 313)
+    gray = (72, 70, 76)
+    s.head(gray, fur(gray, 25, 0.14))
+    whisk = lambda f, p, u, v: (246, 214, 90) if hnoise(math.floor(p[0] * 2.2), math.floor(p[1] * 2.2), math.floor(p[2] * 2.2), 13) > 0.62 else None
+    for x0 in (1.2, 8.0):                                                             # 볼록한 수염판 두 개
+        s.rbox((x0, 1.0, -5.4), (x0 + 6.8, 8.6, 1.0), 2.2, (92, 88, 92), chain(whisk, fur((92, 88, 92), 26)))
+    s.rbox((6.4, 6.8, -5.0), (9.6, 8.6, -3.6), 0.5, (40, 36, 40))
+    s.box((6.6, 0.6, -4.4), (9.4, 2.0, 0.0), (210, 90, 120))
+    for x, y in ((2.0, 6.0), (2.4, 3.2), (13.0, 6.0), (12.6, 3.2), (4.4, 1.8), (10.6, 1.8)):  # 뻗친 수염 털
+        s.box((x, y, -5.9), (x + 0.3, y + 0.3, -5.3), (250, 220, 110))
+    for cx in (4.0, 12.0):
+        s.eye_socket(cx, 11.2, -0.05, 0.9, 0.7, BLACK, brow=dark(gray, 0.7))
+    ivory = (248, 244, 228)
+    for x0 in (3.4, 10.8):
+        s.rbox((x0, -4.0, -4.4), (x0 + 1.8, 2.0, -2.0), 0.5, ivory)
+        s.rbox((x0 + 0.2, -8.4, -4.8), (x0 + 1.6, -3.6, -2.6), 0.5, ivory)
+        s.box((x0 + 0.4, -10.6, -4.6), (x0 + 1.4, -8.2, -3.0), ivory)
+    return s.done()
 
+
+# ───────────────────────── 14. 제이크 (코브라) ─────────────────────────
 
 def jake():
-    m = Model("jake", seed=314)
-    green = (88, 196, 70)
-    scale_p = lambda f, p, u, v: dark(green, 0.78) if (int(p[0] * 1.8) + int(p[1] * 1.8) + int(p[2] * 1.8)) % 2 == 0 else None
-    m.box([0, 0, 0], [16, 16, 16], fur(green, 0.08), painter=chain(eyes_front([3.8, 12.2], 11.0, 1.8, 1.0, (255, 220, 60), pupil=BLACK), scale_p))
-    # 후드 (뒤로 넓게 펼쳐짐)
-    hood = fur((70, 170, 56), 0.08)
-    m.box([-6.5, -1, 9.5], [22.5, 19, 12.5], hood, painter=lambda f, p, u, v: (240, 150, 40) if (p[0] < -4.8 or p[0] > 20.8 or p[1] > 17.2) else scale_p(f, p, u, v))
-    m.box([3.5, 4.0, -4.0], [12.5, 8.5, 0.4], fur(green), painter=scale_p)
-    m.box([4.0, 2.0, -3.6], [12.0, 4.0, 0.2], Material((150, 40, 170), noise=0.05))
-    m.box([5.0, 2.4, -4.0], [6.0, 4.0, -3.4], Material(WHITE, noise=0.02))      # 송곳니
-    m.box([10.0, 2.4, -4.0], [11.0, 4.0, -3.4], Material(WHITE, noise=0.02))
-    m.box([7.5, 1.0, -7.0], [8.5, 1.8, -3.6], Material((230, 40, 60), noise=0.04))  # 혀
-    return m
+    s = Sculpt("jake", 314)
+    green = (88, 198, 70)
+    scl = lambda f, p, u, v: dark(green, 0.76) if (math.floor(p[0] * 1.6) + math.floor(p[1] * 1.6) + math.floor(p[2] * 1.6)) % 2 == 0 else None
+    s.head(green, scl)
+    # 후드 (뒤로 넓게) + 주황 테두리
+    hood = (70, 172, 56)
+    for i, (w, y0, y1) in enumerate([(22, 0, 16), (26, 2, 18), (20, 17, 20.5)]):
+        s.rbox((8 - w / 2, y0, 9.0 + i * 0.2), (8 + w / 2, y1, 12.0), 1.6, hood, scl)
+    s.box((-5.2, 1.0, 8.6), (-4.0, 17.0, 9.2), (244, 150, 40))
+    s.box((20.0, 1.0, 8.6), (21.2, 17.0, 9.2), (244, 150, 40))
+    s.box((-2.0, 19.6, 8.8), (18.0, 20.4, 9.4), (244, 150, 40))
+    s.box((2.0, 4.0, 8.7), (14.0, 12.0, 9.0), (236, 214, 110))                         # 후드 안쪽 무늬
+    s.rbox((3.4, 4.2, -4.2), (12.6, 9.0, 0.8), 1.4, green, scl)
+    s.box((3.8, 2.0, -3.8), (12.2, 4.2, 0.4), (150, 40, 170))
+    s.rbox((4.2, 0.6, -3.4), (11.8, 2.2, 0.4), 0.6, (236, 214, 110))
+    s.box((4.8, 2.2, -4.0), (5.8, 4.2, -3.4), WHITE)                                    # 송곳니
+    s.box((10.2, 2.2, -4.0), (11.2, 4.2, -3.4), WHITE)
+    s.box((7.5, 1.4, -7.4), (8.5, 2.0, -3.6), (230, 40, 60))                            # 혀
+    s.box((7.0, 1.4, -8.2), (7.6, 2.0, -7.2), (230, 40, 60))
+    s.box((8.4, 1.4, -8.2), (9.0, 2.0, -7.2), (230, 40, 60))
+    for cx in (3.8, 12.2):
+        s.eye_socket(cx, 11.0, -0.05, 1.8, 1.0, (255, 220, 60), iris=(255, 220, 60), pupil=BLACK, brow=dark(green, 0.7), brow_h=1.0)
+    return s.done()
 
+
+# ───────────────────────── 15. 리히터 (쥐) ─────────────────────────
 
 def richter():
-    m = Model("richter", seed=315)
+    s = Sculpt("richter", 315)
     gray = (56, 56, 62)
-    m.box([0, 0, 0], [16, 16, 16], fur(gray, 0.14), painter=chain(eyes_front([4.6, 11.4], 10.4, 1.2, 1.0, BLACK, pupil=(120, 30, 30)), fur_streaks(gray, 15, 0.24)))
-    m.box([4.5, 2.5, -6.5], [11.5, 8.0, 0.3], fur(gray, 0.14))
-    m.box([6.2, 4.4, -8.4], [9.8, 7.4, -6.4], fur(gray, 0.14))
-    m.box([6.8, 5.6, -9.2], [9.2, 7.4, -8.3], Material((240, 140, 160), noise=0.04))
-    m.box([7.0, 1.4, -6.0], [9.0, 2.6, -5.0], Material(WHITE, noise=0.02))
-    whisk = Material((200, 200, 205), noise=0.02)
-    m.box([1.0, 5.6, -6.0], [5.0, 5.8, -5.8], whisk)
-    m.box([11.0, 5.6, -6.0], [15.0, 5.8, -5.8], whisk)
-    pink = Material((236, 150, 170), noise=0.05)
-    for x0 in (-0.5, 11.5):
-        m.box([x0, 14.5, 5.5], [x0 + 5.0, 20.0, 7.5], fur(gray), painter=lambda f, p, u, v, x0=x0: (236, 150, 170) if f == "north" and x0 + 1 < p[0] < x0 + 4 and 15.5 < p[1] < 19 else None)
-    _ = pink
-    return m
+    s.head(gray, fur(gray, 27, 0.26))
+    s.rbox((4.4, 2.2, -5.4), (11.6, 8.6, 1.0), 1.8, gray, fur(gray, 28, 0.2))
+    s.rbox((5.6, 3.4, -8.4), (10.4, 7.6, -4.6), 1.2, gray, fur(gray, 29, 0.2))
+    s.rbox((6.8, 5.6, -9.4), (9.2, 7.6, -8.0), 0.6, (240, 140, 160))
+    s.box((7.0, 2.2, -7.0), (7.9, 3.6, -6.4), WHITE)
+    s.box((8.1, 2.2, -7.0), (9.0, 3.6, -6.4), WHITE)
+    for side in (-1, 1):                                                              # 수염
+        for i in range(3):
+            x0 = 5.0 if side < 0 else 11.0
+            s.box((x0 - 4.0 if side < 0 else x0, 5.0 + i * 0.7, -7.0 + i * 0.4), (x0 if side < 0 else x0 + 4.0, 5.2 + i * 0.7, -6.8 + i * 0.4), (200, 200, 206))
+    for cx in (4.8, 11.2):
+        s.eye_socket(cx, 10.4, -0.05, 1.2, 1.0, BLACK, iris=(140, 20, 24), pupil=BLACK, brow=dark(gray, 0.75))
+    for x0 in (-1.0, 11.4):                                                           # 둥근 귀
+        s.rbox((x0, 13.8, 5.4), (x0 + 5.6, 20.2, 7.8), 2.0, gray)
+        s.rbox((x0 + 1.0, 14.8, 5.2), (x0 + 4.6, 19.2, 5.6), 1.2, (236, 150, 170))
+    s.tufts(((0.0, 13.0, 0.0), (16.0, 16.4, 14.0)), 14, (1.0, 2.0), gray, jitter=0.25)
+    return s.done()
 
+
+# ───────────────────────── 16. 돼지 학살자 (돼지) ─────────────────────────
 
 def pig_butcher():
-    m = Model("pig_butcher", seed=316)
-    pale = (242, 228, 190)
-    m.box([0, 0, 0], [16, 16, 16], fur(pale, 0.06), painter=chain(
-        eyes_front([4.0, 12.0], 10.4, 1.5, 0.8, (60, 30, 20)),
-        lambda f, p, u, v: (180, 40, 40) if hnoise(int(p[0] * 3), int(p[1] * 3), int(p[2] * 3), 16) > 0.93 else None))
+    s = Sculpt("pig_butcher", 316)
+    pale = (242, 228, 192)
+    blood = lambda f, p, u, v: (170, 30, 34) if hnoise(math.floor(p[0] * 2.5), math.floor(p[1] * 2.5), math.floor(p[2] * 2.5), 16) > 0.9 else None
+    s.head(pale, chain(blood, fur(pale, 31, 0.05)))
     pink = (238, 150, 160)
-    m.box([4.2, 3.0, -3.0], [11.8, 9.0, 0.4], Material(pink, noise=0.05),
-          painter=lambda f, p, u, v: (120, 40, 50) if f == "north" and (ellipse(p[0], p[1], 6.4, 6, 0.8, 1.2) or ellipse(p[0], p[1], 9.6, 6, 0.8, 1.2)) else (dark(pink, 0.82) if f == "north" and int(p[1] * 2) % 3 == 0 else None))
-    m.box([1.0, 16, 4], [5.5, 19.5, 8], fur(pale))
-    m.box([10.5, 16, 4], [15.0, 19.5, 8], fur(pale))
-    m.box([1.0, 14.5, 1.5], [5.5, 16.5, 4.5], fur(pale))   # 접힌 귀
-    m.box([10.5, 14.5, 1.5], [15.0, 16.5, 4.5], fur(pale))
-    return m
+    s.rbox((3.8, 2.6, -3.6), (12.2, 9.4, 0.8), 2.0, pink)
+    s.rbox((4.6, 3.4, -4.2), (11.4, 8.6, -3.4), 1.2, light(pink, 1.05))
+    for x in (5.8, 8.8):
+        s.box((x, 5.0, -4.3), (x + 1.4, 7.2, -4.0), (120, 40, 50))
+    s.box((4.0, 1.4, -2.6), (12.0, 2.2, 0.4), (120, 40, 50))                          # 입선
+    for cx in (4.0, 12.0):
+        s.eye_socket(cx, 11.0, -0.05, 1.5, 0.8, (60, 30, 20), brow=dark(pale, 0.85))
+    for x0 in (0.6, 11.0):                                                            # 접힌 귀
+        s.rbox((x0, 15.0, 3.0), (x0 + 4.4, 18.6, 7.4), 1.2, pale)
+        s.box((x0 + 0.6, 13.6, 1.0), (x0 + 3.8, 15.6, 3.4), pale, rot_=rot("x", -22.5, [x0 + 2.2, 15.0, 3.0]))
+        s.box((x0 + 1.0, 15.6, 2.8), (x0 + 3.4, 17.8, 3.1), pink)
+    return s.done()
 
+
+# ───────────────────────── 17. 코리 (얼룩말) ─────────────────────────
 
 def cory():
-    m = Model("cory", seed=317)
-    st = stripes((26, 26, 30), 2.6, 1.0)
-    m.box([0, 0, 0], [16, 16, 16], fur(WHITE, 0.04), painter=chain(eyes_side(5.0, 10.6, 1.4, 1.0, BLACK), st))
-    m.box([3.5, 0.5, -8.5], [12.5, 9.0, 0.5], fur(WHITE, 0.04), painter=chain(lambda f, p, u, v: (26, 26, 30) if p[2] < -5.5 else None, st))
-    mane = Material((26, 26, 30), noise=0.1)
-    m.box([6.5, 15.5, 2], [9.5, 19.5, 17], mane, painter=lambda f, p, u, v: WHITE if int(p[2]) % 3 == 0 else None)
-    m.box([3, 16, 6], [5, 20, 8], fur(WHITE))
-    m.box([11, 16, 6], [13, 20, 8], fur(WHITE))
-    return m
+    s = Sculpt("cory", 317)
+    st = stripes((24, 24, 28), 2.6, 1.0, (0.35, 0.5))
+    s.head(WHITE, st)
+    s.rbox((3.4, 0.2, -5.0), (12.6, 9.6, 1.0), 1.8, WHITE, st)
+    s.rbox((3.8, 0.0, -9.0), (12.2, 7.8, -4.4), 1.6, (40, 40, 44))
+    for x in (5.0, 9.8):
+        s.box((x, 4.4, -9.1), (x + 1.2, 6.4, -8.8), BLACK)
+    s.side_eye(3.4, 10.6, 1.2, 0.9)
+    mane = lambda f, p, u, v: WHITE if math.floor(p[2] * 0.9) % 2 == 0 else (24, 24, 28)
+    s.tufts(((6.0, 14.0, 0.0), (10.0, 19.8, 17.0)), 26, (1.0, 2.0), (30, 30, 34), painter=mane)
+    for x0 in (2.0, 11.2):
+        s.rbox((x0, 15.0, 6.4), (x0 + 2.8, 20.0, 8.6), 0.8, WHITE, st)
+    return s.done()
 
+
+# ───────────────────────── 18. 마크 (곰) ─────────────────────────
 
 def mark():
-    m = Model("mark", seed=318)
-    blk = (34, 33, 36)
-    m.box([0, 0, 0], [16, 16, 16], fur(blk, 0.18), painter=chain(eyes_front([4.2, 11.8], 10.6, 1.2, 0.9, (90, 40, 30)), fur_streaks(blk, 18, 0.3)))
-    m.box([3.6, 2.0, -5.0], [12.4, 8.6, 0.4], fur((70, 60, 58), 0.12))
-    m.box([5.6, 5.8, -5.8], [10.4, 8.4, -4.8], Material((230, 140, 150), noise=0.05))
-    m.box([5.0, 1.6, -4.6], [11.0, 2.6, 0.2], Material((200, 70, 90), noise=0.05))
-    for x0 in (0.6, 11.4):
-        m.box([x0, 15.0, 6], [x0 + 4.0, 19.0, 9], fur(blk, 0.15))
-    return m
+    s = Sculpt("mark", 318)
+    blk = (36, 34, 38)
+    s.head(blk, fur(blk, 33, 0.3))
+    s.rbox((3.4, 1.8, -5.4), (12.6, 9.0, 1.0), 2.2, (74, 64, 62), fur((74, 64, 62), 34, 0.18))
+    s.rbox((5.4, 6.0, -6.4), (10.6, 8.8, -4.8), 1.0, (230, 140, 150))
+    s.box((7.8, 3.6, -5.5), (8.2, 6.0, -5.2), (40, 30, 30))
+    s.box((5.0, 2.8, -5.5), (11.0, 3.4, -5.2), (40, 30, 30))
+    for cx in (4.2, 11.8):
+        s.eye_socket(cx, 11.0, -0.05, 1.1, 0.9, (90, 40, 30), brow=dark(blk, 0.9))
+    for x0 in (0.0, 11.2):                                                            # 둥근 귀
+        s.rbox((x0, 14.2, 6.0), (x0 + 4.8, 19.0, 9.4), 1.8, blk)
+        s.rbox((x0 + 1.0, 15.0, 5.8), (x0 + 3.8, 18.2, 6.2), 1.0, (70, 56, 56))
+    s.tufts(((-1.0, 0.0, 0.0), (17.0, 16.6, 16.0)), 30, (1.4, 2.4), blk, jitter=0.3)
+    return s.done()
 
+
+# ───────────────────────── 19. 토니 (호랑이) ─────────────────────────
 
 def tony():
-    m = Model("tony", seed=319)
-    orng = (244, 172, 40)
-    st = stripes((40, 20, 10), 3.2, 1.0, (1, 0.2, 0.15))
-    m.box([0, 0, 0], [16, 16, 16], fur(orng, 0.08), painter=chain(
-        eyes_front([4.2, 11.8], 10.8, 1.6, 0.9, BLACK),
-        lambda f, p, u, v: (252, 240, 200) if f == "north" and p[1] < 8 and abs(p[0] - 8) > 2.6 else None, st))
-    m.box([3.6, 5.0, -4.2], [12.4, 9.5, 0.4], fur((252, 240, 200), 0.05), painter=lambda f, p, u, v: (230, 110, 140) if f == "north" and p[1] > 8.2 and abs(p[0] - 8) < 1.4 else None)
-    m.box([4.0, 2.4, -3.8], [12.0, 5.0, 0.3], Material((210, 50, 70), noise=0.06))
-    m.box([4.0, 4.2, -4.3], [12.0, 5.2, -3.7], Material(WHITE, noise=0.02), painter=teeth_row(("north",), 5.2, 4.2, 4.0, 12.0, tooth=2.0, gum=(200, 50, 70)))
-    m.box([4.0, 1.6, -4.0], [12.0, 2.6, 0.3], fur((252, 240, 200)))
+    s = Sculpt("tony", 319)
+    org = (244, 172, 40)
+    st = stripes((36, 18, 8), 3.2, 1.0, (0.2, 0.15))
+    s.head(org, chain(lambda f, p, u, v: (252, 240, 202) if p[1] < 7 and f in ("east", "west") else None, st, fur(org, 35, 0.08)))
+    s.rbox((0.8, 0.8, -2.4), (6.6, 8.0, 3.0), 2.0, (252, 240, 202), fur((252, 240, 202), 36, 0.05))  # 흰 볼
+    s.rbox((9.4, 0.8, -2.4), (15.2, 8.0, 3.0), 2.0, (252, 240, 202), fur((252, 240, 202), 36, 0.05))
+    s.rbox((3.8, 5.6, -5.0), (12.2, 10.0, 1.0), 1.6, (252, 240, 202))
+    s.rbox((6.2, 8.4, -5.8), (9.8, 10.0, -4.6), 0.6, (230, 110, 140))
+    s.box((4.0, 2.2, -4.4), (12.0, 5.6, 0.4), (200, 40, 60))                          # 포효하는 입
+    s.box((5.4, 2.4, -4.0), (10.6, 3.2, -1.0), (236, 110, 140))
+    s.rbox((4.4, 0.4, -4.0), (11.6, 2.4, 0.4), 0.7, (252, 240, 202))
+    s.teeth(4.0, 12.0, 5.6, -4.5, 6, 0.9, fang_every=5)
+    s.teeth(4.4, 11.6, 2.4, -4.1, 5, 0.9, down=False, fang_every=4)
+    for cx in (4.2, 11.8):
+        s.eye_socket(cx, 11.4, -0.05, 1.6, 0.8, (250, 230, 120), iris=(250, 230, 120), pupil=BLACK, brow=(36, 18, 8), brow_h=1.0)
     for x0 in (1.0, 11.0):
-        m.box([x0, 16, 7], [x0 + 4.0, 19.5, 9], fur(orng), painter=lambda f, p, u, v: BLACK if p[1] > 18 else None)
-    return m
+        s.rbox((x0, 15.0, 6.6), (x0 + 4.0, 19.0, 9.0), 1.0, org)
+        s.box((x0 + 0.9, 15.6, 6.4), (x0 + 3.1, 18.2, 6.7), (252, 240, 202))
+        s.box((x0 + 0.6, 18.4, 7.0), (x0 + 3.4, 19.2, 8.8), (36, 18, 8))
+    s.tufts(((-1.2, 1.0, 1.0), (0.8, 9.0, 8.0)), 8, (1.0, 2.0), (252, 240, 202), jitter=0.05)
+    s.tufts(((15.2, 1.0, 1.0), (17.2, 9.0, 8.0)), 8, (1.0, 2.0), (252, 240, 202), jitter=0.05)
+    return s.done()
 
+
+# ───────────────────────── 20. 형사 (중절모) ─────────────────────────
 
 def detective():
-    m = Model("detective", seed=320)
-    felt = Material((78, 60, 46), noise=0.08)
-    m.box([-3.5, 13.4, -3.5], [19.5, 14.6, 19.5], felt)
-    m.box([1.0, 14.6, 1.0], [15.0, 20.6, 15.0], felt, painter=lambda f, p, u, v: (30, 24, 20) if p[1] < 16.2 else None)
-    m.box([4.5, 20.6, 2.0], [11.5, 21.4, 14.0], felt)
-    m.box([1.5, 20.0, 4.0], [3.0, 21.0, 12.0], felt)
-    m.box([13.0, 20.0, 4.0], [14.5, 21.0, 12.0], felt)
-    return m
+    s = Sculpt("detective", 320)
+    felt = (80, 62, 48)
+    s.rbox((-3.6, 13.2, -4.4), (19.6, 14.4, 19.0), 1.0, felt)                          # 챙
+    s.box((-3.4, 13.6, -4.6), (19.4, 14.1, -3.8), dark(felt, 0.85))                     # 앞챙 살짝 꺾임
+    s.rbox((0.8, 14.2, 0.8), (15.2, 19.8, 15.2), 1.6, felt)
+    s.box((0.7, 14.3, 0.7), (15.3, 16.0, 15.3), (34, 26, 22))                           # 띠
+    s.rbox((2.0, 19.4, 2.0), (14.0, 21.4, 14.0), 1.4, felt)
+    s.box((6.4, 20.8, 1.6), (9.6, 21.8, 14.4), dark(felt, 0.8))                         # 가운데 접힘
+    s.box((13.8, 14.6, 4.0), (15.6, 15.8, 6.0), (150, 30, 30))                          # 깃털 장식
+    return s.done()
 
+
+# ───────────────────────── 21. 바이커 (헬멧) ─────────────────────────
 
 def biker():
-    m = Model("biker", seed=321)
-    shell = Material((232, 232, 236), noise=0.03, edge=0.86, spec=(255, 255, 255))
-    m.box([-1, -1, -1], [17, 17, 17], shell,
-          painter=lambda f, p, u, v: (200, 30, 40) if abs(p[0] - 8) < 1.4 and f in ("up", "north", "south") else None)
-    m.box([0.5, 3.5, -1.6], [15.5, 11.5, -0.8], Material((20, 22, 30), noise=0.02, spec=(120, 140, 180)),
-          painter=lambda f, p, u, v: (140, 160, 200) if f == "north" and abs((p[0] - p[1]) % 6 - 1) < 0.4 else None)
-    m.box([-1.6, 5, 4], [-0.6, 9, 12], Material((60, 60, 66), noise=0.05))
-    m.box([16.6, 5, 4], [17.6, 9, 12], Material((60, 60, 66), noise=0.05))
-    return m
+    s = Sculpt("biker", 321)
+    shell = (232, 232, 236)
+    s.rbox((-1.2, -1.2, -1.2), (17.2, 17.2, 17.2), 3.0, shell)
+    s.box((7.0, 17.0, -1.0), (9.0, 17.4, 15.0), (200, 30, 40))                          # 줄무늬
+    s.box((6.0, 16.0, 16.0), (10.0, 16.6, 17.4), (200, 30, 40))
+    s.rbox((0.6, 3.2, -1.9), (15.4, 11.6, -0.8), 1.4, (18, 20, 28),
+           painter=lambda f, p, u, v: (110, 130, 170) if f == "north" and abs((p[0] - p[1] * 0.8) % 7 - 1.2) < 0.5 else None)
+    s.box((0.4, 11.4, -2.2), (15.6, 12.2, -1.0), (60, 60, 66))                          # 바이저 테
+    s.rbox((-2.0, 5.0, 4.0), (-0.8, 9.6, 11.0), 0.6, (70, 70, 76))
+    s.rbox((16.8, 5.0, 4.0), (18.0, 9.6, 11.0), 0.6, (70, 70, 76))
+    s.box((3.0, -1.6, -1.4), (13.0, 1.0, 0.6), (40, 40, 46))                            # 턱 보호대
+    return s.done()
 
 
 MASKS = {f.__name__: f for f in [richard, don_juan, graham, dennis, george, rufus, rami, willem, peter, zack, rick,

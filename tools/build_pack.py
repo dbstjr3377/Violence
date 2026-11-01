@@ -115,46 +115,92 @@ def ref(model):
     return {"type": "minecraft:model", "model": model}
 
 
+STAB_WEAPONS = {"dagger", "pool_cue_short", "throwing_knife"}
+FP_FIST = {"rotation": [0, 180, 0], "translation": [-6.5, 4.5, 0], "scale": [0.9, 0.9, 0.9]}
+
+
+def write_frame(name, parent, display):
+    """부모 모델의 큐브/텍스처를 그대로 쓰고 1인칭 표시 변환만 바꾼 애니메이션 프레임"""
+    fr = display["firstperson_righthand"]
+    left = {"rotation": [fr["rotation"][0], 360 - fr["rotation"][1], -fr["rotation"][2]],
+            "translation": [-fr["translation"][0], fr["translation"][1], fr["translation"][2]], "scale": fr["scale"]}
+    write(os.path.join(NS, "models", "item", "weapon", name + ".json"),
+          {"parent": "violence:item/weapon/" + parent, "display": {"firstperson_righthand": fr, "firstperson_lefthand": left}})
+
+
+def dispatch(frames, rest):
+    """쿨다운 진행률(1 → 0)에 따라 프레임 선택"""
+    return {"type": "minecraft:range_dispatch", "property": "minecraft:cooldown",
+            "entries": [{"threshold": th, "model": ref("violence:item/weapon/" + name)} for th, name in sorted(frames)],
+            "fallback": ref("violence:item/weapon/" + rest)}
+
+
 def weapons():
+    import anim
     import models_flash
     import models_guns
     import models_hands
     import models_masks
     import models_melee
+    from voxel import Model
     count = 0
-    # 총기: 기본 / 1인칭(양손) / 1인칭 사격(총구 화염 + 반동)
+    # ── 총기: 평소 / 발사(화염+반동) / 반동 / 반동 잡기 ──
+    custom = {"magnum": FP_PISTOL, "silenced_pistol": FP_PISTOL, "uzi": FP_SMG, "silenced_uzi": FP_SMG}
     for gid, make in models_guns.GUNS.items():
         right, left = models_guns.HAND_POS[gid]
         save_model("weapon", gid, make(), M.GUN_DISPLAY)
+        base_cfg = custom.get(gid, FP_GUN)
+        align = gid not in custom
+        rest_disp = fp_display(base_cfg, right, align=align)
         fp = make()
         models_hands.hands_for(fp, gid, right, left)
-        custom = {"magnum": FP_PISTOL, "silenced_pistol": FP_PISTOL, "uzi": FP_SMG, "silenced_uzi": FP_SMG}
-        pistol = gid in custom
-        base = custom.get(gid, FP_GUN)
-        save_model("weapon", gid + "_fp", fp, fp_display(base, right, align=not pistol))
-        fire = make()
-        models_hands.hands_for(fire, gid, right, left)
-        models_flash.add_flash(fire, models_guns.MUZZLE[gid], 2.6 if "silenced" in gid else 3.4)
-        save_model("weapon", gid + "_fp_fire", fire, fp_display(base, right, recoil=True, align=not pistol))
-        fp_sel = {"type": "minecraft:range_dispatch", "property": "minecraft:cooldown",
-                  "entries": [{"threshold": 0.34, "model": ref(f"violence:item/weapon/{gid}_fp_fire")}],
-                  "fallback": ref(f"violence:item/weapon/{gid}_fp")}
-        write(os.path.join(NS, "items", "weapon", gid + ".json"), select_by_context(fp_sel, ref(f"violence:item/weapon/{gid}")))
+        save_model("weapon", gid + "_fp", fp, rest_disp)
+        base = rest_disp["firstperson_righthand"]
+        frames = []
+        for i, (th, dr, dt) in enumerate(anim.RECOIL):
+            d = anim.apply(base, dr, dt)
+            if i == 0:
+                fire = make()
+                models_hands.hands_for(fire, gid, right, left)
+                models_flash.add_flash(fire, models_guns.MUZZLE[gid], 2.6 if "silenced" in gid else 3.4)
+                save_model("weapon", gid + "_fp_fire", fire, {"firstperson_righthand": d, "firstperson_lefthand": d})
+                frames.append((th, gid + "_fp_fire"))
+            else:
+                write_frame(f"{gid}_fp_r{i}", gid + "_fp", {"firstperson_righthand": d})
+                frames.append((th, f"{gid}_fp_r{i}"))
+        write(os.path.join(NS, "items", "weapon", gid + ".json"),
+              select_by_context(dispatch(frames, gid + "_fp"), ref(f"violence:item/weapon/{gid}")))
         count += 1
-    # 근접 / 투척: 기본 / 1인칭(오른손)
-    for table, disp in ((models_melee.MELEE, M.MELEE_DISPLAY), (models_melee.THROWABLES, M.THROW_DISPLAY)):
+    # ── 근접: 휘두르기/찌르기 프레임, 투척: 오른손 ──
+    for table, disp, animated in ((models_melee.MELEE, M.MELEE_DISPLAY, True), (models_melee.THROWABLES, M.THROW_DISPLAY, False)):
         for wid, make in table.items():
             grip = models_melee.GRIP[wid]
             save_model("weapon", wid, make(), disp)
             fp = make()
             models_hands.right_fist(fp, grip)
-            fd = fp_display({**FP_MELEE}, grip)
-            # 근접 무기는 그립 기준점이 총과 다르므로 별도 보정
-            save_model("weapon", wid + "_fp", fp, melee_fp_display(grip))
-            write(os.path.join(NS, "items", "weapon", wid + ".json"),
-                  select_by_context(ref(f"violence:item/weapon/{wid}_fp"), ref(f"violence:item/weapon/{wid}")))
-            _ = fd
+            rest_disp = melee_fp_display(grip)
+            save_model("weapon", wid + "_fp", fp, rest_disp)
+            fp_model = ref(f"violence:item/weapon/{wid}_fp")
+            if animated:
+                keys = anim.STAB if wid in STAB_WEAPONS else anim.SWING
+                frames = []
+                for i, (th, dr, dt) in enumerate(keys):
+                    write_frame(f"{wid}_fp_a{i}", wid + "_fp", {"firstperson_righthand": anim.apply(rest_disp["firstperson_righthand"], dr, dt)})
+                    frames.append((th, f"{wid}_fp_a{i}"))
+                fp_model = dispatch(frames, wid + "_fp")
+            write(os.path.join(NS, "items", "weapon", wid + ".json"), select_by_context(fp_model, ref(f"violence:item/weapon/{wid}")))
             count += 1
+    # ── 맨주먹: 장갑 낀 두 주먹 (가드 / 잽 / 회수), 1인칭에서만 보임 ──
+    fist_disp = {"firstperson_righthand": FP_FIST,
+                 "firstperson_lefthand": {"rotation": [0, 180, 0], "translation": [6.5, 4.5, 0], "scale": FP_FIST["scale"]}}
+    for pose, name in (("guard", "fist_fp"), ("jab", "fist_fp_jab"), ("half", "fist_fp_half")):
+        fm = Model(name, seed=77, auto_round=0.18)
+        models_hands.fists(fm, pose)
+        save_model("weapon", name, fm, fist_disp)
+    write(os.path.join(NS, "items", "weapon", "fist.json"),
+          select_by_context(dispatch([(0.25, "fist_fp_half"), (0.6, "fist_fp_jab")], "fist_fp"), ref("violence:misc/blank")))
+    count += 1
+    # ── 가면 ──
     for mid, make in models_masks.MASKS.items():
         save_model("mask", mid, make(), M.MASK_DISPLAY)
         write(os.path.join(NS, "items", "mask", mid + ".json"), item_def("violence:item/mask/" + mid))

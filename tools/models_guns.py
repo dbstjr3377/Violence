@@ -94,7 +94,7 @@ def m16():
 # ───────────────────────── UZI ─────────────────────────
 
 def uzi(silenced=False):
-    m = Model("silenced_uzi" if silenced else "uzi", seed=30 + silenced)
+    m = Model("silenced_uzi" if silenced else "uzi", seed=30 + silenced, auto_round=0.18)
     m.box([7.05, 7.9, 3.0], [8.95, 11.0, 14.0], "gunmetal", painter=slots(1.3, 0.3, "z", lo=4, hi=13))
     m.box([7.25, 11.0, 3.6], [8.75, 11.5, 13.4], "dark_steel", painter=slots(0.6, 0.2, "z", lo=5, hi=9))
     m.box([7.75, 11.5, 10.4], [8.25, 12.2, 11.6], "black")  # 장전 손잡이
@@ -130,7 +130,7 @@ def uzi(silenced=False):
 # ───────────────────────── MP5 ─────────────────────────
 
 def mp5(name="mp5"):
-    m = Model(name, seed=55)
+    m = Model(name, seed=55, auto_round=0.18)
     m.box([7.15, 8.2, 2.0], [8.85, 11.0, 14.6], "polymer", painter=slots(3.0, 0.15, "z", dark=(12, 12, 14), lo=3, hi=14))
     m.box([7.35, 11.0, 2.4], [8.65, 11.3, 14.2], "anodized")
     # 드럼 가늠자
@@ -170,7 +170,7 @@ def mp5(name="mp5"):
 # ───────────────────────── 샷건 (펌프) ─────────────────────────
 
 def shotgun():
-    m = Model("shotgun", seed=12)
+    m = Model("shotgun", seed=12, auto_round=0.18)
     # 개머리판 (나무)
     m.box([7.1, 5.6, -9.0], [8.9, 10.4, -4.0], "wood")
     m.box([7.2, 6.6, -4.0], [8.8, 10.2, -0.5], "wood")
@@ -202,7 +202,7 @@ def shotgun():
 # ───────────────────────── 더블배럴 ─────────────────────────
 
 def double_barrel():
-    m = Model("double_barrel", seed=22)
+    m = Model("double_barrel", seed=22, auto_round=0.18)
     m.box([7.1, 5.4, -9.0], [8.9, 10.2, -3.6], "wood_dark")
     m.box([7.2, 6.8, -3.6], [8.8, 10.0, 0.0], "wood_dark")
     m.box([7.25, 7.6, 0.0], [8.75, 9.8, 3.0], "wood_dark", painter=lambda f, p, u, v: (40, 22, 12) if f in ("east", "west") and int(p[2] * 3 + p[1] * 3) % 2 == 0 else None)
@@ -229,7 +229,7 @@ def double_barrel():
 # ───────────────────────── 매그넘 (리볼버) ─────────────────────────
 
 def magnum():
-    m = Model("magnum", seed=44)
+    m = Model("magnum", seed=44, auto_round=0.18)
     # 프레임
     m.box([7.3, 8.0, 5.6], [8.7, 11.4, 11.2], "chrome")
     # 실린더 (홈)
@@ -258,7 +258,7 @@ def magnum():
 # ───────────────────────── 소음기 권총 ─────────────────────────
 
 def silenced_pistol():
-    m = Model("silenced_pistol", seed=13)
+    m = Model("silenced_pistol", seed=13, auto_round=0.18)
     m.box([7.25, 9.6, 4.6], [8.75, 11.2, 13.0], "anodized", painter=slots(0.5, 0.2, "z", dark=(18, 18, 20), lo=4.8, hi=6.8))
     m.box([7.3, 11.2, 5.0], [8.7, 11.7, 5.6], "black")       # 가늠자
     m.box([7.8, 11.2, 12.2], [8.2, 11.7, 12.7], "black")      # 가늠쇠
@@ -274,6 +274,88 @@ def silenced_pistol():
     m.box([7.7, 9.9, 13.0], [8.3, 10.5, 13.6], "steel")
     octagon_rod(m, "z", 8, 10.2, 0.85, 13.6, 22.0, "polymer", painter=bore_small)
     m.box([7.1, 9.3, 13.6], [8.9, 11.1, 14.1], "dark_steel")
+    return m
+
+
+def pins(m, pts, r=0.22, mat="steel"):
+    """리시버 옆면의 핀/나사 (양쪽)"""
+    for (y, z, xl, xr) in pts:
+        m.box([xl - 0.12, y - r, z - r], [xl + 0.02, y + r, z + r], mat)
+        m.box([xr - 0.02, y - r, z - r], [xr + 0.12, y + r, z + r], mat)
+
+
+def rail(m, x0, x1, y, z0, z1, mat="anodized"):
+    """피카티니 레일 (이빨)"""
+    m.box([x0, y, z0], [x1, y + 0.35, z1], mat)
+    z = z0 + 0.2
+    while z + 0.5 < z1:
+        m.box([x0 - 0.1, y + 0.35, z], [x1 + 0.1, y + 0.7, z + 0.5], mat)
+        z += 1.0
+
+
+_m16, _uzi, _mp5, _shotgun, _db, _magnum, _pistol = m16, uzi, mp5, shotgun, double_barrel, magnum, silenced_pistol
+
+
+def m16():
+    m = _m16()
+    pins(m, [(8.2, 4.0, 7.1, 8.9), (8.2, 9.4, 7.1, 8.9), (10.2, 3.0, 7.2, 8.8), (10.2, 10.6, 7.2, 8.8)])
+    m.box([7.4, 6.6, 3.0], [8.6, 7.4, 3.6], "dark_steel")          # 멈치
+    m.box([8.9, 8.0, 7.4], [9.3, 8.6, 8.4], "dark_steel")          # 탄창 멈치 버튼
+    m.box([7.1, 8.0, 2.6], [7.3, 8.6, 3.6], "dark_steel")          # 조정간
+    m.box([7.75, 7.0, -7.0], [8.25, 7.6, -5.6], "dark_steel")       # 멜빵 고리
+    for z in (12.2, 13.6, 15.0, 16.4, 17.8):
+        m.box([6.9, 9.2, z], [9.1, 9.8, z + 0.5], "polymer")       # 총열덮개 리브
+    return m
+
+
+def uzi(silenced=False):
+    m = _uzi(silenced)
+    pins(m, [(9.2, 5.0, 7.05, 8.95), (9.2, 12.4, 7.05, 8.95), (7.6, 8.4, 7.2, 8.8)])
+    m.box([7.0, 9.6, 6.0], [7.15, 10.6, 9.0], "dark_steel")         # 왼쪽 조정간 판
+    m.box([7.5, 10.0, 14.8], [8.5, 10.2, 15.2], "steel")
+    return m
+
+
+def mp5(name="mp5"):
+    m = _mp5(name)
+    pins(m, [(7.6, 4.2, 7.2, 8.8), (7.6, 9.6, 7.2, 8.8), (10.4, 13.6, 7.15, 8.85)])
+    rail(m, 7.4, 8.6, 11.3, 4.4, 13.4)
+    m.box([7.0, 7.6, 3.6], [7.2, 8.0, 4.6], "dark_steel")           # 조정간
+    m.box([7.75, 8.4, -5.0], [8.25, 9.0, -4.2], "dark_steel")
+    return m
+
+
+def shotgun():
+    m = _shotgun()
+    pins(m, [(8.6, 4.0, 7.1, 8.9), (8.6, 9.4, 7.1, 8.9)])
+    m.box([7.75, 6.8, -6.4], [8.25, 7.4, -5.0], "dark_steel")        # 멜빵 고리
+    m.box([7.75, 8.2, 26.8], [8.25, 8.6, 27.6], "dark_steel")
+    m.box([7.3, 11.15, 6.0], [8.7, 11.4, 9.0], "blued")              # 리시버 홈
+    return m
+
+
+def double_barrel():
+    m = _db()
+    pins(m, [(9.4, 4.0, 7.0, 9.0), (8.4, 6.8, 7.0, 9.0)])
+    m.box([7.5, 7.4, 16.6], [8.5, 8.0, 17.2], "steel")               # 앞나무 고정쇠
+    for z in (12.0, 20.0, 26.0):
+        m.box([7.8, 8.8, z], [8.2, 9.2, z + 0.6], "dark_steel")       # 총열 사이 고정대
+    return m
+
+
+def magnum():
+    m = _magnum()
+    pins(m, [(10.6, 6.2, 7.3, 8.7), (8.8, 7.6, 7.25, 8.75)], r=0.25)
+    m.box([7.65, 8.0, 15.0], [8.35, 8.5, 21.2], "chrome")             # 이젝터 로드 하우징
+    m.box([7.2, 9.1, 10.8], [8.8, 10.4, 11.3], "dark_steel")           # 실린더 앞 간격
+    return m
+
+
+def silenced_pistol():
+    m = _pistol()
+    pins(m, [(9.1, 7.0, 7.3, 8.7), (9.1, 11.6, 7.3, 8.7)])
+    m.box([7.15, 9.0, 7.0], [7.3, 9.6, 8.6], "dark_steel")             # 슬라이드 멈치
+    m.box([7.7, 8.9, 5.4], [8.3, 9.2, 6.4], "dark_steel")
     return m
 
 

@@ -96,8 +96,9 @@ public final class PlayerCombatant extends Combatant {
     @Override
     public void refreshEquipment() {
         PlayerInventory inv = player.getInventory();
-        // 맨손은 아이템 없이 바닐라 팔로 보인다
-        inv.setItem(0, weapon == null ? null : WeaponItems.create(weapon.type(), weapon.ammo()));
+        // 맨손: 1인칭에서만 보이는 장갑 낀 두 주먹 (3인칭에서는 보이지 않음)
+        WeaponType held = weapon == null ? plugin().weapons().fist() : weapon.type();
+        inv.setItem(0, WeaponItems.create(held, weapon == null ? 0 : weapon.ammo()));
         inv.setItemInOffHand(offhand != null ? WeaponItems.create(offhand.type(), offhand.ammo()) : null);
         if (inv.getHeldItemSlot() != 0) inv.setHeldItemSlot(0);
         inv.setHelmet(mask != null ? WeaponItems.mask(mask, false) : null);
@@ -183,6 +184,11 @@ public final class PlayerCombatant extends Combatant {
         Vec3 to = door.center().sub(feet()).horizontal().normalize();
         Vec3 move = input.moveDirection(look());
         return move.dot(to) > 0.4;
+    }
+
+    /** 1인칭 키프레임 애니메이션 재생 (해당 쿨다운 그룹에 짧은 쿨다운) */
+    public void playAnim(net.kyori.adventure.key.Key group, int ticks) {
+        if (group != null) player.setCooldown(group, ticks);
     }
 
     @Override

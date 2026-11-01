@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""리소스팩의 1인칭 모델을 마인크래프트 1인칭 변환 그대로 렌더 (평소 / 사격 순간)."""
+"""
+리소스팩의 1인칭 모델과 애니메이션 프레임을 마인크래프트 1인칭 변환 그대로 렌더한다.
+결과: docs/images/firstperson/*.png (왼쪽부터 쿨다운 진행 순서 = 시간 순서)
+"""
 import json
 import os
 import sys
@@ -15,9 +18,30 @@ FONT = os.path.join(ROOT, "tools", "fonts", "blackhansans_BlackHanSans-Regular.t
 OUT = os.path.join(ROOT, "docs", "images", "firstperson")
 
 
-def view(name, label, flash_shake=False):
+def load_model(name):
     m = json.load(open(os.path.join(NS, "models", "item", "weapon", name + ".json"), encoding="utf-8"))
-    tex = Image.open(os.path.join(NS, "textures", "item", "weapon", name + ".png")).convert("RGBA")
+    if "parent" in m:
+        parent = load_model(m["parent"].split("/")[-1])
+        merged = dict(parent)
+        merged["display"] = {**parent.get("display", {}), **m.get("display", {})}
+        return merged
+    return m
+
+
+def frames_of(item):
+    """아이템 정의에서 1인칭 프레임 목록 (시간 순서: 쿨다운 1 → 0)"""
+    d = json.load(open(os.path.join(NS, "items", "weapon", item + ".json"), encoding="utf-8"))
+    fp = d["model"]["cases"][0]["model"]
+    if fp["type"] == "minecraft:model":
+        return [fp["model"].split("/")[-1]]
+    entries = sorted(fp["entries"], key=lambda e: -e["threshold"])
+    return [e["model"]["model"].split("/")[-1] for e in entries] + [fp["fallback"]["model"].split("/")[-1]]
+
+
+def view(name, label, shake=0.0):
+    m = load_model(name)
+    tex_ref = m["textures"]["t"].split(":")[1]
+    tex = Image.open(os.path.join(NS, "textures", tex_ref + ".png")).convert("RGBA")
     img = fp_sim.background()
     d = ImageDraw.Draw(img)
     items = []
@@ -28,32 +52,41 @@ def view(name, label, flash_shake=False):
     cx, cy = fp_sim.W / 2, fp_sim.H / 2
     d.line([(cx - 9, cy), (cx + 9, cy)], fill=(255, 255, 255), width=2)
     d.line([(cx, cy - 9), (cx, cy + 9)], fill=(255, 255, 255), width=2)
-    if flash_shake:
-        # 화면 흔들림(반동): 전체를 살짝 위로 튀긴 모습
-        img = img.rotate(-1.2, resample=Image.BICUBIC, center=(cx, cy), translate=(4, -10), fillcolor=(20, 18, 24))
+    if shake:
+        img = img.rotate(-shake, resample=Image.BICUBIC, center=(cx, cy), translate=(3 * shake, -4 * shake), fillcolor=(20, 18, 24))
         d = ImageDraw.Draw(img)
-    d.rectangle([0, 0, fp_sim.W, 36], fill=(0, 0, 0))
-    d.text((14, 6), label, font=ImageFont.truetype(FONT, 20), fill=(255, 220, 90))
+    d.rectangle([0, 0, fp_sim.W, 40], fill=(0, 0, 0))
+    d.text((14, 6), label, font=ImageFont.truetype(FONT, 24), fill=(255, 220, 90))
     return img
+
+
+def strip(item, title, labels, out, shakes=None):
+    names = frames_of(item)
+    tiles = []
+    for i, n in enumerate(names):
+        lab = labels[i] if i < len(labels) else n
+        tiles.append(view(n, f"{title} {i + 1}/{len(names)} · {lab}", (shakes or [0] * 9)[i]).resize((fp_sim.W // 2, fp_sim.H // 2), Image.LANCZOS))
+    cols = min(3, len(tiles))
+    rows = (len(tiles) + cols - 1) // cols
+    sheet = Image.new("RGB", (cols * fp_sim.W // 2, rows * fp_sim.H // 2), (0, 0, 0))
+    for i, t in enumerate(tiles):
+        sheet.paste(t, ((i % cols) * fp_sim.W // 2, (i // cols) * fp_sim.H // 2))
+    sheet.save(out)
+    print(out)
 
 
 if __name__ == "__main__":
     os.makedirs(OUT, exist_ok=True)
-    guns = ["m16", "uzi", "mp5", "shotgun", "double_barrel", "magnum", "silenced_pistol", "silenced_uzi"]
-    for g in guns:
-        a = view(g + "_fp", f"{g} - 1인칭 (평소)")
-        b = view(g + "_fp_fire", f"{g} - 사격 순간: 총구 화염 + 반동 + 화면 흔들림", True)
-        pair = Image.new("RGB", (fp_sim.W * 2 + 10, fp_sim.H), (0, 0, 0))
-        pair.paste(a, (0, 0))
-        pair.paste(b, (fp_sim.W + 10, 0))
-        pair = pair.resize((pair.width // 2, pair.height // 2), Image.LANCZOS)
-        pair.save(os.path.join(OUT, g + ".png"))
-        print(os.path.join(OUT, g + ".png"))
-    melee = ["bat", "katana", "fire_axe", "dagger", "frying_pan", "bottle"]
-    tiles = [view(w + "_fp", f"{w} - 1인칭") for w in melee]
-    sheet = Image.new("RGB", (fp_sim.W * 3 // 2, fp_sim.H * 2 // 2), (0, 0, 0))
-    for i, t in enumerate(tiles):
-        t = t.resize((fp_sim.W // 2, fp_sim.H // 2), Image.LANCZOS)
-        sheet.paste(t, ((i % 3) * fp_sim.W // 2, (i // 3) * fp_sim.H // 2))
-    sheet.save(os.path.join(OUT, "melee.png"))
-    print(os.path.join(OUT, "melee.png"))
+    for f in os.listdir(OUT):
+        os.remove(os.path.join(OUT, f))
+    recoil = ["발사 (총구 화염)", "반동", "반동 잡기", "평소"]
+    for g in ["m16", "uzi", "mp5", "shotgun", "double_barrel", "magnum", "silenced_pistol", "silenced_uzi"]:
+        strip(g, g, recoil, os.path.join(OUT, f"{g}.png"), shakes=[1.2, 0.6, 0.2, 0])
+    swing = ["내려치기", "휘두름", "되돌림", "마무리", "평소"]
+    for w in ["bat", "katana", "fire_axe", "frying_pan", "crowbar", "pipe"]:
+        strip(w, w, swing, os.path.join(OUT, f"{w}.png"))
+    stab = ["찌르기", "빼기", "되돌림", "평소"]
+    strip("dagger", "dagger", stab, os.path.join(OUT, "dagger.png"))
+    strip("fist", "맨주먹", ["잽", "회수", "가드"], os.path.join(OUT, "fist.png"))
+    for t in ["bottle", "brick", "throwing_knife"]:
+        strip(t, t, ["들고 있음"], os.path.join(OUT, f"{t}.png"))

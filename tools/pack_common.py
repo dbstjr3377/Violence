@@ -42,7 +42,8 @@ def write(path, data):
 
 def save_png(img, path):
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    img.save(path)
+    # 투명 영역만 남은 아틀라스는 사용 영역까지 잘라 용량을 줄이지 않는다 (UV 가 정사각형 기준) → 압축만 최적화
+    img.save(path, optimize=True)
 
 
 def palette_texture(path):

@@ -44,5 +44,5 @@ if __name__ == "__main__":
     os.makedirs(out, exist_ok=True)
     sheet("weapon", list(models_guns.GUNS), [10, 240, 0], 4, "총기 (TACZ 스타일)", os.path.join(out, "guns_preview.png"), size=340, dist=1.45)
     sheet("weapon", list(models_melee.MELEE) + list(models_melee.THROWABLES), [0, 245, -35], 6, "근접 / 투척 무기",
-          os.path.join(out, "melee_preview.png"), size=230, dist=1.7)
+          os.path.join(out, "melee_preview.png"), size=230, dist=2.4)
     sheet("mask", list(models_masks.MASKS), [18, 205, 0], 7, "가면 21종 (복셀)", os.path.join(out, "masks_preview.png"), size=230, dist=2.0)

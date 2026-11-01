@@ -17,8 +17,22 @@ import org.bukkit.inventory.ItemStack;
 public final class WeaponItems {
     private WeaponItems() {}
 
-    /** 총기 사격 연출용 쿨다운 그룹 */
+    /**
+     * 1인칭 애니메이션용 쿨다운 그룹. 공격할 때 이 그룹에 짧은 쿨다운을 걸면
+     * 리소스팩이 쿨다운 진행률에 따라 키프레임 모델(발사·반동 잡기 / 휘두르기 / 잽)을 보여준다.
+     */
     public static final Key GUNFIRE = Key.key("violence", "gunfire");
+    public static final Key MELEE = Key.key("violence", "melee");
+    public static final Key FIST = Key.key("violence", "fist");
+
+    public static Key animGroup(WeaponType t) {
+        return switch (t.category()) {
+            case GUN -> GUNFIRE;
+            case MELEE -> MELEE;
+            case FIST -> FIST;
+            case THROWABLE -> null;
+        };
+    }
 
     public static ItemStack create(WeaponType type, int ammo) {
         ItemStack it = new ItemStack(Material.STICK);
@@ -26,17 +40,12 @@ public final class WeaponItems {
         it.setData(DataComponentTypes.ITEM_NAME, Component.text(type.displayName()));
         it.setData(DataComponentTypes.MAX_STACK_SIZE, 1);
         it.setData(DataComponentTypes.TOOLTIP_DISPLAY, TooltipDisplay.tooltipDisplay().hideTooltip(true).build());
-        SwingAnimation.Animation anim = switch (type.category()) {
-            case GUN, THROWABLE -> SwingAnimation.Animation.NONE;
-            case FIST -> SwingAnimation.Animation.WHACK;
-            case MELEE -> type.execution() == ExecutionStyle.AUTO && type.meleeCooldown() <= 6
-                    ? SwingAnimation.Animation.STAB : SwingAnimation.Animation.WHACK;
-        };
-        it.setData(DataComponentTypes.ATTACK_ANIMATION, SwingAnimation.swingAnimation().type(anim).duration(Math.max(4, Math.min(10, type.meleeCooldown()))).build());
+        // 바닐라 휘두르기 동작은 끄고 리소스팩 키프레임 애니메이션만 사용
+        it.setData(DataComponentTypes.ATTACK_ANIMATION, SwingAnimation.swingAnimation().type(SwingAnimation.Animation.NONE).duration(1).build());
         it.setData(DataComponentTypes.INTERACT_ANIMATION, SwingAnimation.swingAnimation().type(SwingAnimation.Animation.NONE).duration(1).build());
-        if (type.isGun()) {
-            // 사격 연출: 이 그룹에 짧은 쿨다운을 걸면 리소스팩이 1인칭 사격 모델(총구 화염 + 반동)로 바꿔 보여준다
-            it.setData(DataComponentTypes.USE_COOLDOWN, io.papermc.paper.datacomponent.item.UseCooldown.useCooldown(0.05f).cooldownGroup(GUNFIRE).build());
+        Key group = animGroup(type);
+        if (group != null) {
+            it.setData(DataComponentTypes.USE_COOLDOWN, io.papermc.paper.datacomponent.item.UseCooldown.useCooldown(0.05f).cooldownGroup(group).build());
         }
         return it;
     }

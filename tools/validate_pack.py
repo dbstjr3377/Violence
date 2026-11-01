@@ -128,6 +128,8 @@ def main():
         d = load(mp)
         if not d:
             continue
+        if "parent" in d and not d["parent"].startswith("minecraft:") and not os.path.isfile(res_path(d["parent"], "models", ".json")):
+            err(f"{os.path.relpath(mp, PACK)} → 부모 모델 없음 {d['parent']}")
         for k, v in d.get("textures", {}).items():
             if isinstance(v, str) and not v.startswith("#") and not os.path.isfile(res_path(v, "textures", ".png")):
                 err(f"{os.path.relpath(mp, PACK)} → 텍스처 없음 {k}={v}")
@@ -204,7 +206,7 @@ def main():
         mm = re.match(r'^    model:\s*"?([^"]+)"?', line)
         if mm and current:
             custom_model[current] = mm.group(1)
-    weapon_ids = [w for w in re.findall(r"^  ([a-z0-9_]+):\s*$", yml, re.M) if w != "fist"]
+    weapon_ids = [w for w in re.findall(r"^  ([a-z0-9_]+):\s*$", yml, re.M)]
     for w in weapon_ids:
         ref = custom_model.get(w, "violence:weapon/" + w)
         if ref not in item_ids:
@@ -217,7 +219,7 @@ def main():
             err(f"사운드 정의 없음: violence:{s}")
     # 폰트 키
     for f in set(re.findall(r'Key\.key\("violence", "([a-z_]+)"\)', java)):
-        if f.startswith("blood") or f.startswith("misc/") or f == "gunfire":
+        if f.startswith("blood") or f.startswith("misc/") or f in ("gunfire", "melee", "fist"):
             continue
         if not os.path.isfile(os.path.join(ASSETS, "violence", "font", f + ".json")):
             err(f"자바 코드가 쓰는 폰트 없음: violence:{f}")

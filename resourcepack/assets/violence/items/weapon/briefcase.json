@@ -9,8 +9,42 @@
      "firstperson_lefthand"
     ],
     "model": {
-     "type": "minecraft:model",
-     "model": "violence:item/weapon/briefcase_fp"
+     "type": "minecraft:range_dispatch",
+     "property": "minecraft:cooldown",
+     "entries": [
+      {
+       "threshold": 0.12,
+       "model": {
+        "type": "minecraft:model",
+        "model": "violence:item/weapon/briefcase_fp_a3"
+       }
+      },
+      {
+       "threshold": 0.32,
+       "model": {
+        "type": "minecraft:model",
+        "model": "violence:item/weapon/briefcase_fp_a2"
+       }
+      },
+      {
+       "threshold": 0.55,
+       "model": {
+        "type": "minecraft:model",
+        "model": "violence:item/weapon/briefcase_fp_a1"
+       }
+      },
+      {
+       "threshold": 0.78,
+       "model": {
+        "type": "minecraft:model",
+        "model": "violence:item/weapon/briefcase_fp_a0"
+       }
+      }
+     ],
+     "fallback": {
+      "type": "minecraft:model",
+      "model": "violence:item/weapon/briefcase_fp"
+     }
     }
    }
   ],

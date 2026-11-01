@@ -26,7 +26,7 @@ def edge_line(face_set=("north", "south"), color=(240, 244, 250), lo=0.0, hi=0.1
 
 
 def dagger(m=None, scale=1.0):
-    m = m or Model("dagger", seed=101)
+    m = m or Model("dagger", seed=101, auto_round=0.16)
     rod(m, 0.6, 6.8, 0.85, "rubber", painter=wrap(0.9))
     m.box([7.1, 0, 7.1], [8.9, 0.7, 8.9], "dark_steel")
     m.box([5.8, 6.8, 7.3], [10.2, 7.6, 8.7], "dark_steel")
@@ -37,7 +37,7 @@ def dagger(m=None, scale=1.0):
 
 
 def bat():
-    m = Model("bat", seed=102)
+    m = Model("bat", seed=102, auto_round=0.16)
     rod(m, 0, 0.8, 1.3, "wood_dark_y")
     rod(m, 0.8, 7.5, 0.75, "tape", painter=wrap(0.7, (30, 30, 34)))
     rod(m, 7.5, 12, 0.85, "wood_y")
@@ -49,7 +49,7 @@ def bat():
 
 
 def pipe():
-    m = Model("pipe", seed=103)
+    m = Model("pipe", seed=103, auto_round=0.16)
     rust = lambda f, p, u, v: (120, 64, 34) if (int(p[1] * 2.3) * 7 + int(p[0] * 3)) % 11 == 0 else None
     rod(m, 0, 27, 0.8, "dark_steel", painter=rust)
     rod(m, 0, 1.6, 1.05, "steel", painter=lambda f, p, u, v: (70, 72, 78) if int(p[1] * 4) % 2 == 0 else None)
@@ -59,7 +59,7 @@ def pipe():
 
 
 def golf_club():
-    m = Model("golf_club", seed=104)
+    m = Model("golf_club", seed=104, auto_round=0.16)
     rod(m, 0, 8, 0.75, "grip")
     rod(m, 8, 25.5, 0.38, "chrome")
     m.box([7.4, 24.5, 7.0], [8.6, 26.8, 9.0], "chrome")
@@ -69,7 +69,7 @@ def golf_club():
 
 
 def fire_axe():
-    m = Model("fire_axe", seed=105)
+    m = Model("fire_axe", seed=105, auto_round=0.16)
     rod(m, 0, 26, 0.75, "red_paint")
     rod(m, 0, 4.5, 0.9, "rubber")
     m.box([7.3, 21, 3.6], [8.7, 26.2, 9.4], "red_paint")                      # 도끼 머리
@@ -80,7 +80,7 @@ def fire_axe():
 
 
 def machete():
-    m = Model("machete", seed=106)
+    m = Model("machete", seed=106, auto_round=0.16)
     m.box([7.25, 0, 7.15], [8.75, 6.6, 8.85], "polymer", painter=lambda f, p, u, v: (150, 150, 155) if f in ("east", "west") and abs(p[1] - 1.8) < 0.3 and abs(p[2] - 8) < 0.3 or (f in ("east", "west") and abs(p[1] - 4.6) < 0.3 and abs(p[2] - 8) < 0.3) else None)
     m.box([7.1, 6.6, 6.9], [8.9, 7.2, 9.1], "dark_steel")
     m.box([7.65, 7.2, 6.6], [8.35, 22.5, 9.9], "blade", painter=edge_line(("east", "west"), (245, 248, 252), 0.0, 0.16))
@@ -89,7 +89,7 @@ def machete():
 
 
 def pot():
-    m = Model("pot", seed=107)
+    m = Model("pot", seed=107, auto_round=0.16)
     rod(m, 0, 9, 0.65, "black")
     m.box([7.5, 7.5, 7.5], [8.5, 10.2, 8.5], "steel")
     disc(m, "y", 8, 13, 8, 5.2, 6.0, "steel")
@@ -99,7 +99,7 @@ def pot():
 
 
 def frying_pan():
-    m = Model("frying_pan", seed=108)
+    m = Model("frying_pan", seed=108, auto_round=0.16)
     rod(m, 0, 11, 0.7, "black")
     m.box([7.4, 1.0, 7.4], [8.6, 1.8, 8.6], flat((12, 12, 12)))
     m.box([7.5, 10.4, 7.6], [8.5, 12.4, 8.4], "dark_steel")
@@ -109,7 +109,7 @@ def frying_pan():
 
 
 def crowbar():
-    m = Model("crowbar", seed=109)
+    m = Model("crowbar", seed=109, auto_round=0.16)
     m.box([7.4, 0.8, 7.4], [8.6, 21.5, 8.6], "red_paint")
     m.box([7.4, 21.0, 7.4], [8.6, 23.0, 9.6], "red_paint", rot=rot("x", 45, [8, 21.5, 8]))
     m.box([7.4, 21.5, 9.2], [8.6, 22.6, 12.2], "red_paint")
@@ -121,7 +121,7 @@ def crowbar():
 
 
 def katana():
-    m = Model("katana", seed=110)
+    m = Model("katana", seed=110, auto_round=0.16)
     diamond = lambda f, p, u, v: (210, 30, 40) if f != "up" and f != "down" and (int(p[1] * 2.2) + int((p[0] + p[2]) * 2.2)) % 3 == 0 else None
     m.box([7.25, 0.3, 7.25], [8.75, 7.0, 8.75], "cloth_black", painter=diamond)
     m.box([7.15, 0, 7.15], [8.85, 0.5, 8.85], "gold")
@@ -139,7 +139,7 @@ def fu_wave(p):
 
 
 def baton():
-    m = Model("baton", seed=111)
+    m = Model("baton", seed=111, auto_round=0.16)
     rod(m, 0, 8, 0.85, "foam")
     m.box([7.2, 0, 7.2], [8.8, 0.5, 8.8], "dark_steel")
     rod(m, 8, 16, 0.55, "black")
@@ -149,7 +149,7 @@ def baton():
 
 
 def hammer(name="hammer", short=False):
-    m = Model(name, seed=112 + short)
+    m = Model(name, seed=112 + short, auto_round=0.16)
     top = 9.5 if short else 15
     rod(m, 0, top, 0.7 if short else 0.8, "wood_y")
     rod(m, 0, 4 if short else 6, 0.95, "grip")
@@ -160,7 +160,7 @@ def hammer(name="hammer", short=False):
 
 
 def briefcase():
-    m = Model("briefcase", seed=114)
+    m = Model("briefcase", seed=114, auto_round=0.16)
     m.box([1.5, 1.5, 6.4], [14.5, 12.5, 9.6], "leather")
     m.box([1.4, 1.4, 7.85], [14.6, 12.6, 8.15], "leather_dark")             # 이음매
     for x in (1.3, 14.2):
@@ -175,7 +175,7 @@ def briefcase():
 
 
 def pool_cue(short=False):
-    m = Model("pool_cue_short" if short else "pool_cue", seed=115 + short)
+    m = Model("pool_cue_short" if short else "pool_cue", seed=115 + short, auto_round=0.16)
     rod(m, 0, 0.6, 0.85, "rubber")
     rod(m, 0.6, 9, 0.8, "wood_dark_y", painter=lambda f, p, u, v: (230, 225, 210) if f != "up" and 5 < p[1] < 7 and int(p[1] * 3) % 2 == 0 else None)
     rod(m, 9, 9.6, 0.82, "ivory")
@@ -192,7 +192,7 @@ def pool_cue(short=False):
 
 
 def cleaver():
-    m = Model("cleaver", seed=117)
+    m = Model("cleaver", seed=117, auto_round=0.16)
     rod(m, 0, 6.2, 0.75, "wood_y", painter=lambda f, p, u, v: (200, 200, 205) if f in ("east", "west") and abs(p[1] - 2) < 0.25 or (f in ("east", "west") and abs(p[1] - 4.5) < 0.25) else None)
     m.box([7.5, 5.8, 7.4], [8.5, 7.0, 8.6], "steel")
     hole = lambda f, p, u, v: (0, 0, 0, 0) if f in ("east", "west") and (p[1] - 14.6) ** 2 + (p[2] - 9.6) ** 2 < 0.35 else None
@@ -204,7 +204,7 @@ def cleaver():
 # ───────────────────────── 투척 ─────────────────────────
 
 def bottle():
-    m = Model("bottle", seed=201)
+    m = Model("bottle", seed=201, auto_round=0.16)
     rod(m, 0, 8.5, 1.55, "glass_brown")
     m.box([6.3, 2.0, 6.3], [9.7, 6.0, 9.7], "paper", painter=lambda f, p, u, v: (180, 30, 34) if 3.4 < p[1] < 4.6 else None)
     rod(m, 8.5, 10.0, 1.05, "glass_brown")
@@ -214,7 +214,7 @@ def bottle():
 
 
 def throwing_knife():
-    m = Model("throwing_knife", seed=202)
+    m = Model("throwing_knife", seed=202, auto_round=0.16)
     holes = lambda f, p, u, v: (0, 0, 0, 0) if f in ("north", "south") and (abs(p[1] - 1.6) < 0.35 or abs(p[1] - 3.6) < 0.35) and abs(p[0] - 8) < 0.3 else None
     m.box([7.3, 0, 7.75], [8.7, 5.5, 8.25], "black", painter=holes)
     m.box([7.25, 5.5, 7.78], [8.75, 12.0, 8.22], "blade", painter=edge_line(("north", "south"), lo=0.8, hi=1.0))
@@ -223,7 +223,7 @@ def throwing_knife():
 
 
 def dart():
-    m = Model("dart", seed=203)
+    m = Model("dart", seed=203, auto_round=0.16)
     rod(m, 0, 4, 0.18, "chrome")
     rod(m, 4, 8.5, 0.55, "brass", painter=lambda f, p, u, v: (120, 90, 30) if int(p[1] * 4) % 2 == 0 else None)
     rod(m, 8.5, 10.5, 0.25, "black")
@@ -233,14 +233,14 @@ def dart():
 
 
 def brick():
-    m = Model("brick", seed=204)
+    m = Model("brick", seed=204, auto_round=0.16)
     holes = lambda f, p, u, v: (70, 26, 18) if f in ("up", "down") and any((p[0] - hx) ** 2 + (p[2] - 8) ** 2 < 0.45 for hx in (5.6, 8, 10.4)) else None
     m.box([4.2, 4.5, 6.0], [11.8, 8.3, 10.0], "brick", painter=holes)
     return m
 
 
 def scissors():
-    m = Model("scissors", seed=205)
+    m = Model("scissors", seed=205, auto_round=0.16)
     m.box([7.55, 6.5, 7.4], [8.35, 16.0, 7.95], "chrome", painter=edge_line(("north",), lo=0.0, hi=0.25))
     m.box([7.65, 6.5, 7.95], [8.45, 15.0, 8.5], "steel")
     m.box([7.7, 6.2, 7.3], [8.3, 6.8, 8.6], "dark_steel")

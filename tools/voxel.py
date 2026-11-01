@@ -46,26 +46,23 @@ class Material:
         self.spec = spec          # 반사 줄무늬 색
         self.check = check        # 체크무늬(그립) 강도
         self.rough = rough
+        self.seed_base = 7
 
     def color(self, p, fu, fv, edge_dist, seed):
+        """면 질감. 위치 기반이라 이웃한 상자끼리 무늬가 이어지며, 상자마다 외곽선을 그리지 않는다."""
         x, y, z = p
-        c = self.base
-        n = (hnoise(round(x * 4), round(y * 4), round(z * 4), seed) - 0.5) * 2 * self.noise
+        q = 4.0
+        n = (hnoise(math.floor(x * q), math.floor(y * q), math.floor(z * q), self.seed_base) - 0.5) * 2 * self.noise
         k = 1.0 + n
         if self.grain:
             g = {"x": x, "y": y, "z": z}[self.grain]
             other = (y + z) if self.grain == "x" else ((x + z) if self.grain == "y" else (x + y))
             k += math.sin(g * 1.7 + math.sin(other * 3.1) * 1.3) * self.grain_amp
         if self.check:
-            cu, cv = int(fu * 4) % 2, int(fv * 4) % 2
+            cu = math.floor((x + z) * 2) % 2
+            cv = math.floor(y * 2) % 2
             k += self.check * (0.5 if cu ^ cv else -0.5)
-        c = shade(c, k)
-        if self.spec is not None and 0.30 < fv < 0.42:
-            c = mix(c, self.spec, 0.35)
-        if edge_dist < 1:
-            c = shade(c, self.edge)
-        elif fv < 0.12:
-            c = shade(c, self.top)
+        c = shade(self.base, k)
         return tuple(clamp(v) for v in c) + (255,)
 
 
@@ -153,14 +150,25 @@ def face_point(b, f, fu, fv):
 
 
 class Model:
-    def __init__(self, name, tex_size=256, density=4, seed=0):
+    def __init__(self, name, tex_size=256, density=4, seed=0, auto_round=0.0):
         self.name = name
+        self.auto_round = auto_round
         self.boxes = []
         self.tex_size = tex_size
         self.density = density
         self.seed = seed
 
     def box(self, frm, to, mat, rot=None, painter=None, faces=None, light=False):
+        r = self.auto_round
+        dims = [to[i] - frm[i] for i in range(3)]
+        if r > 0 and faces is None and not light and min(dims) >= r * 3.2:
+            # 모서리를 깎아 둥글게 (상자 3개)
+            (x0, y0, z0), (x1, y1, z1) = frm, to
+            e = 0.015
+            self.boxes.append(Box([x0, y0 + r, z0 + r], [x1, y1 - r, z1 - r], mat, rot, painter, None, False))
+            self.boxes.append(Box([x0 + r, y0, z0 + r + e], [x1 - r, y1, z1 - r - e], mat, rot, painter, None, False))
+            self.boxes.append(Box([x0 + r + e, y0 + r + e, z0], [x1 - r - e, y1 - r - e, z1], mat, rot, painter, None, False))
+            return self
         self.boxes.append(Box(frm, to, mat, rot, painter, faces, light))
         return self
 
@@ -218,7 +226,7 @@ class Model:
                         if b.painter:
                             col = b.painter(f, p, fu, fv)
                         if col is None:
-                            col = b.mat.color(p, fu, fv, edge, self.seed + bi)
+                            col = b.mat.color(p, fu, fv, edge, 0)
                         elif len(col) == 3:
                             col = tuple(clamp(v) for v in col) + (255,)
                         px[x0 + i, y0 + j] = col
@@ -233,6 +241,17 @@ class Model:
         model = {"textures": {"t": tex_ref, "particle": tex_ref}, "elements": elements}
         # 사용한 영역만 남기도록 높이를 줄이지는 않음 (정사각형 유지)
         return model, img
+
+
+def rbox(m, frm, to, r, mat, painter=None, rot_=None):
+    """모서리를 깎은 상자 (상자 3개). 겹치는 면은 살짝 안쪽으로 물려 깜빡임이 없게 한다."""
+    (x0, y0, z0), (x1, y1, z1) = frm, to
+    r = min(r, (x1 - x0) / 2.01, (y1 - y0) / 2.01, (z1 - z0) / 2.01)
+    e = 0.02
+    m.box([x0, y0 + r, z0 + r], [x1, y1 - r, z1 - r], mat, painter=painter, rot=rot_)
+    m.box([x0 + r, y0, z0 + r + e], [x1 - r, y1, z1 - r - e], mat, painter=painter, rot=rot_)
+    m.box([x0 + r + e, y0 + r + e, z0], [x1 - r - e, y1 - r - e, z1], mat, painter=painter, rot=rot_)
+    return m
 
 
 def rot(axis, angle, origin):

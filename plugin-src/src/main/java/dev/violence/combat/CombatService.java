@@ -133,15 +133,14 @@ public final class CombatService {
         }
         plugin.fx().muzzle(a, eye, dir, silenced, c instanceof PlayerCombatant shooter ? shooter.player() : null);
         if (c instanceof PlayerCombatant pcs && !leftHand) {
-            // 1인칭 총구 화염 + 반동 모델 (리소스팩 cooldown 조건)
-            pcs.player().setCooldown(dev.violence.weapon.WeaponItems.GUNFIRE, 3);
+            // 1인칭: 총구 화염 → 반동 → 반동 잡기 키프레임 (조준점은 움직이지 않음)
+            pcs.playAnim(WeaponItems.GUNFIRE, 6);
         }
         float vol = silenced ? 0.35f : (pellets > 1 ? 3.2f : 2.6f);
         plugin.fx().sound(c.world(), eye, silenced ? "violence:gun.silenced" : t.sound(), vol, 0.95f + plugin.random().nextFloat() * 0.1f);
         if (!silenced && plugin.npcs() != null) plugin.npcs().hearNoise(eye, pellets > 1 ? 45 : 40);
         double kick = pellets > 1 ? 0.45 : (t.pierce() ? 0.4 : 0.12);
         c.feelImpact(kick);
-        if (c instanceof PlayerCombatant pc) plugin.shake().recoil(pc.player(), pellets > 1 ? 2.2 : (t.pierce() ? 2.0 : 0.6));
     }
 
     /** 히트스캔 판정: 유리는 깨며 관통, 문/벽에서 멈춤, 개체는 머리/몸통 판정. */
@@ -251,6 +250,7 @@ public final class CombatService {
         c.meleeReadyAt = now + t.meleeCooldown();
         c.lastSwingTick = now;
         c.entity().swingMainHand();
+        if (c instanceof PlayerCombatant pcm) pcm.playAnim(WeaponItems.animGroup(t), Math.max(6, Math.min(9, t.meleeCooldown())));
         plugin.fx().sound(c.world(), c.eye(), t.isFist() ? "violence:melee.punch_swing" : "violence:melee.swing", 0.9f, t.meleeCooldown() <= 6 ? 1.4f : 1.0f);
         Vec3 eye = c.eye();
         Vec3 dir = c.look();
@@ -398,6 +398,7 @@ public final class CombatService {
         if (c.offhand != null) c.offhand = null;
         c.refreshEquipment();
         c.entity().swingMainHand();
+        if (c instanceof PlayerCombatant pct) pct.playAnim(WeaponItems.FIST, 6);   // 던진 뒤 팔을 뻗는 동작
         Vec3 dir = c.look();
         Vec3 start = c.eye().add(dir.mul(0.4)).add(0, -0.1, 0);
         Projectile p = new Projectile(w, c, start, dir.mul(THROW_SPEED).add(0, 0.04, 0));
@@ -711,6 +712,7 @@ public final class CombatService {
         Combatant ex = e.executor;
         Combatant v = e.victim;
         ex.entity().swingMainHand();
+        if (ex instanceof PlayerCombatant pce) pce.playAnim(WeaponItems.animGroup(ex.weaponType(fist())), 7);
         Vec3 p = v.feet().add(0, 0.35, 0);
         WeaponType t = ex.weaponType(fist());
         String snd = t.isFist() ? "violence:melee.punch_hit" : (sharp(t) ? "violence:melee.slash_hit" : "violence:melee.blunt_hit");
