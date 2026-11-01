@@ -175,7 +175,10 @@ public final class MaskService {
         best.moveLockUntil = now + 5;
         best.actionLockUntil = now + 5;
         best.applyStateVisuals();
-        plugin.later(6, best::applyStateVisuals);
+        Combatant target = best;
+        plugin.laterIn(a, 6, () -> {
+            if (a.combatants.containsKey(target.id)) target.applyStateVisuals();
+        });
         best.refreshEquipment();
         c.refreshEquipment();
         plugin.fx().sound(c.world(), best.eye(), "violence:melee.punch_hit", 1f, 1.3f);
@@ -250,5 +253,15 @@ public final class MaskService {
 
     public void clear() {
         georgeMarkers.clear();
+    }
+
+    /** 플레이어가 나가면 조지 표시 제거 */
+    public void forget(Arena a, UUID id) {
+        List<TextDisplay> markers = georgeMarkers.remove(id);
+        if (markers == null) return;
+        for (TextDisplay t : markers) {
+            a.tracked.remove(t);
+            t.remove();
+        }
     }
 }

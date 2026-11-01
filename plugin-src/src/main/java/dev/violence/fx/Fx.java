@@ -187,7 +187,7 @@ public final class Fx {
         plugin.later(1, () -> {
             if (drop.isValid()) drop.teleport(loc(a.world, to));
         });
-        plugin.later(travel + 1, () -> {
+        plugin.laterIn(a, travel + 1, () -> {
             a.tracked.remove(drop);
             if (drop.isValid()) drop.remove();
             String m = "violence:fx/blood_decal_" + rnd.nextInt(4);

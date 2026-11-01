@@ -46,6 +46,8 @@ public final class GameService {
     private int targetKills;
     private int timeLimit;
     private String mapId;
+    /** 게임을 열 때마다 증가. 지난 판의 콜백/예약 작업이 새 판을 건드리지 못하게 한다 */
+    private int generation;
 
     public GameService(ViolencePlugin plugin) {
         this.plugin = plugin;
@@ -99,8 +101,14 @@ public final class GameService {
                 .append(Component.text(display + " 맵을 준비합니다... (플레이어 " + players.size() + " + NPC " + npcs + ")", NamedTextColor.WHITE)));
         int finalNpcs = npcs;
         final String finalMap = map;
+        final int gen = ++generation;
         try {
             plugin.maps().prepare(map, w -> preparingWorld = w, (world, gm) -> {
+                if (gen != generation || state != State.PREPARING || world != preparingWorld) {
+                    // 준비 중에 중단됨: 이 결과는 버린다
+                    if (world != null && world != preparingWorld) plugin.maps().destroy(world);
+                    return;
+                }
                 if (world == null || gm == null) {
                     Bukkit.broadcast(Component.text("맵 준비에 실패했습니다.", NamedTextColor.RED));
                     if (world != null) plugin.maps().destroy(world);
@@ -158,7 +166,7 @@ public final class GameService {
             plugin.later((3 - i) * 20, () -> titleAll(Component.text(String.valueOf(n)).font(Glyphs.HUD_BIG).color(net.kyori.adventure.text.format.TextColor.color(Glyphs.PINK)), Component.empty(), 0, 18, 2));
         }
         plugin.later(60, () -> {
-            if (plugin.arena() != a) return;
+            if (plugin.arena() != a || state != State.COUNTDOWN) return;
             state = State.RUNNING;
             startTick = plugin.now();
             endTick = startTick + timeLimit * 20L;
@@ -379,7 +387,10 @@ public final class GameService {
             c.actionLockUntil = Long.MAX_VALUE / 2;
             c.applyStateVisuals();
         }
-        plugin.later(plugin.getConfig().getInt("game.end-delay-seconds", 8) * 20, this::forceCleanup);
+        int gen = generation;
+        plugin.later(plugin.getConfig().getInt("game.end-delay-seconds", 8) * 20, () -> {
+            if (gen == generation && state == State.ENDING && plugin.arena() == a) forceCleanup();
+        });
     }
 
     /** /게임중단: 결과 없이 즉시 종료 */
@@ -396,6 +407,8 @@ public final class GameService {
 
     /** 정리: 플레이어 로비로, 엔티티/월드 제거 */
     public void forceCleanup() {
+        generation++;
+        plugin.maps().cancelPastes();
         Arena a = plugin.arena();
         plugin.camera().resetAll();
         if (a != null) {
@@ -440,6 +453,8 @@ public final class GameService {
         plugin.combat().dropWeapons(pc, pc.look());
         plugin.ground().removeHighlights(a, p.getUniqueId());
         plugin.camera().reset(p);
+        plugin.hud().clear(p);
+        plugin.masks().forget(a, p.getUniqueId());
         a.remove(pc);
         pc.restoreDefaults();
         // 빈자리는 NPC 로 채움
@@ -451,8 +466,17 @@ public final class GameService {
         if (a == null || (state != State.RUNNING && state != State.COUNTDOWN)) return;
         if (!plugin.getConfig().getBoolean("game.allow-late-join", true)) return;
         // NPC 하나를 빼고 플레이어를 넣어 총원을 유지
-        if (!a.npcs.isEmpty()) {
-            NpcCombatant n = a.npcs.getLast();
+        NpcCombatant n = null;
+        for (int i = a.npcs.size() - 1; i >= 0; i--) {
+            NpcCombatant c = a.npcs.get(i);
+            if (c.state == CombatState.ALIVE && c.execution == null) {
+                n = c;
+                break;
+            }
+        }
+        if (n == null && !a.npcs.isEmpty()) n = a.npcs.getLast();
+        if (n != null) {
+            if (n.execution != null) plugin.combat().cancelExecution(n.execution);
             plugin.combat().dropWeapons(n, n.look());
             a.remove(n);
             a.tracked.remove(n.entity());

@@ -35,6 +35,8 @@ public final class MapService {
     private final ViolencePlugin plugin;
     private final File mapsDir;
     private int worldCounter;
+    /** 이 값이 바뀌면 진행 중인 붙여넣기 작업이 스스로 멈춘다 */
+    private int pasteEpoch;
 
     public MapService(ViolencePlugin plugin) {
         this.plugin = plugin;
@@ -130,7 +132,13 @@ public final class MapService {
         int perTick = plugin.getConfig().getInt("map.paste-blocks-per-tick", 60000);
         int[] cursor = {0};
         int total = s.volume();
+        int epoch = pasteEpoch;
+        java.util.UUID worldId = w.getUID();
         plugin.repeat(1, task -> {
+            if (epoch != pasteEpoch || Bukkit.getWorld(worldId) == null) {
+                task.cancel();
+                return;
+            }
             int end = Math.min(total, cursor[0] + perTick);
             for (int i = cursor[0]; i < end; i++) {
                 int v = s.data[i];
@@ -148,6 +156,11 @@ public final class MapService {
         });
     }
 
+    /** 진행 중인 모든 붙여넣기 중단 */
+    public void cancelPastes() {
+        pasteEpoch++;
+    }
+
     public void saveMap(World w, GameMap m) throws IOException {
         File dir = mapDir(m.id);
         dir.mkdirs();
@@ -160,8 +173,16 @@ public final class MapService {
     public void destroy(World w) {
         if (w == null) return;
         Path folder = w.getWorldPath();
-        Bukkit.unloadWorld(w, false);
-        Bukkit.getScheduler().runTaskLaterAsynchronously(plugin, () -> deleteRecursive(folder), 40L);
+        if (!Bukkit.unloadWorld(w, false)) {
+            plugin.getLogger().warning("월드 언로드 실패 (안에 플레이어가 남아 있음?): " + w.getName() + " - 다음 서버 시작 때 정리합니다");
+            return;
+        }
+        if (plugin.isEnabled()) {
+            Bukkit.getScheduler().runTaskLaterAsynchronously(plugin, () -> deleteRecursive(folder), 40L);
+        } else {
+            // 플러그인 비활성화 중에는 스케줄러를 쓸 수 없으므로 바로 삭제
+            deleteRecursive(folder);
+        }
     }
 
     private void deleteRecursive(Path p) {
@@ -181,9 +202,22 @@ public final class MapService {
 
     /** 서버 시작 시 지난 게임 월드 잔여물 정리 */
     public void cleanupLeftovers() {
-        File container = Bukkit.getWorldContainer();
-        File[] files = container.listFiles((d, n) -> n.startsWith("vgame_") || n.startsWith("vedit_"));
-        if (files != null) for (File f : files) deleteRecursive(f.toPath());
+        // 26.x 에서는 추가 월드가 <월드>/dimensions/<네임스페이스>/<이름> 에 저장된다.
+        // 서버 폴더 아래 4단계까지 vgame_/vedit_ 폴더를 찾아 지운다 (현재 로드된 월드 제외)
+        java.util.Set<String> loaded = new java.util.HashSet<>();
+        for (World w : Bukkit.getWorlds()) loaded.add(w.getName());
+        try (Stream<Path> walk = Files.walk(Bukkit.getWorldContainer().toPath(), 4)) {
+            List<Path> found = walk.filter(Files::isDirectory).filter(p -> {
+                String n = p.getFileName().toString();
+                return (n.startsWith("vgame_") || n.startsWith("vedit_")) && !loaded.contains(n);
+            }).toList();
+            for (Path p : found) {
+                deleteRecursive(p);
+                plugin.getLogger().info("지난 게임 월드 정리: " + p);
+            }
+        } catch (IOException e) {
+            plugin.getLogger().fine("잔여 월드 검색 실패: " + e);
+        }
     }
 
     /** NPC 보행 그리드 생성 (월드 블록 충돌 형태 기반) */

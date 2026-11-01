@@ -211,12 +211,13 @@ public final class PlayerCombatant extends Combatant {
         Vec3 lookDir2 = f.add(0, 0.2, 0).sub(up).normalize();
         ul.setYaw((float) lookDir2.yaw());
         ul.setPitch((float) lookDir2.pitch());
-        pl.later(2, () -> {
+        var arena = pl.arena();
+        pl.laterIn(arena, 2, () -> {
             if (cam.isValid()) cam.teleport(ul);
         });
         // 2초 리스폰 타임라인: 24틱에 페이드아웃 시작 → 30~40틱 검은 화면 → 40틱 리스폰 → 페이드인
-        pl.later(24, () -> {
-            if (state == CombatState.DEAD) pl.hud().fadeBlack(player, 6, 12, 8);
+        pl.laterIn(arena, 24, () -> {
+            if (state == CombatState.DEAD && arena.combatants.containsKey(id)) pl.hud().fadeBlack(player, 6, 12, 8);
         });
         pl.shake().reset(player);
         pl.shake().add(player, 0.6);

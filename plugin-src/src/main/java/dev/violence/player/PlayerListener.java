@@ -186,5 +186,6 @@ public final class PlayerListener implements Listener {
     public void onQuit(PlayerQuitEvent e) {
         plugin.game().onPlayerQuit(e.getPlayer());
         plugin.shake().remove(e.getPlayer());
+        plugin.hud().forget(e.getPlayer().getUniqueId());
     }
 }

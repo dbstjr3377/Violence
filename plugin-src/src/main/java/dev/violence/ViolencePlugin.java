@@ -118,9 +118,22 @@ public final class ViolencePlugin extends JavaPlugin {
 
     @Override
     public void onDisable() {
-        if (game != null) game.shutdown();
-        if (command != null) command.editor().close();
-        if (pack != null) pack.stop();
+        // 단계마다 따로 보호: 하나가 실패해도 나머지(포트 해제 등)는 반드시 실행
+        try {
+            if (game != null) game.shutdown();
+        } catch (RuntimeException e) {
+            getLogger().log(Level.WARNING, "게임 정리 실패", e);
+        }
+        try {
+            if (command != null) command.editor().close();
+        } catch (RuntimeException e) {
+            getLogger().log(Level.WARNING, "맵 편집기 정리 실패", e);
+        }
+        try {
+            if (pack != null) pack.stop();
+        } catch (RuntimeException e) {
+            getLogger().log(Level.WARNING, "리소스팩 서버 정지 실패", e);
+        }
         instance = null;
     }
 
@@ -158,6 +171,13 @@ public final class ViolencePlugin extends JavaPlugin {
                 getLogger().log(Level.WARNING, "예약 작업 오류", e);
             }
         }, Math.max(1, ticks));
+    }
+
+    /** 지정한 판(arena)이 아직 진행 중일 때만 실행되는 지연 작업 */
+    public BukkitTask laterIn(Arena a, int ticks, Runnable r) {
+        return later(ticks, () -> {
+            if (a != null && arena == a) r.run();
+        });
     }
 
     public void repeat(int period, Consumer<BukkitTask> body) {

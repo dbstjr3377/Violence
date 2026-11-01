@@ -420,8 +420,10 @@ public final class NpcManager {
         NavGrid.Node node = a.nav.nodeAt((int) Math.floor(next.x()), (int) Math.floor(next.z()), y, 0.62);
         double newY = node != null ? node.h : y;
         if (node == null) {
-            // 그리드 밖: 블록 충돌만 검사
+            // 그리드 밖: 블록 충돌 + 발밑이 단단해야 함 (난간/깨진 창 밖 허공으로 걸어나가지 않도록)
             if (!passable(a, next.x(), newY, next.z())) return false;
+            Block below = a.world.getBlockAt((int) Math.floor(next.x()), (int) Math.floor(newY - 0.05), (int) Math.floor(next.z()));
+            if (below.isPassable()) return false;
         }
         for (double ox : off) {
             for (double oz : off) {

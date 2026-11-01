@@ -170,6 +170,11 @@ public final class Hud {
         });
     }
 
+    /** 접속 종료: 이전 연결에 보였던 보스바 캐시 제거 (재접속 시 새로 만들도록) */
+    public void forget(java.util.UUID id) {
+        huds.remove(id);
+    }
+
     public void clear(Player p) {
         PlayerHud h = huds.remove(p.getUniqueId());
         if (h != null) {

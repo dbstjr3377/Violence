@@ -45,6 +45,8 @@ public final class CombatService {
     public static final int STANDUP_LOCK = 3;
     public static final double THROW_SPEED = 1.65;
     public static final double THROW_GRAVITY = 0.028;
+    /** 연타 처형을 이 틱 동안 끝내지 않으면 자동으로 내려옴 */
+    public static final int EXECUTION_TIMEOUT = 160;
 
     private final ViolencePlugin plugin;
     private final List<Projectile> projectiles = new ArrayList<>();
@@ -384,6 +386,11 @@ public final class CombatService {
         WeaponInstance w = c.weapon;
         if (w == null) return;
         c.weapon = null;
+        if (w.expireTick() > 0) {
+            // 가면 F키 임시 무기를 던지면 원래 들고 있던 무기로 돌아감
+            c.weapon = c.stashedWeapon;
+            c.stashedWeapon = null;
+        }
         if (c.offhand != null) c.offhand = null;
         c.refreshEquipment();
         c.entity().swingMainHand();
@@ -562,13 +569,16 @@ public final class CombatService {
         c.feelImpact(0.25);
         plugin.fx().sound(c.world(), c.eye(), "violence:melee.kick", 1f, 1f);
         c.applyStateVisuals();
-        plugin.later(4, () -> {
-            if (c.state == CombatState.ALIVE) {
+        Arena a = arena();
+        plugin.laterIn(a, 4, () -> {
+            if (c.state == CombatState.ALIVE && a.combatants.containsKey(c.id)) {
                 plugin.doors().kick(door, c);
                 c.feelImpact(0.45);
             }
         });
-        plugin.later(11, c::applyStateVisuals);
+        plugin.laterIn(a, 11, () -> {
+            if (a.combatants.containsKey(c.id)) c.applyStateVisuals();
+        });
     }
 
     // ───────────────────────────── 쓰러짐 ─────────────────────────────
@@ -675,7 +685,7 @@ public final class CombatService {
             long span = e.finishTick - now;
             for (int i = 1; i <= strikes; i++) {
                 long at = (span * i) / (strikes + 1);
-                plugin.later((int) Math.max(1, at), () -> {
+                plugin.laterIn(arena(), (int) Math.max(1, at), () -> {
                     if (ex.execution == e) executionStrike(e, false);
                 });
             }
@@ -832,6 +842,7 @@ public final class CombatService {
                 continue;
             }
             if ((e.style == ExecutionStyle.AUTO || e.style == ExecutionStyle.GUN_SHOT) && now >= e.finishTick) finishExecution(e);
+            else if (e.style == ExecutionStyle.HITS && now - e.startTick > EXECUTION_TIMEOUT) cancelExecution(e);
         }
         tickProjectiles(a, now);
     }
