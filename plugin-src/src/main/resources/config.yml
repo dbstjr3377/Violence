@@ -1,0 +1,60 @@
+# ─────────────────────────────────────────────
+#  VIOLENCE 설정
+# ─────────────────────────────────────────────
+game:
+  # 플레이어 + NPC 총원 (NPC 수 = 총원 - 플레이어 수)
+  total-entities: 50
+  # 게임 시작에 필요한 최소 플레이어 (기획: 8~24명, 테스트를 위해 1명부터 허용)
+  min-players: 1
+  target-kills: 30
+  time-limit-seconds: 600
+  # 바닥 무기 수 = 개체 수 × 비율
+  weapon-ratio: 0.5
+  end-delay-seconds: 8
+  allow-late-join: true
+
+# 점수 (Skript 가 없을 때 사용. Skript 가 있으면 violence/score.sk 가 계산)
+score:
+  kill:
+    gun: 100
+    throw: 200
+    melee: 300
+    fist: 400
+    execution: 500
+    door: 350
+  headshot-bonus: 50
+  combo-seconds: 10
+
+npc:
+  # 덩치(맨손으로 쓰러지지 않음) 비율
+  heavy-chance: 0.12
+  # 실력 범위 0~1 (반응 속도, 명중률)
+  skill-min: 0.35
+  skill-max: 0.8
+
+spawn:
+  samples: 24
+  los-checks: 10
+
+fx:
+  max-decals: 450
+  max-corpses: 30
+  corpse-seconds: 20
+
+map:
+  paste-blocks-per-tick: 60000
+
+skript:
+  enabled: true
+
+resource-pack:
+  enabled: true
+  # plugins/ViolenceCore/ 안의 리소스팩 파일
+  file: resourcepack.zip
+  # 내장 HTTP 서버 포트 (방화벽에서 열어야 함)
+  port: 8163
+  # 플레이어가 접속할 서버 주소 (비우면 server.properties 의 server-ip, 그것도 없으면 127.0.0.1)
+  public-host: ""
+  # 외부에 리소스팩을 올렸다면 주소 지정 (내장 서버 대신 사용)
+  url: ""
+  required: true
