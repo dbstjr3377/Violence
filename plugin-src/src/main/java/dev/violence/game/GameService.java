@@ -267,7 +267,7 @@ public final class GameService {
                     .append(Glyphs.text(time, Glyphs.HUD, rem <= 30 ? Glyphs.RED : Glyphs.WHITE))
                     .append(Glyphs.text("   목표 " + targetKills + "킬   ", Glyphs.HUD, Glyphs.GRAY))
                     .append(Glyphs.text("1위 " + (top == null ? "-" : top.name() + " " + top.kills), Glyphs.HUD, Glyphs.YELLOW))
-                    .append(Glyphs.text("   " + Glyphs.SKULL + " " + pc.kills + "   ★ " + String.format("%,d", pc.score), Glyphs.HUD, Glyphs.CYAN));
+                    .append(Glyphs.text("   " + Glyphs.SKULL + " " + pc.kills + "   " + Glyphs.STAR + " " + String.format("%,d", pc.score), Glyphs.HUD, Glyphs.CYAN));
             plugin.hud().status(p, status);
             plugin.hud().action(p, actionBar(pc, now), now);
         }

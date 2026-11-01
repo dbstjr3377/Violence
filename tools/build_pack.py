@@ -310,6 +310,18 @@ def fonts():
     d.rectangle([1, 2, 2, 3], fill=(20, 20, 20, 255))
     d.rectangle([5, 2, 6, 3], fill=(20, 20, 20, 255))
     save_png(skull, os.path.join(T, "skull.png"))
+    # 콤보 게이지 칸 (흰색 → 글자 색으로 물듦), 점수 별
+    bar = Image.new("RGBA", (3, 8), (0, 0, 0, 0))
+    ImageDraw.Draw(bar).rectangle([0, 1, 2, 7], fill=(255, 255, 255, 255))
+    save_png(bar, os.path.join(T, "bar.png"))
+    star = Image.new("RGBA", (9, 9), (0, 0, 0, 0))
+    pts = []
+    for i in range(10):
+        ang = -math.pi / 2 + i * math.pi / 5
+        rr = 4.4 if i % 2 == 0 else 1.9
+        pts.append((4 + math.cos(ang) * rr, 4.4 + math.sin(ang) * rr))
+    ImageDraw.Draw(star).polygon(pts, fill=(255, 255, 255, 255))
+    save_png(star, os.path.join(T, "star.png"))
     # 가면 안내 문구 (미리 그린 이미지 글리프: 화면 중앙 하단에 오도록 아래로 내림)
     prompt_img = render_text("E키를 눌러 가면을 착용하세요", 64, (255, 255, 255, 255), outline=(30, 0, 20, 255))
     save_png(prompt_img, os.path.join(T, "prompt_mask.png"))
@@ -317,6 +329,8 @@ def fonts():
     icons = [
         {"type": "bitmap", "file": "violence:font/bullet.png", "ascent": 7, "height": 8, "chars": [""]},
         {"type": "bitmap", "file": "violence:font/skull.png", "ascent": 7, "height": 8, "chars": [""]},
+        {"type": "bitmap", "file": "violence:font/bar.png", "ascent": 7, "height": 8, "chars": ["\uE003"]},
+        {"type": "bitmap", "file": "violence:font/star.png", "ascent": 7, "height": 8, "chars": ["\uE004"]},
     ]
 
     def ttf_pair(size, shift_y=0.0):

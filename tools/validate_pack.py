@@ -38,6 +38,40 @@ def load(p):
         return None
 
 
+def check_glyphs(java):
+    try:
+        from fontTools.ttLib import TTFont
+    except ImportError:
+        print("  (fontTools 가 없어 글리프 검사를 건너뜀: pip install fonttools)")
+        return
+    font_dir = os.path.join(ASSETS, "violence", "font")
+    cmaps = []
+    for ttf in glob.glob(os.path.join(font_dir, "*.ttf")):
+        cmaps.append(set(TTFont(ttf).getBestCmap().keys()))
+    bitmap_chars = set()
+    for fp in glob.glob(os.path.join(font_dir, "*.json")):
+        d = load(fp) or {}
+        for prov in d.get("providers", []):
+            if prov.get("type") == "bitmap":
+                for row in prov.get("chars", []):
+                    bitmap_chars.update(ord(c) for c in row)
+            elif prov.get("type") == "space":
+                bitmap_chars.update(ord(c) for c in prov.get("advances", {}))
+    lits = re.findall(r'"((?:[^"\\]|\\.)*)"', java) + re.findall(r"'(\\u[0-9A-Fa-f]{4}|[^'\\])'", java)
+    used = set()
+    for lit in lits:
+        text = re.sub(r"\\u([0-9A-Fa-f]{4})", lambda m: chr(int(m.group(1), 16)), lit)
+        for ch in text:
+            if ord(ch) >= 0x2000:
+                used.add(ord(ch))
+    for cp in sorted(used):
+        if 0xE000 <= cp <= 0xF8FF:
+            if cp not in bitmap_chars:
+                err(f"사설 영역 글리프 U+{cp:04X} 가 폰트에 정의되지 않음")
+        elif not any(cp in c for c in cmaps):
+            err(f"문자 '{chr(cp)}'(U+{cp:04X}) 가 리소스팩 폰트에 없음 → 게임에서 네모로 보임")
+
+
 def main():
     # pack.mcmeta
     meta = load(os.path.join(PACK, "pack.mcmeta"))
@@ -161,6 +195,8 @@ def main():
             continue
         if not os.path.isfile(os.path.join(ASSETS, "violence", "font", f + ".json")):
             err(f"자바 코드가 쓰는 폰트 없음: violence:{f}")
+    # 글리프: 자바가 출력하는 모든 특수문자/한글이 폰트에 있는지
+    check_glyphs(java)
     # 카메라 오버레이
     for i in (1, 2):
         if not os.path.isfile(os.path.join(ASSETS, "violence", "textures", "misc", f"streak{i}.png")):

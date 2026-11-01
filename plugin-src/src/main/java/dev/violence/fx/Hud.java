@@ -82,8 +82,8 @@ public final class Hud {
         Component c = Component.empty()
                 .append(Glyphs.text(count + "x", Glyphs.COMBO, Glyphs.YELLOW))
                 .append(Glyphs.text(" COMBO ", Glyphs.COMBO, Glyphs.PINK))
-                .append(Glyphs.text("▮".repeat(bars), Glyphs.HUD, Glyphs.YELLOW))
-                .append(Glyphs.text("▮".repeat(10 - bars), Glyphs.HUD, 0x553344));
+                .append(Glyphs.text(Glyphs.BAR.repeat(bars), Glyphs.HUD, Glyphs.YELLOW))
+                .append(Glyphs.text(Glyphs.BAR.repeat(10 - bars), Glyphs.HUD, 0x553344));
         h.combo.name(shiftedLeft(c, LEFT_SHIFT));
     }
 
