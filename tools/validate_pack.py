@@ -216,6 +216,14 @@ def main():
     for w in melee_ids:
         if w != "pool_cue_short" and ("violence:weapon/" + w + "_b") not in item_ids:
             err(f"왼→오 휘두르기 아이템 없음: violence:weapon/{w}_b")
+    # 클럽 빛줄기: ClubLights.COLORS 로 이름을 만들어 쓰는 모델
+    club_src = os.path.join(ROOT, "plugin-src", "src", "main", "java", "dev", "violence", "fx", "ClubLights.java")
+    if os.path.isfile(club_src):
+        cm = re.search(r"COLORS = \{([^}]*)\}", open(club_src, encoding="utf-8").read())
+        names = ["beam_" + c for c in re.findall(r'"([a-z_]+)"', cm.group(1))] if cm else []
+        for n in names + ["laser_green", "laser_red", "disco_ball"]:
+            if "violence:fx/" + n not in item_ids:
+                err(f"클럽 조명 모델 없음: violence:fx/{n}")
     # 사운드
     sounds = load(os.path.join(ASSETS, "violence", "sounds.json")) or {}
     used_sounds = set(re.findall(r'"violence:((?:gun|melee|hit|world|weapon|ui)\.[a-z_]+)"', java + yml))

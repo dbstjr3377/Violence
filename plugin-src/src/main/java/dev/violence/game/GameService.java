@@ -145,6 +145,7 @@ public final class GameService {
             for (int i = 0; i < Math.min(80, nodes.size()); i++) gm.spawns.add(nodes.get(i).pos());
         }
         plugin.doors().spawnDoors(a);
+        plugin.clubBeams().start(a);   // 클럽: 쉐이더와 맞춘 공중 빛줄기
         // 플레이어 참가
         for (Player p : players) {
             if (!p.isOnline()) continue;

@@ -47,6 +47,7 @@ public final class ViolencePlugin extends JavaPlugin {
 
     private WeaponRegistry weapons;
     private Fx fx;
+    private dev.violence.fx.ClubBeams clubBeams;
     private Shake shake;
     private CameraService camera;
     private dev.violence.fx.PoseSync poses;
@@ -80,6 +81,7 @@ public final class ViolencePlugin extends JavaPlugin {
             return;
         }
         fx = new Fx(this);
+        clubBeams = new dev.violence.fx.ClubBeams(this);
         shake = new Shake();
         camera = new CameraService(this);
         poses = new dev.violence.fx.PoseSync(this);
@@ -192,6 +194,7 @@ public final class ViolencePlugin extends JavaPlugin {
     public void setArena(Arena a) { this.arena = a; }
     public WeaponRegistry weapons() { return weapons; }
     public Fx fx() { return fx; }
+    public dev.violence.fx.ClubBeams clubBeams() { return clubBeams; }
     public Shake shake() { return shake; }
     public CameraService camera() { return camera; }
     public dev.violence.fx.PoseSync poses() { return poses; }

@@ -13,6 +13,8 @@ echo "== 2. 리소스팩 생성 =="
 python3 tools/build_pack.py
 echo "== 3. 리소스팩 검증 =="
 python3 tools/validate_pack.py
+echo "== 3-1. 쉐이더 컴파일 검사 (glslang) =="
+python3 tools/check_shaders.py
 echo "== 4. Skript 정적 검사 =="
 python3 tools/lint_skript.py
 echo "모든 검증 통과"

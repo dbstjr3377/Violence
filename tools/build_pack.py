@@ -28,9 +28,15 @@ MC = os.path.join(PACK, "assets", "minecraft")
 rnd = random.Random(1337)
 
 
+# 코어 쉐이더는 게임 버전마다 내부가 달라서 26.3(리소스팩 형식 97)에서만 쓰이는 오버레이에 넣는다.
+# 다른 버전에서는 오버레이가 무시되어 바닐라 쉐이더로 정상 렌더링된다 (클럽 조명만 꺼짐).
+SHADER_OVERLAY = "club_shader_26_3"
+SHADER_FORMAT = 97
+
+
 def clean():
     # 생성물만 지움 (사람이 손댈 수 있는 README 등은 유지)
-    for p in [os.path.join(PACK, "assets"), os.path.join(PACK, "pack.mcmeta"), os.path.join(PACK, "pack.png")]:
+    for p in [os.path.join(PACK, "assets"), os.path.join(PACK, SHADER_OVERLAY), os.path.join(PACK, "pack.mcmeta"), os.path.join(PACK, "pack.png")]:
         if os.path.isdir(p):
             shutil.rmtree(p)
         elif os.path.isfile(p):
@@ -46,7 +52,10 @@ def mcmeta():
             # 26.x 이후 형식 (min/max). 최대값을 넉넉히 둬서 이후 버전에서도 경고 없이 적용
             "min_format": 69,
             "max_format": 999,
-        }
+        },
+        "overlays": {"entries": [
+            {"directory": SHADER_OVERLAY, "min_format": [SHADER_FORMAT, 0], "max_format": [SHADER_FORMAT, 999]},
+        ]},
     })
     # 아이콘
     img = Image.new("RGBA", (128, 128), (18, 8, 24, 255))
@@ -438,6 +447,61 @@ def fx():
             px[x, y] = (c, c, min(255, c + 10), a)
     save_png(img, os.path.join(T, "slash.png"))
     write(os.path.join(NS, "models", "fx", "slash.json"), plane_model("violence:fx/slash", axis="z"))
+    club_fx(T)
+
+
+CLUB_COLORS = {"magenta": (255, 26, 178), "cyan": (26, 204, 255), "violet": (140, 51, 255),
+               "orange": (255, 115, 26), "green": (51, 255, 102)}   # ClubLights.COLORS / violence_club.glsl 과 같은 색
+
+
+def club_fx(T):
+    """클럽 공중 빛줄기 (ClubBeams): 무빙 라이트 원뿔 5색, 레이저 2색, 미러볼"""
+    from voxel import Model
+    # 원뿔: 위(+y)가 광원, 아래로 갈수록 넓어지고 옅어짐. 십자로 교차한 두 장의 판
+    for name, col in CLUB_COLORS.items():
+        W_, H_ = 32, 64
+        img = Image.new("RGBA", (W_, H_), (0, 0, 0, 0))
+        px = img.load()
+        for y in range(H_):
+            v = (y + 0.5) / H_
+            hw = 0.10 + 0.90 * v
+            for x in range(W_):
+                k = abs((x + 0.5) / W_ - 0.5) * 2 / hw
+                if k >= 1:
+                    continue
+                a = 0.45 * (1 - 0.7 * v) * (1 - k) ** 0.8
+                core = 0.45 * (1 - k) * (1 - v)
+                c = tuple(int(col[i] + (255 - col[i]) * core) for i in range(3))
+                px[x, y] = c + (int(255 * a),)
+        save_png(img, os.path.join(T, f"beam_{name}.png"))
+        tex = f"violence:fx/beam_{name}"
+        uv = [0, 0, 16, 16]
+        planes = [{"from": [0, 0, 8], "to": [16, 16, 8.01], "faces": {"north": {"uv": uv, "texture": "#t"}, "south": {"uv": uv, "texture": "#t"}}},
+                  {"from": [8, 0, 0], "to": [8.01, 16, 16], "faces": {"east": {"uv": uv, "texture": "#t"}, "west": {"uv": uv, "texture": "#t"}}}]
+        for e in planes:
+            e["light_emission"] = 15
+        write(os.path.join(NS, "models", "fx", f"beam_{name}.json"), {"textures": {"t": tex, "particle": tex}, "elements": planes})
+    # 레이저: 가늘고 밝은 막대 (플러그인이 0.05 블록 굵기로 줄임)
+    for name, col in (("green", (80, 255, 110)), ("red", (255, 50, 60))):
+        img = Image.new("RGBA", (4, 4), col + (230,))
+        img.putpixel((1, 1), (255, 255, 255, 255))
+        img.putpixel((2, 2), (255, 255, 255, 255))
+        save_png(img, os.path.join(T, f"laser_{name}.png"))
+        write(os.path.join(NS, "models", "fx", f"laser_{name}.json"), cube_model(f"violence:fx/laser_{name}", light=True))
+    # 미러볼: 층층이 쌓은 크롬 구 + 체인
+    m = Model("disco_ball", tex_size=64, density=4, seed=31)
+    r0 = 3.6
+    for i in range(8):
+        y = 4.4 + i * 0.9
+        dy = (y + 0.45) - 8
+        r = max(0.6, (r0 * r0 - dy * dy) ** 0.5)
+        m.box([8 - r, y, 8 - r * 0.42], [8 + r, y + 0.9, 8 + r * 0.42], "chrome")
+        m.box([8 - r * 0.42, y, 8 - r], [8 + r * 0.42, y + 0.9, 8 + r], "chrome")
+        m.box([8 - r * 0.75, y, 8 - r * 0.75], [8 + r * 0.75, y + 0.9, 8 + r * 0.75], "steel")
+    m.box([7.8, 11.6, 7.8], [8.2, 16, 8.2], "black")
+    mj, img = m.build("violence:fx/disco_ball")
+    write(os.path.join(NS, "models", "fx", "disco_ball.json"), mj)
+    save_png(img, os.path.join(T, "disco_ball.png"))
 
 
 def misc():
@@ -472,7 +536,7 @@ def misc():
     write(os.path.join(NS, "items", "misc", "blank.json"), item_def("violence:misc/blank"))
     # FX 아이템 정의
     for name in ["tracer", "tracer_orange", "muzzle", "muzzle_small", "blood_decal_0", "blood_decal_1", "blood_decal_2",
-                 "blood_decal_3", "blood_pool", "blood_mist", "blood_drop", "bullet_hole", "impact", "glass_shard", "slash"]:
+                 "blood_decal_3", "blood_pool", "blood_mist", "blood_drop", "bullet_hole", "impact", "glass_shard", "slash", "disco_ball", "laser_green", "laser_red"] + [f"beam_{c}" for c in CLUB_COLORS]:
         write(os.path.join(NS, "items", "fx", name + ".json"), item_def("violence:fx/" + name))
     _ = uvf
 
@@ -730,6 +794,16 @@ def build_zip():
     return out
 
 
+def shaders():
+    """코어 쉐이더 (클럽 맵 조명). 원본: tools/shaders, 검사: tools/check_shaders.py"""
+    src = os.path.join(ROOT, "tools", "shaders")
+    dst = os.path.join(PACK, SHADER_OVERLAY, "assets", "minecraft", "shaders")
+    for sub in ("core", "include"):
+        for f in sorted(os.listdir(os.path.join(src, sub))):
+            os.makedirs(os.path.join(dst, sub), exist_ok=True)
+            shutil.copyfile(os.path.join(src, sub, f), os.path.join(dst, sub, f))
+
+
 def main():
     clean()
     mcmeta()
@@ -740,6 +814,7 @@ def main():
     fonts()
     gui()
     sounds()
+    shaders()
     out = build_zip()
     files = sum(len(f) for _, _, f in os.walk(PACK))
     print(f"모델 {n}개 (무기+가면), 파일 {files}개 → {out} ({os.path.getsize(out) // 1024}KB)")
