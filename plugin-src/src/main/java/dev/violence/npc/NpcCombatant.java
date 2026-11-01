@@ -51,6 +51,8 @@ public final class NpcCombatant extends Combatant {
     long stuckSince;
     Vec3 lastProgressPos;
     final double skill;
+    /** 한 팔 조준 자세 패킷을 보낸 상태인지 */
+    public boolean poseSent;
 
     NpcCombatant(Mannequin body, ResolvableProfile profile, String name, int outfitColor, boolean heavy, double skill) {
         super(UUID.randomUUID());
@@ -108,6 +110,7 @@ public final class NpcCombatant extends Combatant {
         eq.setItemInMainHand(weapon != null ? WeaponItems.world(weapon.type()) : null);
         eq.setItemInOffHand(offhand != null ? WeaponItems.world(offhand.type()) : null);
         if (eq.getChestplate() == null || eq.getChestplate().getType() == Material.AIR) copyOutfitTo(eq);
+        ViolencePlugin.get().game().syncNpcPose(this);
     }
 
     @Override

@@ -54,6 +54,8 @@ POSES = {
     # (오른팔 xRot, yRot), (왼팔 xRot, yRot)
     "crossbow_hold": ((-math.pi / 2 + 0.1, -0.3), (-1.5, 0.6)),
     "item": ((-math.pi / 10, 0.0), (0.0, 0.0)),
+    # 한 팔 조준 (바닐라 TOOT_HORN: xRot = head - 1.4835, yRot = head - π/6)
+    "one_arm": ((-1.4835298, -math.pi / 6), (0.0, 0.0)),
     "idle": ((0.0, 0.0), (0.0, 0.0)),
 }
 
@@ -172,8 +174,8 @@ if __name__ == "__main__":
     NS = os.path.join(ROOT, "resourcepack", "assets", "violence")
     FONT = ImageFont.truetype(os.path.join(ROOT, "tools", "fonts", "blackhansans_BlackHanSans-Regular.ttf"), 26)
     shots = [("m16_tp", "crossbow_hold", "M16 - 양팔 조준 (석궁 자세)"), ("shotgun_tp", "crossbow_hold", "샷건 - 양팔 조준"),
-             ("mp5_tp", "crossbow_hold", "MP5 - 양팔 조준"), ("magnum", "item", "매그넘 - 한 손"),
-             ("silenced_pistol", "item", "소음기 권총 - 한 손"), ("katana", "item", "카타나 - 한 손 들기")]
+             ("mp5_tp", "crossbow_hold", "MP5 - 양팔 조준"), ("magnum_tp", "one_arm", "매그넘 - 한 팔 조준"),
+             ("silenced_pistol_tp", "one_arm", "소음기 권총 - 한 팔 조준"), ("katana", "item", "카타나 - 한 손 들기")]
     tiles = []
     for name, pose, label in shots:
         m = json.load(open(os.path.join(NS, "models", "item", "weapon", name + ".json"), encoding="utf-8"))

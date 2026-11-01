@@ -69,6 +69,8 @@ FP_PISTOL = {"rotation": [4, 190, 0], "translation": [-2.5, 2.6, -1], "scale": [
 # 다른 플레이어가 보는 양손 총 (장전된 석궁 자세: 양팔 조준) — tp_sim.py 로 맞춤
 TP_CROSSBOW = {"rotation": [0, 180, 0], "translation": [0, 0, 0], "scale": [0.75, 0.75, 0.75]}
 ONE_HANDED = {"magnum", "silenced_pistol"}
+# 권총: 한 팔을 앞으로 든 조준 자세 (바닐라 뿔 불기 자세의 팔 각도 -30° 보정)
+TP_ONE_ARM = {"rotation": [0, 150, 0], "translation": [0, 0, 0], "scale": [0.75, 0.75, 0.75]}
 FP_SMG = {"rotation": [3, 194, 0], "translation": [-3, 1.2, -3], "scale": [0.7, 0.7, 0.7]}
 
 
@@ -173,12 +175,11 @@ def weapons():
                 frames.append((th, f"{gid}_fp_r{i}"))
         write(os.path.join(NS, "items", "weapon", gid + ".json"),
               select_by_context(dispatch(frames, gid + "_fp"), ref(f"violence:item/weapon/{gid}")))
-        if gid not in ONE_HANDED:
-            # 다른 플레이어/NPC 용: 석궁 자세에 맞춘 3인칭 표시
-            write(os.path.join(NS, "models", "item", "weapon", gid + "_tp.json"),
-                  {"parent": "violence:item/weapon/" + gid,
-                   "display": {"thirdperson_righthand": TP_CROSSBOW, "thirdperson_lefthand": TP_CROSSBOW}})
-            write(os.path.join(NS, "items", "weapon", gid + "_world.json"), item_def(f"violence:item/weapon/{gid}_tp"))
+        # 다른 플레이어/NPC 용 3인칭 표시: 양손 총은 석궁 자세, 권총은 한 팔 조준 자세
+        tp = TP_ONE_ARM if gid in ONE_HANDED else TP_CROSSBOW
+        write(os.path.join(NS, "models", "item", "weapon", gid + "_tp.json"),
+              {"parent": "violence:item/weapon/" + gid, "display": {"thirdperson_righthand": tp, "thirdperson_lefthand": tp}})
+        write(os.path.join(NS, "items", "weapon", gid + "_world.json"), item_def(f"violence:item/weapon/{gid}_tp"))
         count += 1
     # ── 근접: 휘두르기/찌르기 프레임, 투척: 오른손 ──
     for table, disp, animated in ((models_melee.MELEE, M.MELEE_DISPLAY, True), (models_melee.THROWABLES, M.THROW_DISPLAY, False)):

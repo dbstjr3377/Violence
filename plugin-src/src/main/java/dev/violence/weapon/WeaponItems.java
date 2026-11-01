@@ -73,6 +73,17 @@ public final class WeaponItems {
             return it;
         }
         ItemStack it = create(type, 0);
+        if (type.isGun()) {
+            // 권총: 한 팔 조준 자세용 (보는 사람에게 "사용 중" 상태를 함께 보냄, 소리/입자 없음)
+            it.setData(DataComponentTypes.ITEM_MODEL, Key.key(type.model() + "_world"));
+            it.setData(DataComponentTypes.CONSUMABLE, io.papermc.paper.datacomponent.item.Consumable.consumable()
+                    .consumeSeconds(3600f)
+                    .animation(io.papermc.paper.datacomponent.item.consumable.ItemUseAnimation.TOOT_HORN)
+                    .sound(Key.key("minecraft:intentionally_empty"))
+                    .hasConsumeParticles(false)
+                    .build());
+            return it;
+        }
         if (type.isFist()) it.setData(DataComponentTypes.ITEM_MODEL, Key.key("violence:misc/blank"));
         if (type.isMelee() || type.isFist()) {
             SwingAnimation.Animation a = type.id().equals("pool_cue_short") ? SwingAnimation.Animation.STAB : SwingAnimation.Animation.WHACK;

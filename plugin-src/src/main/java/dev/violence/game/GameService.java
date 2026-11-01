@@ -238,7 +238,10 @@ public final class GameService {
             plugin.doors().tick(a, now);
             plugin.ground().tick(a, now);
             // 새로 시야에 들어온 사람에게도 3인칭 손 아이템이 보이도록 주기적으로 다시 보냄
-            if (now % 10 == 0) for (PlayerCombatant pc : a.players.values()) syncHeld(pc);
+            if (now % 10 == 0) {
+                for (PlayerCombatant pc : a.players.values()) syncHeld(pc);
+                for (NpcCombatant n : a.npcs) syncNpcPose(n);
+            }
             updateHud(a, now);
             List<Player> online = new ArrayList<>();
             for (PlayerCombatant pc : a.players.values()) online.add(pc.player());
@@ -336,10 +339,23 @@ public final class GameService {
         WeaponType held = pc.weaponType(plugin.weapons().fist());
         eq.put(org.bukkit.inventory.EquipmentSlot.HAND, pc.state == CombatState.DEAD ? null : dev.violence.weapon.WeaponItems.world(held));
         eq.put(org.bukkit.inventory.EquipmentSlot.OFF_HAND, pc.offhand != null && pc.state != CombatState.DEAD ? dev.violence.weapon.WeaponItems.world(pc.offhand.type()) : null);
+        boolean oneArm = pc.state == CombatState.ALIVE && held.isGun() && dev.violence.weapon.WeaponItems.oneHanded(held);
         for (PlayerCombatant viewer : a.players.values()) {
             if (viewer == pc || !viewer.player().isOnline()) continue;
             viewer.player().sendEquipmentChange(pc.player(), eq);
+            plugin.poses().sendUsing(viewer.player(), pc.player(), oneArm);
         }
+    }
+
+    /** NPC 의 권총 한 팔 조준 자세를 모든 플레이어에게 */
+    public void syncNpcPose(NpcCombatant n) {
+        Arena a = plugin.arena();
+        if (a == null) return;
+        WeaponType held = n.weaponType(plugin.weapons().fist());
+        boolean oneArm = n.state == CombatState.ALIVE && held.isGun() && dev.violence.weapon.WeaponItems.oneHanded(held);
+        if (!oneArm && !n.poseSent) return;
+        n.poseSent = oneArm;
+        for (PlayerCombatant viewer : a.players.values()) plugin.poses().sendUsing(viewer.player(), n.entity(), oneArm);
     }
 
     // ───────── 처치 ─────────
