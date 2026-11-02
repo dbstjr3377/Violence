@@ -35,6 +35,9 @@ PORTRAIT_PX = 64       # 64x64 도트 (회전도 도트 단위로)
 DIALOG_SIZE = 12.0      # 대사 글자 크기 (GUI 픽셀)
 DIALOG_SHIFT = (24.0, 44.0)   # 액션바 기준 아래로 내리는 양: 첫 줄, 둘째 줄
 EN_SCALE = 0.92         # build_pack.ttf_pair 와 같은 비율
+SPACE_W = 5.0           # 대사 띄어쓰기 폭 (Bungee 공백은 1.9 로 너무 좁음)
+TRACK_CHAR = 0xE2FF     # 글자 사이에 끼우는 자간 글리프 (플러그인이 글자마다 넣음)
+TRACK_W = 1.2
 
 
 def _write(path, obj):
@@ -225,6 +228,7 @@ def metrics(font_kr, font_en):
             extra[ch] = round(en[cp], 3)
         elif cp in kr_cmap:
             extra[ch] = round(kr[cp], 3)
+    ascii_w[" "] = SPACE_W
     return {"ascii": ascii_w, "hangul": round(sum(hangul) / max(1, len(hangul)), 3),
             "hangul_table": table, "hangul_table_note": "가(AC00)부터 11172자, 폭×1000 을 uint16 little-endian 으로 base64",
             "default": round(kr.get(ord("가"), DIALOG_SIZE), 3), "extra": extra}
@@ -243,6 +247,7 @@ def build(NS, font_kr, font_en):
     _write(os.path.join(NS, "font", "cutscene.json"), {"providers": providers})
     for i, shift in enumerate(DIALOG_SHIFT, start=1):
         _write(os.path.join(NS, "font", f"dialog{i}.json"), {"providers": [
+            {"type": "space", "advances": {" ": SPACE_W, chr(TRACK_CHAR): TRACK_W}},
             {"type": "ttf", "file": "violence:bungee.ttf", "size": DIALOG_SIZE * EN_SCALE, "oversample": 4.0, "shift": [0, shift], "skip": ""},
             {"type": "ttf", "file": "violence:blackhansans.ttf", "size": DIALOG_SIZE, "oversample": 4.0, "shift": [0, shift], "skip": ""},
         ]})
@@ -254,7 +259,8 @@ def build(NS, font_kr, font_en):
         "letterbox_frames": LETTERBOX_FRAMES,
         "panel": {"char": PANEL_CHAR, "advance": panel_adv, "width": PANEL_IMG[0] * PANEL_HEIGHT / PANEL_IMG[1]},
         "portrait": {"advance": portrait_adv, "frames": PORTRAIT_FRAMES, "sway": PORTRAIT_SWAY, "chars": table},
-        "dialog": {"size": DIALOG_SIZE, "lines": len(DIALOG_SHIFT), "metrics": metrics(font_kr, font_en)},
+        "dialog": {"size": DIALOG_SIZE, "lines": len(DIALOG_SHIFT), "metrics": metrics(font_kr, font_en),
+                   "track": {"char": TRACK_CHAR, "advance": TRACK_W}},
     }
     out = os.path.join(ROOT, "bukkit", "plugins", "ViolenceCore", "cutscene.json")
     _write(out, info)

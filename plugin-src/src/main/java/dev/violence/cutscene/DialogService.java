@@ -415,13 +415,13 @@ public final class DialogService {
         return it;
     }
 
-    static Component toComponent(List<DialogLayout.Piece> pieces) {
+    private Component toComponent(List<DialogLayout.Piece> pieces) {
         TextComponent.Builder b = Component.text();
         for (DialogLayout.Piece piece : pieces) {
             switch (piece) {
                 case DialogLayout.Space s -> b.append(Glyphs.space(s.px()));
                 case DialogLayout.Glyph g -> b.append(Component.text(String.valueOf(g.c())).font(CUT_FONT).color(TextColor.color(0xFFFFFF)));
-                case DialogLayout.Text t -> b.append(Component.text(t.text()).font(LINE_FONTS[Math.min(t.line(), LINE_FONTS.length - 1)])
+                case DialogLayout.Text t -> b.append(Component.text(assets.tracked(t.text())).font(LINE_FONTS[Math.min(t.line(), LINE_FONTS.length - 1)])
                         .color(TextColor.color(0xFFFFFF)));
             }
         }

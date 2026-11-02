@@ -26,6 +26,9 @@ public final class CutsceneAssets {
     public final int portraitFrames;
     public final double portraitSway;
     public final double dialogSize;
+    /** 자간: 대사 글자마다 뒤에 붙이는 좁은 공백 글리프 */
+    public final char trackChar;
+    public final double track;
     public final Map<String, Integer> portraits = new LinkedHashMap<>();
     private final Map<Character, Double> ascii = new LinkedHashMap<>();
     private final Map<Character, Double> extra = new LinkedHashMap<>();
@@ -45,6 +48,13 @@ public final class CutsceneAssets {
         for (Map.Entry<String, JsonElement> e : p.getAsJsonObject("chars").entrySet()) portraits.put(e.getKey(), e.getValue().getAsInt());
         JsonObject d = o.getAsJsonObject("dialog");
         dialogSize = d.get("size").getAsDouble();
+        if (d.has("track")) {
+            trackChar = (char) d.getAsJsonObject("track").get("char").getAsInt();
+            track = d.getAsJsonObject("track").get("advance").getAsDouble();
+        } else {
+            trackChar = 0;
+            track = 0;
+        }
         JsonObject m = d.getAsJsonObject("metrics");
         for (Map.Entry<String, JsonElement> e : m.getAsJsonObject("ascii").entrySet()) ascii.put(e.getKey().charAt(0), e.getValue().getAsDouble());
         if (m.has("extra")) {
@@ -68,8 +78,20 @@ public final class CutsceneAssets {
         }
     }
 
-    /** 대사 글꼴에서 한 글자의 폭 (GUI 픽셀) */
+    /** 대사 글꼴에서 한 글자가 차지하는 폭 (GUI 픽셀, 자간 포함) */
     public double width(char c) {
+        return glyphWidth(c) + track;
+    }
+
+    /** 자간을 넣은 실제 출력 문자열 */
+    public String tracked(String s) {
+        if (trackChar == 0) return s;
+        StringBuilder b = new StringBuilder(s.length() * 2);
+        for (int i = 0; i < s.length(); i++) b.append(s.charAt(i)).append(trackChar);
+        return b.toString();
+    }
+
+    private double glyphWidth(char c) {
         Double a = ascii.get(c);
         if (a != null) return a;
         if (c >= 0xAC00 && c <= 0xD7A3) {

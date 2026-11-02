@@ -176,10 +176,19 @@ class UI:
         self.metrics = CUT["dialog"]["metrics"]
 
     def width(self, ch):
+        """CutsceneAssets.width 와 같음: 글자 폭 + 자간"""
         m = self.metrics
+        track = CUT["dialog"].get("track", {}).get("advance", 0.0)
         if ch in m["ascii"]:
-            return m["ascii"][ch]
-        return m["hangul"] if "가" <= ch <= "힣" else m["extra"].get(ch, m["default"])
+            return m["ascii"][ch] + track
+        if 0xAC00 <= ord(ch) <= 0xD7A3:
+            import base64
+            import struct
+            if not hasattr(self, "_hg"):
+                raw = base64.b64decode(m["hangul_table"])
+                self._hg = struct.unpack("<%dH" % (len(raw) // 2), raw)
+            return self._hg[ord(ch) - 0xAC00] / 1000.0 + track
+        return m["extra"].get(ch, m["default"]) + track
 
     def draw(self, img, bar, panel_slide, portrait, angle, lines, revealed):
         if bar > 0:
@@ -335,7 +344,7 @@ def main():
         frames.append(img.convert("RGB"))
         print(f"\r{tk}/{total}", end="", flush=True)
     print()
-    pal = [f.quantize(colors=200, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE) for f in frames]
+    pal = [f.quantize(colors=144, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE) for f in frames]
     path = os.path.join(OUT, "dialog_npc.gif")
     pal[0].save(path, save_all=True, append_images=pal[1:], duration=50 * STEP, loop=0, optimize=True)
     frames[len(frames) // 3].save(os.path.join(OUT, "dialog_still.png"))
