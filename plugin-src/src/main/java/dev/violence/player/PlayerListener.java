@@ -47,6 +47,11 @@ public final class PlayerListener implements Listener {
     @EventHandler(priority = EventPriority.HIGH)
     public void onSwing(PlayerArmSwingEvent e) {
         if (e.getHand() != EquipmentSlot.HAND) return;
+        // 컷씬: 어드민 왼클릭으로 대사 넘기기
+        if (plugin.dialog().isAdmin(e.getPlayer())) {
+            plugin.dialog().click();
+            return;
+        }
         PlayerCombatant pc = pc(e.getPlayer());
         if (pc == null) return;
         long now = plugin.now();
@@ -179,11 +184,24 @@ public final class PlayerListener implements Listener {
     public void onJoin(PlayerJoinEvent e) {
         plugin.pack().send(e.getPlayer());
         plugin.lobby().onJoin(e.getPlayer());
+        if (plugin.dialog().active()) plugin.dialog().addViewer(e.getPlayer());
         if (plugin.arena() != null) plugin.game().onPlayerJoinMidGame(e.getPlayer());
+    }
+
+    /** 컷씬 중 관전자가 카메라에서 빠져나가거나(Shift) 다른 개체를 관전하지 못하게 */
+    @EventHandler(ignoreCancelled = true)
+    public void onStopSpectating(com.destroystokyo.paper.event.player.PlayerStopSpectatingEntityEvent e) {
+        if (plugin.dialog().isViewer(e.getPlayer()) && e.getSpectatorTarget() == plugin.dialog().camera()) e.setCancelled(true);
+    }
+
+    @EventHandler(ignoreCancelled = true)
+    public void onStartSpectating(com.destroystokyo.paper.event.player.PlayerStartSpectatingEntityEvent e) {
+        if (plugin.dialog().isViewer(e.getPlayer()) && e.getNewSpectatorTarget() != plugin.dialog().camera()) e.setCancelled(true);
     }
 
     @EventHandler
     public void onQuit(PlayerQuitEvent e) {
+        if (plugin.dialog().isViewer(e.getPlayer())) plugin.dialog().removeViewer(e.getPlayer());
         plugin.game().onPlayerQuit(e.getPlayer());
         plugin.shake().remove(e.getPlayer());
         plugin.hud().forget(e.getPlayer().getUniqueId());

@@ -76,6 +76,10 @@ public final class GameService {
             sender.sendMessage(Component.text("이미 게임이 진행 중입니다.", NamedTextColor.RED));
             return false;
         }
+        if (plugin.dialog().active()) {
+            sender.sendMessage(Component.text("컷씬이 진행 중입니다. 컷씬이 끝난 뒤 시작하세요.", NamedTextColor.RED));
+            return false;
+        }
         List<Player> players = new ArrayList<>(plugin.lobby().participants());
         int total = plugin.getConfig().getInt("game.total-entities", 50);
         int minPlayers = plugin.getConfig().getInt("game.min-players", 1);

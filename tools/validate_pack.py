@@ -238,6 +238,23 @@ def main():
             err(f"자바 코드가 쓰는 폰트 없음: violence:{f}")
     # 글리프: 자바가 출력하는 모든 특수문자/한글이 폰트에 있는지
     check_glyphs(java)
+    # 컷씬: 레터박스 오버레이 프레임, 초상화 글리프 정보 (DialogService 가 읽음)
+    cut = load(os.path.join(ROOT, "bukkit", "plugins", "ViolenceCore", "cutscene.json"))
+    if not cut:
+        err("bukkit/plugins/ViolenceCore/cutscene.json 이 없음 (build_pack.py 실행 필요)")
+    else:
+        for i in range(1, cut["letterbox_frames"] + 1):
+            if not os.path.isfile(os.path.join(ASSETS, "violence", "textures", "misc", f"letterbox_{i}.png")):
+                err(f"레터박스 오버레이 없음 letterbox_{i}")
+        font = load(os.path.join(ASSETS, "violence", "font", "cutscene.json")) or {}
+        chars = {c for p in font.get("providers", []) for row in p.get("chars", []) for c in row}
+        for pid, base in cut["portrait"]["chars"].items():
+            for f in range(cut["portrait"]["frames"]):
+                if chr(base + f) not in chars:
+                    err(f"초상화 글리프 없음: {pid} 프레임 {f}")
+                    break
+        if chr(cut["panel"]["char"]) not in chars:
+            err("컷씬 패널 글리프 없음")
     # 카메라 오버레이
     for i in (1, 2):
         if not os.path.isfile(os.path.join(ASSETS, "violence", "textures", "misc", f"streak{i}.png")):

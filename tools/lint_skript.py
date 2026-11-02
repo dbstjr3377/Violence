@@ -93,13 +93,16 @@ def main():
 
 
 def split_args(s):
-    out, depth, cur = [], 0, ""
+    """함수 인자 나누기: 괄호 안과 따옴표 문자열 안의 쉼표는 무시"""
+    out, depth, cur, quoted = [], 0, "", False
     for ch in s:
-        if ch == "(":
+        if ch == '"':
+            quoted = not quoted
+        elif not quoted and ch == "(":
             depth += 1
-        elif ch == ")":
+        elif not quoted and ch == ")":
             depth -= 1
-        if ch == "," and depth == 0:
+        if ch == "," and depth == 0 and not quoted:
             out.append(cur)
             cur = ""
         else:

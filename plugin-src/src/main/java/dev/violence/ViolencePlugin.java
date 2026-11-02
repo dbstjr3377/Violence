@@ -48,6 +48,7 @@ public final class ViolencePlugin extends JavaPlugin {
     private WeaponRegistry weapons;
     private Fx fx;
     private dev.violence.fx.ClubBeams clubBeams;
+    private dev.violence.cutscene.DialogService dialog;
     private Shake shake;
     private CameraService camera;
     private dev.violence.fx.PoseSync poses;
@@ -82,6 +83,7 @@ public final class ViolencePlugin extends JavaPlugin {
         }
         fx = new Fx(this);
         clubBeams = new dev.violence.fx.ClubBeams(this);
+        dialog = new dev.violence.cutscene.DialogService(this);
         shake = new Shake();
         camera = new CameraService(this);
         poses = new dev.violence.fx.PoseSync(this);
@@ -124,6 +126,11 @@ public final class ViolencePlugin extends JavaPlugin {
     public void onDisable() {
         // 단계마다 따로 보호: 하나가 실패해도 나머지(포트 해제 등)는 반드시 실행
         try {
+            if (dialog != null) dialog.abort();
+        } catch (RuntimeException e) {
+            getLogger().log(Level.WARNING, "컷씬 정리 실패", e);
+        }
+        try {
             if (game != null) game.shutdown();
         } catch (RuntimeException e) {
             getLogger().log(Level.WARNING, "게임 정리 실패", e);
@@ -158,6 +165,12 @@ public final class ViolencePlugin extends JavaPlugin {
             game.tick(tick);
         } catch (RuntimeException e) {
             getLogger().log(Level.SEVERE, "게임 틱 처리 중 오류", e);
+        }
+        try {
+            dialog.tick();
+        } catch (RuntimeException e) {
+            getLogger().log(Level.SEVERE, "컷씬 처리 중 오류 - 컷씬을 정리합니다", e);
+            dialog.abort();
         }
     }
 
@@ -195,6 +208,7 @@ public final class ViolencePlugin extends JavaPlugin {
     public WeaponRegistry weapons() { return weapons; }
     public Fx fx() { return fx; }
     public dev.violence.fx.ClubBeams clubBeams() { return clubBeams; }
+    public dev.violence.cutscene.DialogService dialog() { return dialog; }
     public Shake shake() { return shake; }
     public CameraService camera() { return camera; }
     public dev.violence.fx.PoseSync poses() { return poses; }

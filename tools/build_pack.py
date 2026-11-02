@@ -812,12 +812,14 @@ def main():
     misc()
     equipment()
     fonts()
+    import pack_cutscene
+    portraits = pack_cutscene.build(NS, FONT_KR, FONT_EN)   # 컷씬 다이얼로그 (레터박스, 패널, 초상화, 대사 글꼴)
     gui()
     sounds()
     shaders()
     out = build_zip()
     files = sum(len(f) for _, _, f in os.walk(PACK))
-    print(f"모델 {n}개 (무기+가면), 파일 {files}개 → {out} ({os.path.getsize(out) // 1024}KB)")
+    print(f"초상화 {portraits}개, 모델 {n}개 (무기+가면), 파일 {files}개 → {out} ({os.path.getsize(out) // 1024}KB)")
 
 
 if __name__ == "__main__":

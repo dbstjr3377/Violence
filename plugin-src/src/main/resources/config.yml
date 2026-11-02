@@ -58,3 +58,9 @@ resource-pack:
   # 외부에 리소스팩을 올렸다면 주소 지정 (내장 서버 대신 사용)
   url: ""
   required: true
+
+cutscene:
+  # 대사 타자 속도 (틱당 글자 수, 1 = 초당 20자)
+  chars-per-tick: 1.0
+  # 보는 사람을 관전 모드로 카메라에 붙여 핫바 등 HUD 를 가림 (false: 생존/모험 모드 그대로 카메라만 전환)
+  spectate-viewers: true

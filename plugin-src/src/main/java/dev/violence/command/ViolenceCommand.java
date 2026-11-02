@@ -59,6 +59,7 @@ public final class ViolenceCommand implements TabExecutor {
         switch (sub) {
             case "start" -> plugin.game().start(sender, args.length > 1 ? args[1] : null, intArg(args, 2, -1), intArg(args, 3, -1), intArg(args, 4, -1));
             case "stop" -> plugin.game().stop(sender);
+            case "cutscene" -> cutscene(sender, args);
             case "award", "combobonus" -> {
                 // Skript 콜백: /violence award <플레이어> <점수>
                 if (!(sender instanceof ConsoleCommandSender) && !sender.isOp()) return true;
@@ -197,10 +198,54 @@ public final class ViolenceCommand implements TabExecutor {
         s.sendMessage(Component.text(" /vio give <무기> · mask <가면> · offer (테스트용)", NamedTextColor.WHITE));
     }
 
+    /**
+     * 컷씬 (Skript cutscene.sk 가 콘솔로 호출하거나 어드민이 직접 사용)
+     *  /violence cutscene begin <어드민>
+     *  /violence cutscene say <대상: 플레이어 이름 | UUID | none> <초상화> <대사...>
+     *  /violence cutscene next | end
+     */
+    private void cutscene(CommandSender sender, String[] args) {
+        if (!(sender instanceof ConsoleCommandSender) && !sender.hasPermission("violence.admin")) return;
+        String op = args.length > 1 ? args[1].toLowerCase() : "";
+        switch (op) {
+            case "begin" -> {
+                Player a = args.length > 2 ? Bukkit.getPlayerExact(args[2]) : (sender instanceof Player p ? p : null);
+                plugin.dialog().begin(sender, a);
+            }
+            case "say" -> {
+                if (args.length < 5) {
+                    msg(sender, "/violence cutscene say <대상> <초상화> <대사>");
+                    return;
+                }
+                org.bukkit.entity.Entity target = null;
+                if (!args[2].equalsIgnoreCase("none")) {
+                    target = Bukkit.getPlayerExact(args[2]);
+                    if (target == null) {
+                        try {
+                            target = Bukkit.getEntity(java.util.UUID.fromString(args[2]));
+                        } catch (IllegalArgumentException ignored) {
+                            // 이름도 UUID 도 아니면 카메라를 옮기지 않음
+                        }
+                    }
+                }
+                String text = String.join(" ", java.util.Arrays.copyOfRange(args, 4, args.length));
+                plugin.dialog().say(sender, target, args[3], text);
+            }
+            case "next" -> plugin.dialog().click();
+            case "end" -> plugin.dialog().end();
+            case "reload" -> {
+                plugin.dialog().reloadAssets();
+                msg(sender, "cutscene.json 을 다시 읽었습니다.");
+            }
+            default -> msg(sender, "/violence cutscene <begin|say|next|end|reload>");
+        }
+    }
+
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
-        if (args.length == 1) return filter(List.of("start", "stop", "maps", "map", "info", "give", "mask", "offer", "reloadpack"), args[0]);
+        if (args.length == 1) return filter(List.of("start", "stop", "cutscene", "maps", "map", "info", "give", "mask", "offer", "reloadpack"), args[0]);
         if (args.length == 2 && args[0].equalsIgnoreCase("start")) return filter(plugin.maps().mapIds(), args[1]);
+        if (args.length == 2 && args[0].equalsIgnoreCase("cutscene")) return filter(List.of("begin", "say", "next", "end", "reload"), args[1]);
         if (args.length == 2 && args[0].equalsIgnoreCase("map")) return filter(List.of("generate", "edit", "save", "close", "weapon", "spawn", "door", "bounds"), args[1]);
         if (args.length == 3 && args[0].equalsIgnoreCase("map") && (args[1].equalsIgnoreCase("edit") || args[1].equalsIgnoreCase("generate"))) return filter(plugin.maps().mapIds(), args[2]);
         if (args.length == 2 && args[0].equalsIgnoreCase("give")) return filter(plugin.weapons().all().stream().map(WeaponType::id).toList(), args[1]);
