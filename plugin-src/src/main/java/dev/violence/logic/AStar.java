@@ -17,6 +17,8 @@ public final class AStar {
     public static List<Vec3> find(NavGrid grid, NavGrid.Node start, NavGrid.Node goal, int maxExpansions) {
         if (start == null || goal == null) return List.of();
         if (start == goal) return List.of(goal.pos());
+        // 서로 다른 섬이면 끝까지 탐색해 봐야 소용없음 (지붕, 가구 위 등)
+        if (!grid.connected(start, goal)) return List.of();
         PriorityQueue<Entry> open = new PriorityQueue<>((a, b) -> Double.compare(a.f, b.f));
         Map<Long, Double> gScore = new HashMap<>();
         Map<Long, NavGrid.Node> came = new HashMap<>();

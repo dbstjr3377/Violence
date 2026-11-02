@@ -46,6 +46,12 @@ public final class NpcManager {
         double heavyChance = plugin.getConfig().getDouble("npc.heavy-chance", 0.12);
         double skillMin = plugin.getConfig().getDouble("npc.skill-min", 0.35);
         double skillMax = plugin.getConfig().getDouble("npc.skill-max", 0.8);
+        // 게임 시작처럼 한 번에 많이 만들 때는 시야 검사 없이 리스폰 지점을 골고루 나눠 씀 (시작 렉 방지)
+        List<Vec3> spread = null;
+        if (count > 3 && !a.map.spawns.isEmpty()) {
+            spread = new ArrayList<>(a.map.spawns);
+            java.util.Collections.shuffle(spread, plugin.random());
+        }
         for (int i = 0; i < count; i++) {
             boolean heavy = plugin.random().nextDouble() < heavyChance;
             String nm = NAMES[plugin.random().nextInt(NAMES.length)] + (i + 1);
@@ -75,7 +81,7 @@ public final class NpcManager {
             n.copyOutfitTo(m.getEquipment());
             a.add(n);
             // 시작 위치는 숨겨진 곳으로
-            Vec3 start = plugin.spawns().choose(a, n);
+            Vec3 start = spread != null ? spread.get(i % spread.size()) : plugin.spawns().choose(a, n);
             Location sl = Fx.loc(a.world, start);
             sl.setYaw(plugin.random().nextFloat() * 360);
             n.teleport(sl);
@@ -92,15 +98,18 @@ public final class NpcManager {
             if (n.state != CombatState.ALIVE) continue;
             if (n.target != null && now - n.targetSeenAt < 40) continue;
             if (n.pos.distanceSq(at) > radius * radius) continue;
+            boolean sameGoal = n.noisePos != null && n.noisePos.distanceSq(at) < 6.25;
             n.noisePos = at;
             n.noiseUntil = now + 160;
-            n.nextRepath = 0;
+            if (!sameGoal) n.nextRepath = 0;
         }
     }
 
     public void tick(Arena a, long now) {
         pathsThisTick = 0;
-        for (NpcCombatant n : new ArrayList<>(a.npcs)) {
+        List<NpcCombatant> order = new ArrayList<>(a.npcs);
+        if (!order.isEmpty()) java.util.Collections.rotate(order, (int) (now % order.size()));   // 길찾기 예산을 돌아가며
+        for (NpcCombatant n : order) {
             try {
                 tickNpc(a, n, now);
             } catch (RuntimeException ex) {
@@ -110,6 +119,15 @@ public final class NpcManager {
     }
 
     private void tickNpc(Arena a, NpcCombatant n, long now) {
+        if (!n.entity().isValid()) {
+            // 몸(마네킹)이 사라짐 (청크 언로드, 다른 플러그인): 보이지 않는 NPC 가 남지 않게 교체
+            if (n.execution != null) plugin.combat().cancelExecution(n.execution);
+            a.remove(n);
+            a.tracked.remove(n.entity());
+            plugin.getLogger().info("NPC 몸이 사라져 새로 만듭니다: " + n.name);
+            if (plugin.game().state() == dev.violence.game.GameService.State.RUNNING) spawn(a, 1);
+            return;
+        }
         switch (n.state) {
             case DEAD, BEING_EXECUTED -> {
                 return;
@@ -161,6 +179,8 @@ public final class NpcManager {
             Vec3 to = ce.sub(eye).horizontal().normalize();
             boolean inFov = d < 5 || to.dot(look) > -0.2 || c == n.target;
             if (!inFov) continue;
+            double pre = d - (c.state.isDownedLike() ? 4 : 0) - (c.isPlayer() ? 2 : 0);
+            if (pre >= bestScore) continue;   // 이미 더 나은 후보가 있으면 시야 검사 생략 (광선 추적 비용)
             if (!plugin.combat().lineOfSight(a, eye, ce)) continue;
             double score = d;
             if (c.state.isDownedLike()) score -= 4; // 쓰러진 적 우선 처리
@@ -190,6 +210,10 @@ public final class NpcManager {
         WeaponType fist = plugin.weapons().fist();
         WeaponType t = n.weaponType(fist);
         Combatant tgt = n.target;
+        if (tgt != null && (!a.combatants.containsKey(tgt.id) || !tgt.world().equals(a.world))) {
+            n.target = null;          // 나간 플레이어, 교체된 NPC, 다른 월드로 간 플레이어
+            tgt = null;
+        }
         boolean seesTarget = tgt != null && now - n.targetSeenAt <= 8 && tgt.isAlive();
         n.moveDir = Vec3.ZERO;
 
@@ -200,6 +224,7 @@ public final class NpcManager {
             if (near != null && wants) {
                 if (n.weapon != null) plugin.combat().throwWeapon(n, now);
                 plugin.combat().pickUp(n, near);
+                n.weaponGoal = null;
                 return;
             }
         }
@@ -226,7 +251,8 @@ public final class NpcManager {
                         if (dist > 26) moveToward(a, n, tgt.feet(), now);
                         else if (dist < 4 && n.skill > 0.6) strafe(a, n, tgt);
                         aimAndFire(a, n, tgt, t, now, dist);
-                    } else if (dist < 13 && dist > 2.5) {
+                    } else if (dist < 13) {
+                        // 빈 총: 바로 앞이어도 던진다 (줍기만 기다리다 맞기만 하지 않게)
                         face(n, tgt.eye(), 40);
                         if (now >= n.reactionUntil && n.canAct(now)) plugin.combat().throwWeapon(n, now);
                     } else {
@@ -242,7 +268,7 @@ public final class NpcManager {
                 case MELEE, FIST -> {
                     // 무기 없이 멀리 있는 적이면 근처 무기부터
                     if (t.isFist() && dist > 8) {
-                        GroundWeapon g = plugin.ground().nearest(a, n.pos, 10, false);
+                        GroundWeapon g = reachableWeapon(a, n, 10, now);
                         if (g != null) {
                             moveToward(a, n, g.pos, now);
                             return;
@@ -263,7 +289,7 @@ public final class NpcManager {
 
         // 2) 적이 안 보임
         if (n.weapon == null || (n.weapon.type().isGun() && !n.weapon.hasAmmo())) {
-            GroundWeapon g = plugin.ground().nearest(a, n.pos, 18, false);
+            GroundWeapon g = reachableWeapon(a, n, 18, now);
             if (g != null) {
                 moveToward(a, n, g.pos, now);
                 return;
@@ -283,7 +309,7 @@ public final class NpcManager {
     }
 
     private void seekWeaponOrChase(Arena a, NpcCombatant n, Combatant tgt, long now) {
-        GroundWeapon g = plugin.ground().nearest(a, n.pos, 10, false);
+        GroundWeapon g = reachableWeapon(a, n, 10, now);
         if (g != null) moveToward(a, n, g.pos, now);
         else moveToward(a, n, tgt.feet(), now);
     }
@@ -325,9 +351,37 @@ public final class NpcManager {
     }
 
     private void strafe(Arena a, NpcCombatant n, Combatant tgt) {
+        if (!n.canMove(plugin.now())) return;
         Vec3 to = tgt.feet().sub(n.pos).horizontal().normalize();
         Vec3 side = new Vec3(-to.z(), 0, to.x()).mul(((plugin.now() / 30) % 2 == 0) ? 1 : -1);
         tryMove(a, n, side.mul(speed(n) * 0.6));
+    }
+
+    /** 걸어서 주울 수 있는 가장 가까운 무기. 60틱 동안 다가가도 못 주우면 그 무기는 20초간 무시 */
+    private GroundWeapon reachableWeapon(Arena a, NpcCombatant n, double radius, long now) {
+        n.ignoreWeapons.values().removeIf(until -> until < now);
+        n.ignoreWeapons.keySet().removeIf(g -> !a.groundWeapons.contains(g));
+        if (n.weaponGoal != null && now - n.weaponGoalSince > 60) {
+            n.ignoreWeapons.put(n.weaponGoal, now + 400);
+            n.weaponGoal = null;
+        }
+        NavGrid.Node here = a.nav.size() > 0 ? a.nav.nearest(n.pos) : null;
+        GroundWeapon best = null;
+        double bd = radius * radius;
+        for (GroundWeapon g : a.groundWeapons) {
+            if (g.weapon.type().isGun() && !g.weapon.hasAmmo()) continue;
+            if (n.ignoreWeapons.containsKey(g)) continue;
+            double d = g.pos.distanceSq(n.pos);
+            if (d >= bd) continue;
+            if (here != null && !a.nav.connected(here, a.nav.nearest(g.pos))) continue;
+            bd = d;
+            best = g;
+        }
+        if (best != n.weaponGoal) {
+            n.weaponGoal = best;
+            n.weaponGoalSince = now;
+        }
+        return best;
     }
 
     private double speed(NpcCombatant n) {
@@ -339,8 +393,10 @@ public final class NpcManager {
             if (now < n.nextRepath || a.nav.size() == 0 || pathsThisTick >= PATH_BUDGET) return;
             NavGrid.Node start = a.nav.nearest(n.pos);
             NavGrid.Node goal = null;
+            List<NavGrid.Node> pool = a.nav.mainNodes().isEmpty() ? a.nav.nodes() : a.nav.mainNodes();
             for (int i = 0; i < 6 && goal == null; i++) {
-                NavGrid.Node cand = a.nav.nodes().get(plugin.random().nextInt(a.nav.size()));
+                NavGrid.Node cand = pool.get(plugin.random().nextInt(pool.size()));
+                if (!a.nav.connected(start, cand)) continue;
                 double d = cand.pos().distance(n.pos);
                 if (d > 8 && d < 40) goal = cand;
             }
@@ -348,6 +404,8 @@ public final class NpcManager {
             pathsThisTick++;
             n.path = new ArrayList<>(AStar.find(a.nav, start, goal, 3000));
             n.pathIndex = 0;
+            n.lastProgressPos = n.pos;
+            n.stuckSince = now;
             n.pathGoal = goal.pos();
             n.nextRepath = now + 40;
         }
@@ -363,10 +421,13 @@ public final class NpcManager {
             NavGrid.Node g = a.nav.nearest(goal);
             n.path = new ArrayList<>(AStar.find(a.nav, s, g, 4000));
             n.pathIndex = 0;
+            n.lastProgressPos = n.pos;
+            n.stuckSince = now;
             n.pathGoal = goal;
             n.nextRepath = now + 12;
         }
         if (n.path.isEmpty()) {
+            if (!n.canMove(now)) return;
             // 경로가 없으면 직선으로 시도
             Vec3 d = goal.sub(n.pos).horizontal();
             if (d.length() > 0.5) {
@@ -410,8 +471,15 @@ public final class NpcManager {
         face(n, new Vec3(p.x(), n.eye().y(), p.z()), 25);
     }
 
-    /** 운동학적 이동: 막히지 않으면 이동하고 바닥 높이를 맞춘다. */
+    /** 이동: 그대로 못 가면 X 축만, Z 축만 따로 시도해 벽/문틀을 타고 미끄러진다 */
     private boolean tryMove(Arena a, NpcCombatant n, Vec3 step) {
+        if (tryMoveExact(a, n, step)) return true;
+        if (Math.abs(step.x()) > 1e-4 && tryMoveExact(a, n, new Vec3(step.x(), 0, 0))) return true;
+        return Math.abs(step.z()) > 1e-4 && tryMoveExact(a, n, new Vec3(0, 0, step.z()));
+    }
+
+    /** 운동학적 이동: 막히지 않으면 이동하고 바닥 높이를 맞춘다. */
+    private boolean tryMoveExact(Arena a, NpcCombatant n, Vec3 step) {
         Vec3 next = n.pos.add(step.x(), 0, step.z());
         // 몸 폭(0.3) 고려한 충돌
         double r = 0.28;

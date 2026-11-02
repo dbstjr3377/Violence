@@ -83,7 +83,13 @@ public final class GameMap {
             ds.add(e);
         }
         y.set("doors", ds);
-        y.save(file);
+        File tmp = new File(file.getParentFile(), file.getName() + ".tmp");
+        y.save(tmp);
+        try {
+            java.nio.file.Files.move(tmp.toPath(), file.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING, java.nio.file.StandardCopyOption.ATOMIC_MOVE);
+        } catch (java.nio.file.AtomicMoveNotSupportedException e) {
+            java.nio.file.Files.move(tmp.toPath(), file.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        }
     }
 
     private static int num(Object o) { return o instanceof Number n ? n.intValue() : Integer.parseInt(o.toString()); }

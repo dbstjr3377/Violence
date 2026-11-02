@@ -57,12 +57,20 @@ public final class PlayerListener implements Listener {
         long now = plugin.now();
         // 우클릭과 같은 틱에 들어온 휘두르기는 무시 (아이템 사용 애니메이션)
         if (now - pc.input.lastRightClick <= 0) return;
+        // Q(버리기)를 누르면 클라이언트가 팔을 휘두름 → 공격으로 치지 않음
+        if (now - pc.input.lastDrop <= 1) return;
         pc.input.swing(now);
-        if (pc.state == CombatState.EXECUTING) plugin.combat().executionClick(pc, now);
+        if (pc.state == CombatState.EXECUTING && plugin.game().state() == dev.violence.game.GameService.State.RUNNING) {
+            plugin.combat().executionClick(pc, now);
+        }
     }
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = false)
     public void onInteract(PlayerInteractEvent e) {
+        if (plugin.dialog().isViewer(e.getPlayer())) {
+            e.setCancelled(true);   // 컷씬 중 왼클릭(대사 넘기기)이 블록/아이템 사용으로 이어지지 않게
+            return;
+        }
         PlayerCombatant pc = pc(e.getPlayer());
         if (pc == null) return;
         e.setCancelled(true);
@@ -118,12 +126,22 @@ public final class PlayerListener implements Listener {
 
     @EventHandler
     public void onDrop(PlayerDropItemEvent e) {
-        if (pc(e.getPlayer()) != null) e.setCancelled(true);
+        PlayerCombatant pc = pc(e.getPlayer());
+        if (pc != null) {
+            e.setCancelled(true);
+            pc.input.lastDrop = plugin.now();
+        } else if (plugin.dialog().isViewer(e.getPlayer())) {
+            e.setCancelled(true);
+        }
     }
 
     @EventHandler(priority = EventPriority.LOW)
     public void onClick(InventoryClickEvent e) {
         if (!(e.getWhoClicked() instanceof Player p)) return;
+        if (plugin.dialog().isViewer(p)) {
+            e.setCancelled(true);   // 컷씬 띠(머리 장비)를 빼 가지 못하게
+            return;
+        }
         PlayerCombatant pc = pc(p);
         if (pc == null) return;
         e.setCancelled(true);
@@ -132,7 +150,7 @@ public final class PlayerListener implements Listener {
 
     @EventHandler
     public void onDrag(InventoryDragEvent e) {
-        if (e.getWhoClicked() instanceof Player p && pc(p) != null) e.setCancelled(true);
+        if (e.getWhoClicked() instanceof Player p && (pc(p) != null || plugin.dialog().isViewer(p))) e.setCancelled(true);
     }
 
     @EventHandler
@@ -151,10 +169,13 @@ public final class PlayerListener implements Listener {
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onDamage(EntityDamageEvent e) {
         Arena a = plugin.arena();
-        if (a == null) {
-            if (e.getEntity() instanceof Player && plugin.lobby().isLobby(e.getEntity().getWorld())) e.setCancelled(true);
+        // 로비는 게임 중에도 안전 지대 (늦게 들어온 사람, 제외 대상, 준비 중 접속한 사람)
+        if (e.getEntity() instanceof Player lp && plugin.lobby().isLobby(lp.getWorld())) {
+            e.setCancelled(true);
+            if (e.getCause() == EntityDamageEvent.DamageCause.VOID) plugin.lobby().sendToLobby(lp);   // 끝없이 떨어지지 않게
             return;
         }
+        if (a == null) return;
         // 게임 월드의 바닐라 피해는 모두 무시 (자체 판정 사용). 공허로 떨어진 경우만 처리
         if (e.getEntity().getWorld().equals(a.world)) {
             e.setCancelled(true);
@@ -184,7 +205,13 @@ public final class PlayerListener implements Listener {
     public void onJoin(PlayerJoinEvent e) {
         plugin.pack().send(e.getPlayer());
         plugin.lobby().onJoin(e.getPlayer());
-        if (plugin.dialog().active()) plugin.dialog().addViewer(e.getPlayer());
+        if (plugin.dialog().active()) {
+            // 접속 직후에는 카메라 엔티티가 아직 클라이언트에 없으므로 조금 뒤에 붙임
+            Player joined = e.getPlayer();
+            plugin.later(10, () -> {
+                if (joined.isOnline() && plugin.dialog().active()) plugin.dialog().addViewer(joined);
+            });
+        }
         if (plugin.arena() != null) plugin.game().onPlayerJoinMidGame(e.getPlayer());
     }
 
@@ -192,11 +219,24 @@ public final class PlayerListener implements Listener {
     @EventHandler(ignoreCancelled = true)
     public void onStopSpectating(com.destroystokyo.paper.event.player.PlayerStopSpectatingEntityEvent e) {
         if (plugin.dialog().isViewer(e.getPlayer()) && e.getSpectatorTarget() == plugin.dialog().camera()) e.setCancelled(true);
+        // 처형/사망 카메라를 관전 모드로 대신 보는 경우(카메라 패킷 실패 시)도 빠져나가지 못하게
+        else if (plugin.camera().isViewing(e.getPlayer()) && e.getSpectatorTarget() == plugin.camera().cameraOf(e.getPlayer())) e.setCancelled(true);
     }
 
     @EventHandler(ignoreCancelled = true)
     public void onStartSpectating(com.destroystokyo.paper.event.player.PlayerStartSpectatingEntityEvent e) {
         if (plugin.dialog().isViewer(e.getPlayer()) && e.getNewSpectatorTarget() != plugin.dialog().camera()) e.setCancelled(true);
+        else if (plugin.camera().isViewing(e.getPlayer()) && e.getNewSpectatorTarget() != plugin.camera().cameraOf(e.getPlayer())) e.setCancelled(true);
+    }
+
+    /** 게임 중 다른 월드로 옮겨진 플레이어(/tp, 다른 플러그인)는 나간 것으로 처리 */
+    @EventHandler
+    public void onWorldChange(org.bukkit.event.player.PlayerChangedWorldEvent e) {
+        var a = plugin.arena();
+        if (a != null && !plugin.game().isCleaning() && e.getFrom().equals(a.world)
+                && a.players.containsKey(e.getPlayer().getUniqueId())) {
+            plugin.game().onPlayerQuit(e.getPlayer());
+        }
     }
 
     @EventHandler

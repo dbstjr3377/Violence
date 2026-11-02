@@ -50,6 +50,10 @@ public final class NpcCombatant extends Combatant {
     long nextShotAt;
     long stuckSince;
     Vec3 lastProgressPos;
+    /** 갈 수 없는 바닥 무기는 한동안 무시 (탁자 위, 섬, 막힌 곳) */
+    final java.util.Map<dev.violence.arena.GroundWeapon, Long> ignoreWeapons = new java.util.HashMap<>();
+    dev.violence.arena.GroundWeapon weaponGoal;
+    long weaponGoalSince;
     final double skill;
     /** 한 팔 조준 자세 패킷을 보낸 상태인지 */
     public boolean poseSent;

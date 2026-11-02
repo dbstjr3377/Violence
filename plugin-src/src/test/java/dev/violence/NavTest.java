@@ -43,6 +43,39 @@ class NavTest {
     }
 
     @Test
+    void sealedRoomIsSeparateIslandAndFailsFast() {
+        FakeWorld w = room();
+        // x=10 통로를 막아 오른쪽 방을 섬으로 만들고, 왼쪽에 지붕 위 섬도 추가
+        for (int y = 1; y <= 3; y++) w.solid(10, y, 15);
+        for (int x = 2; x <= 4; x++) for (int z = 2; z <= 4; z++) w.solid(x, 5, z);
+        NavGrid g = NavGrid.build(w, 0, 0, 0, 19, 8, 19);
+        NavGrid.Node a = g.nearest(new Vec3(2.5, 1, 8.5));
+        NavGrid.Node b = g.nearest(new Vec3(17.5, 1, 2.5));
+        NavGrid.Node roof = g.get(3, 5, 3);
+        assertNotNull(roof);
+        assertFalse(g.connected(a, b), "막힌 방은 다른 덩어리");
+        assertFalse(g.connected(a, roof), "지붕 위는 다른 덩어리");
+        assertTrue(g.inMain(a) || g.inMain(b));
+        assertFalse(g.inMain(roof));
+        long t0 = System.nanoTime();
+        assertTrue(AStar.find(g, a, b, 100_000).isEmpty(), "갈 수 없는 목표는 빈 경로");
+        assertTrue((System.nanoTime() - t0) / 1e6 < 50, "섬 판정으로 바로 끝나야 함");
+        for (NavGrid.Node n : g.mainNodes()) assertTrue(g.inMain(n));
+    }
+
+    @Test
+    void positionHistoryRemembersPosture() {
+        dev.violence.combat.PositionHistory h = new dev.violence.combat.PositionHistory(10);
+        assertNull(h.downed(0));
+        h.record(new Vec3(0, 0, 0), true);
+        h.record(new Vec3(1, 0, 0), true);
+        h.record(new Vec3(2, 0, 0), false);
+        assertEquals(Boolean.FALSE, h.downed(0));
+        assertEquals(Boolean.TRUE, h.downed(1));
+        assertEquals(Boolean.TRUE, h.downed(99), "기록보다 오래 전이면 가장 오래된 기록");
+    }
+
+    @Test
     void pathGoesAroundWall() {
         FakeWorld w = room();
         NavGrid g = NavGrid.build(w, 0, 0, 0, 19, 4, 19);

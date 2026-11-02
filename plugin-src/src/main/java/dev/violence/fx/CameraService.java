@@ -30,6 +30,7 @@ public final class CameraService {
     private Constructor<?> cameraPacketCtor;
     private final Map<UUID, ItemDisplay> cameras = new HashMap<>();
     private final Map<UUID, GameMode> fallbackModes = new HashMap<>();
+    private final Map<UUID, Location> fallbackLocations = new HashMap<>();
 
     public CameraService(ViolencePlugin plugin) {
         this.plugin = plugin;
@@ -93,6 +94,7 @@ public final class CameraService {
         if (old != null && old != cam && old.isValid()) old.remove();
         if (!sendCamera(p, cam)) {
             fallbackModes.putIfAbsent(p.getUniqueId(), p.getGameMode());
+            fallbackLocations.putIfAbsent(p.getUniqueId(), p.getLocation());   // 관전하면 몸이 카메라로 따라가므로 원래 자리 기억
             p.setGameMode(GameMode.SPECTATOR);
             p.setSpectatorTarget(cam);
         }
@@ -106,9 +108,13 @@ public final class CameraService {
     public void reset(Player p) {
         ItemDisplay cam = cameras.remove(p.getUniqueId());
         GameMode fb = fallbackModes.remove(p.getUniqueId());
+        Location back = fallbackLocations.remove(p.getUniqueId());
         if (fb != null) {
-            p.setSpectatorTarget(null);
-            p.setGameMode(fb);
+            if (p.isOnline()) {
+                p.setSpectatorTarget(null);
+                p.setGameMode(fb);
+                if (back != null && back.isWorldLoaded()) p.teleport(back);
+            }
         } else {
             sendCamera(p, p);
         }

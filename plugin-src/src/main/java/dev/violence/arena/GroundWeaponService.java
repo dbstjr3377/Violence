@@ -84,6 +84,22 @@ public final class GroundWeaponService {
         return new Vec3(hp.getX(), hp.getY(), hp.getZ());
     }
 
+    /** 바닥을 못 찾았을 때 (허공, 맵 밖): 가장 가까운 보행 칸 위 */
+    public Vec3 reachableSpot(Arena a, Vec3 p) {
+        Vec3 deep = null;
+        RayTraceResult r = a.world.rayTraceBlocks(new Location(a.world, p.x(), p.y(), p.z()), new Vector(0, -1, 0), 64, FluidCollisionMode.NEVER, true);
+        if (r != null && a.map.inBounds(p)) {
+            Vector hp = r.getHitPosition();
+            deep = new Vec3(hp.getX(), hp.getY(), hp.getZ());
+        }
+        if (deep != null) return deep;
+        if (a.nav != null && a.nav.size() > 0) {
+            var n = a.nav.nearest(p);
+            if (n != null) return n.pos();
+        }
+        return null;
+    }
+
     public void remove(Arena a, GroundWeapon g) {
         a.groundWeapons.remove(g);
         if (g.display != null) {

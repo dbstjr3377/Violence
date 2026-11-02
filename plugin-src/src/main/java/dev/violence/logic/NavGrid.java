@@ -67,6 +67,72 @@ public final class NavGrid {
     }
 
     public int size() { return all.size(); }
+
+    // ───────── 연결 덩어리 (지붕, 가구 위, 막힌 방 같은 섬 구분) ─────────
+
+    private Map<Long, Integer> component;
+    private int mainComponent = -1;
+    private List<Node> mainNodes = List.of();
+
+    private void ensureComponents() {
+        if (component != null) return;
+        component = new HashMap<>();
+        Map<Integer, Integer> sizes = new HashMap<>();
+        int id = 0;
+        java.util.ArrayDeque<Node> q = new java.util.ArrayDeque<>();
+        for (Node s : all) {
+            if (component.containsKey(s.key)) continue;
+            component.put(s.key, id);
+            q.add(s);
+            int count = 0;
+            while (!q.isEmpty()) {
+                Node u = q.poll();
+                count++;
+                for (Node v : neighbors(u)) {
+                    if (!component.containsKey(v.key)) {
+                        component.put(v.key, id);
+                        q.add(v);
+                    }
+                }
+            }
+            sizes.put(id, count);
+            id++;
+        }
+        int best = -1, bestSize = -1;
+        for (Map.Entry<Integer, Integer> e : sizes.entrySet()) {
+            if (e.getValue() > bestSize) {
+                bestSize = e.getValue();
+                best = e.getKey();
+            }
+        }
+        mainComponent = best;
+        List<Node> main = new ArrayList<>();
+        for (Node n : all) if (component.get(n.key) == best) main.add(n);
+        mainNodes = main;
+    }
+
+    /** 노드가 속한 연결 덩어리 번호 (없으면 -1) */
+    public int component(Node n) {
+        if (n == null) return -1;
+        ensureComponents();
+        Integer c = component.get(n.key);
+        return c == null ? -1 : c;
+    }
+
+    /** 걸어서 서로 갈 수 있는가 */
+    public boolean connected(Node a, Node b) {
+        return a != null && b != null && component(a) == component(b);
+    }
+
+    /** 가장 큰 연결 덩어리 (맵의 실제 활동 공간) */
+    public List<Node> mainNodes() {
+        ensureComponents();
+        return mainNodes;
+    }
+
+    public boolean inMain(Node n) {
+        return n != null && component(n) == mainComponent;
+    }
     public List<Node> nodes() { return all; }
 
     public Node get(int x, int y, int z) { return nodes.get(key(x, y, z)); }

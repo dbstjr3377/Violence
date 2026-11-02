@@ -10,6 +10,8 @@ public final class InputState {
     /** 이번 틱에 새로 누름이 들어왔는가 */
     public boolean pressedPending;
     public long lastRightClick = -100;
+    /** Q(버리기) 누른 틱: 같은 틱의 팔 휘두르기를 공격으로 보지 않음 */
+    public long lastDrop = -100;
     public long lastJumpPress = -100;
 
     /** 왼클릭 패킷 수신. 2틱 이상 쉬었다가 들어오면 "새로 누름" */

@@ -71,6 +71,11 @@ public final class DialogService {
     private final Deque<Line> queue = new ArrayDeque<>();
     private long tick;
     private long lastClick = -100;
+    private long startedAt = -100;
+    /** 시작에 실패한 틱: 같은 틱에 이어지는 대사(Skript)는 다른 사람 컷씬에 끼어들지 않게 버림 */
+    private long beginFailedAt = -100;
+    /** 컷씬용 임시 배우 (cutscene actor 명령으로 생성, 끝나면 제거) */
+    private final Map<String, Entity> actors = new LinkedHashMap<>();
 
     // 현재 대사
     private Line current;
@@ -130,29 +135,49 @@ public final class DialogService {
 
     // ───────────────────────── 시작 / 대사 / 넘기기 / 종료 ─────────────────────────
 
+    /** 콘솔(Skript)에서 실행돼도 어드민이 이유를 볼 수 있게 */
+    private static void msgBoth(CommandSender sender, Player adminPlayer, String text, NamedTextColor c) {
+        msg(sender, text, c);
+        if (adminPlayer != null && adminPlayer != sender) msg(adminPlayer, text, c);
+    }
+
     public boolean begin(CommandSender sender, Player adminPlayer) {
+        boolean ok = beginInner(sender, adminPlayer);
+        if (!ok) beginFailedAt = plugin.now();
+        return ok;
+    }
+
+    private boolean beginInner(CommandSender sender, Player adminPlayer) {
         if (layout == null) {
-            msg(sender, "cutscene.json 이 없어 컷씬을 시작할 수 없습니다. 리소스팩을 다시 만들어 주세요.", NamedTextColor.RED);
+            msgBoth(sender, adminPlayer, "cutscene.json 이 없어 컷씬을 시작할 수 없습니다. 리소스팩을 다시 만들어 주세요.", NamedTextColor.RED);
             return false;
         }
         if (active) {
-            msg(sender, "이미 컷씬이 진행 중입니다.", NamedTextColor.RED);
+            msgBoth(sender, adminPlayer, "이미 컷씬이 진행 중입니다.", NamedTextColor.RED);
             return false;
         }
         if (plugin.game().state() != GameService.State.IDLE) {
-            msg(sender, "게임 중에는 컷씬을 시작할 수 없습니다. 게임이 끝난 뒤(로비) 실행하세요.", NamedTextColor.RED);
+            msgBoth(sender, adminPlayer, "게임 중에는 컷씬을 시작할 수 없습니다. 게임이 끝난 뒤(로비) 실행하세요.", NamedTextColor.RED);
             return false;
         }
         if (adminPlayer == null || !adminPlayer.isOnline()) {
             msg(sender, "컷씬을 진행할 어드민(플레이어)을 찾을 수 없습니다.", NamedTextColor.RED);
             return false;
         }
+        if (!plugin.lobby().isLobby(adminPlayer.getWorld())) {
+            msg(adminPlayer, "컷씬은 로비에서만 시작할 수 있습니다.", NamedTextColor.RED);
+            return false;
+        }
         active = true;
         ending = false;
         admin = adminPlayer.getUniqueId();
+        startedAt = plugin.now();
         queue.clear();
         current = null;
         tick = 0;
+        lastClick = -100;          // 지난 컷씬의 시각이 남아 클릭이 막히지 않게
+        moveStart = -1;
+        camFrom = camTo = null;
         bar = 0;
         barTarget = assets.letterboxFrames;
         panelFrom = panelTarget = 1;
@@ -170,6 +195,8 @@ public final class DialogService {
 
     /** 대사 추가. 지금 보이는 대사가 없으면 바로 시작한다. */
     public boolean say(CommandSender sender, Entity target, String portraitId, String text) {
+        if (beginFailedAt == plugin.now() && startedAt != plugin.now()) return false;
+        if (text == null || text.isBlank()) text = "...";
         if (!active || ending) {
             msg(sender, "진행 중인 컷씬이 없습니다. 먼저 컷씬을 시작하세요.", NamedTextColor.RED);
             return false;
@@ -220,13 +247,21 @@ public final class DialogService {
         Entity target = current.target() == null ? null : Bukkit.getEntity(current.target());
         if (target != null && cam != null && target.getWorld().equals(cam.getWorld())) {
             camFrom = cam.getLocation();
-            camTo = shotFor(target);
+            Saved sv = viewers.get(target.getUniqueId());
+            if (sv != null && !sv.admin()) {
+                // 관전 중인 플레이어는 몸이 카메라에 붙어 있으므로 원래 서 있던 자리를 비춤
+                Location eye = sv.loc().clone().add(0, 1.62, 0);
+                camTo = shotForEye(eye);
+            } else {
+                camTo = shotFor(target);
+            }
             moveStart = tick;
         }
         // 초상화가 바뀌면 패널이 잠깐 나갔다가 새 초상화로 들어옴
         String next = current.portrait();
         if (portrait == null || panelTarget >= 1) {
             portrait = next;
+            pendingPortrait = null;    // 나가던 중 넘긴 경우: 남은 교체 예약 때문에 타자가 멈추지 않게
             slidePanel(0, PANEL_IN);
         } else if (!portrait.equalsIgnoreCase(next)) {
             pendingPortrait = next;
@@ -238,6 +273,10 @@ public final class DialogService {
     /** 개체의 얼굴을 비스듬히 앞에서 비추고, 오른쪽 패널을 피해 화면 왼쪽에 오도록 */
     static Location shotFor(Entity target) {
         Location eye = target instanceof LivingEntity le ? le.getEyeLocation() : target.getLocation().add(0, target.getHeight() * 0.85, 0);
+        return shotForEye(eye);
+    }
+
+    static Location shotForEye(Location eye) {
         double yaw = Math.toRadians(eye.getYaw());
         Vec3 fwd = new Vec3(-Math.sin(yaw), 0, Math.cos(yaw));
         Vec3 right = fwd.cross(new Vec3(0, 1, 0)).normalize();
@@ -266,6 +305,50 @@ public final class DialogService {
 
     private boolean panelSettled() {
         return tick - panelStart >= panelDur;
+    }
+
+    /**
+     * 컷씬용 임시 배우 (NPC 와 같은 사람 모양). 어드민이 서 있는 곳 기준 앞쪽 forward, 오른쪽 side 블록에 세우고
+     * facing 도(어드민 시선 기준)를 바라본다. mask 가 가면 이름이면 가면을 씌운다. 컷씬이 끝나면 사라진다.
+     */
+    public boolean actor(CommandSender sender, String id, String mask, double forward, double side, double facing) {
+        if (!active || ending) {
+            msg(sender, "진행 중인 컷씬이 없습니다.", NamedTextColor.RED);
+            return false;
+        }
+        Player a = admin == null ? null : Bukkit.getPlayer(admin);
+        Saved sv = admin == null ? null : viewers.get(admin);
+        Location base = sv != null ? sv.loc() : (a != null ? a.getLocation() : null);
+        if (base == null) return false;
+        double yaw = Math.toRadians(base.getYaw());
+        Vec3 fwd = new Vec3(-Math.sin(yaw), 0, Math.cos(yaw));
+        Vec3 right = fwd.cross(new Vec3(0, 1, 0)).normalize();
+        Vec3 p = new Vec3(base.getX(), base.getY(), base.getZ()).add(fwd.mul(forward)).add(right.mul(side));
+        Location l = new Location(base.getWorld(), p.x(), p.y(), p.z(), (float) (base.getYaw() + facing), 0);
+        Entity old = actors.remove(id);
+        if (old != null && old.isValid()) old.remove();
+        org.bukkit.entity.Mannequin m = base.getWorld().spawn(l, org.bukkit.entity.Mannequin.class, b -> {
+            b.setPersistent(false);
+            b.setImmovable(true);
+            b.setDescription(null);
+            b.setSilent(true);
+            b.setCustomNameVisible(false);
+            b.addScoreboardTag("violence_actor");
+        });
+        dev.violence.mask.Mask mk = null;
+        try {
+            if (mask != null && !mask.equalsIgnoreCase("none")) mk = dev.violence.mask.Mask.valueOf(mask.toUpperCase(java.util.Locale.ROOT));
+        } catch (IllegalArgumentException ignored) {
+            msg(sender, "알 수 없는 가면: " + mask + " (가면 없이 세움)", NamedTextColor.YELLOW);
+        }
+        if (mk != null) m.getEquipment().setHelmet(dev.violence.weapon.WeaponItems.mask(mk, false));
+        actors.put(id, m);
+        return true;
+    }
+
+    public Entity actorEntity(String id) {
+        Entity e = actors.get(id);
+        return e != null && e.isValid() ? e : null;
     }
 
     // ───────────────────────── 보는 사람 ─────────────────────────
@@ -297,7 +380,8 @@ public final class DialogService {
         if (p.getGameMode() == GameMode.SPECTATOR) p.setSpectatorTarget(null);
         if (plugin.camera().isViewing(p)) plugin.camera().reset(p);
         p.setGameMode(s.mode());
-        p.teleport(s.loc());
+        Location back = s.loc() != null && s.loc().isWorldLoaded() ? s.loc() : plugin.lobby().spawn();
+        p.teleport(back);
         p.getInventory().setHelmet(s.helmet());
         setAttr(p, Attribute.MOVEMENT_SPEED, s.speed());
         setAttr(p, Attribute.JUMP_STRENGTH, s.jump());
@@ -434,8 +518,21 @@ public final class DialogService {
         viewers.clear();
         for (Map.Entry<UUID, Saved> e : all) {
             Player p = Bukkit.getPlayer(e.getKey());
-            if (p != null && p.isOnline()) restore(p, e.getValue());
+            if (p == null || !p.isOnline()) continue;
+            try {
+                restore(p, e.getValue());
+            } catch (RuntimeException ex) {
+                plugin.getLogger().log(Level.WARNING, "컷씬 복구 실패: " + p.getName(), ex);
+                try {
+                    p.setGameMode(GameMode.ADVENTURE);
+                    plugin.lobby().sendToLobby(p);
+                } catch (RuntimeException ignored) {
+                    // 최후 수단도 실패하면 재접속 때 로비 초기화가 처리
+                }
+            }
         }
+        for (Entity actor : actors.values()) if (actor.isValid()) actor.remove();
+        actors.clear();
         if (cam != null && cam.isValid()) cam.remove();
         cam = null;
         active = false;

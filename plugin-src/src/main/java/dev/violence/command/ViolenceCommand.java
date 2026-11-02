@@ -218,7 +218,9 @@ public final class ViolenceCommand implements TabExecutor {
                     return;
                 }
                 org.bukkit.entity.Entity target = null;
-                if (!args[2].equalsIgnoreCase("none")) {
+                if (args[2].toLowerCase().startsWith("actor:")) {
+                    target = plugin.dialog().actorEntity(args[2].substring(6));
+                } else if (!args[2].equalsIgnoreCase("none")) {
                     target = Bukkit.getPlayerExact(args[2]);
                     if (target == null) {
                         try {
@@ -230,6 +232,18 @@ public final class ViolenceCommand implements TabExecutor {
                 }
                 String text = String.join(" ", java.util.Arrays.copyOfRange(args, 4, args.length));
                 plugin.dialog().say(sender, target, args[3], text);
+            }
+            case "actor" -> {
+                // /violence cutscene actor <이름> <가면|none> <앞> <오른쪽> <바라보는 각도>
+                if (args.length < 7) {
+                    msg(sender, "/violence cutscene actor <이름> <가면|none> <앞> <오른쪽> <각도>");
+                    return;
+                }
+                try {
+                    plugin.dialog().actor(sender, args[2], args[3], Double.parseDouble(args[4]), Double.parseDouble(args[5]), Double.parseDouble(args[6]));
+                } catch (NumberFormatException e) {
+                    msg(sender, "숫자를 확인하세요: " + e.getMessage());
+                }
             }
             case "next" -> plugin.dialog().click();
             case "end" -> plugin.dialog().end();
@@ -245,7 +259,7 @@ public final class ViolenceCommand implements TabExecutor {
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         if (args.length == 1) return filter(List.of("start", "stop", "cutscene", "maps", "map", "info", "give", "mask", "offer", "reloadpack"), args[0]);
         if (args.length == 2 && args[0].equalsIgnoreCase("start")) return filter(plugin.maps().mapIds(), args[1]);
-        if (args.length == 2 && args[0].equalsIgnoreCase("cutscene")) return filter(List.of("begin", "say", "next", "end", "reload"), args[1]);
+        if (args.length == 2 && args[0].equalsIgnoreCase("cutscene")) return filter(List.of("begin", "say", "actor", "next", "end", "reload"), args[1]);
         if (args.length == 2 && args[0].equalsIgnoreCase("map")) return filter(List.of("generate", "edit", "save", "close", "weapon", "spawn", "door", "bounds"), args[1]);
         if (args.length == 3 && args[0].equalsIgnoreCase("map") && (args[1].equalsIgnoreCase("edit") || args[1].equalsIgnoreCase("generate"))) return filter(plugin.maps().mapIds(), args[2]);
         if (args.length == 2 && args[0].equalsIgnoreCase("give")) return filter(plugin.weapons().all().stream().map(WeaponType::id).toList(), args[1]);

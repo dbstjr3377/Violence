@@ -95,12 +95,25 @@ public final class GameService {
             sender.sendMessage(Component.text("알 수 없는 맵: " + map + "  (" + String.join(", ", ids) + ")", NamedTextColor.RED));
             return false;
         }
-        int npcs = npcCount >= 0 ? npcCount : Math.max(0, total - players.size());
-        this.targetKills = kills > 0 ? kills : plugin.getConfig().getInt("game.target-kills", 30);
-        this.timeLimit = seconds > 0 ? seconds : plugin.getConfig().getInt("game.time-limit-seconds", 600);
+        if (plugin.command() != null && plugin.command().editor().active()) {
+            sender.sendMessage(Component.text("맵 편집 중에는 게임을 시작할 수 없습니다. /vio map close 후 시작하세요.", NamedTextColor.RED));
+            return false;
+        }
+        // NPC 수 상한: 테스트용으로 직접 지정해도 서버가 멈추지 않게
+        int maxNpcs = plugin.getConfig().getInt("game.max-npcs", 120);
+        int npcs = Math.max(0, Math.min(maxNpcs, npcCount >= 0 ? npcCount : total - players.size()));
+        this.targetKills = kills > 0 ? Math.min(kills, 10_000) : plugin.getConfig().getInt("game.target-kills", 30);
+        this.timeLimit = seconds > 0 ? Math.min(seconds, 24 * 3600) : plugin.getConfig().getInt("game.time-limit-seconds", 600);
+        String display;
+        try {
+            display = plugin.maps().displayName(map);   // 손으로 고친 map.yml 이 깨져 있으면 여기서 실패
+        } catch (RuntimeException ex) {
+            plugin.getLogger().log(java.util.logging.Level.WARNING, "맵 정보를 읽지 못했습니다: " + map, ex);
+            sender.sendMessage(Component.text("맵 정보(map.yml)를 읽지 못했습니다: " + map, NamedTextColor.RED));
+            return false;
+        }
         this.mapId = map;
         state = State.PREPARING;
-        String display = plugin.maps().displayName(map);
         Bukkit.broadcast(Component.text("[VIOLENCE] ", NamedTextColor.LIGHT_PURPLE)
                 .append(Component.text(display + " 맵을 준비합니다... (플레이어 " + players.size() + " + NPC " + npcs + ")", NamedTextColor.WHITE)));
         int finalNpcs = npcs;
@@ -108,14 +121,19 @@ public final class GameService {
         final int gen = ++generation;
         try {
             plugin.maps().prepare(map, w -> preparingWorld = w, (world, gm) -> {
-                if (gen != generation || state != State.PREPARING || world != preparingWorld) {
+                if (gen != generation || state != State.PREPARING || (world != null && world != preparingWorld)) {
                     // 준비 중에 중단됨: 이 결과는 버린다
                     if (world != null && world != preparingWorld) plugin.maps().destroy(world);
                     return;
                 }
                 if (world == null || gm == null) {
-                    Bukkit.broadcast(Component.text("맵 준비에 실패했습니다.", NamedTextColor.RED));
-                    if (world != null) plugin.maps().destroy(world);
+                    Bukkit.broadcast(Component.text("맵 준비에 실패했습니다. 서버 로그를 확인하세요.", NamedTextColor.RED));
+                    World w = world != null ? world : preparingWorld;
+                    if (w != null) {
+                        for (Player p : w.getPlayers()) plugin.lobby().sendToLobby(p);
+                        plugin.maps().destroy(w);
+                    }
+                    preparingWorld = null;
                     state = State.IDLE;
                     return;
                 }
@@ -131,6 +149,7 @@ public final class GameService {
             plugin.getLogger().log(java.util.logging.Level.SEVERE, "맵 준비 실패", ex);
             state = State.IDLE;
             if (preparingWorld != null) plugin.maps().destroy(preparingWorld);
+            preparingWorld = null;
             return false;
         }
         return true;
@@ -139,6 +158,23 @@ public final class GameService {
     private void setupArena(World world, GameMap gm, List<Player> players, int npcs, String map) {
         long t0 = System.currentTimeMillis();
         NavGrid nav = plugin.maps().buildNav(world, gm);
+        if (gm.spawns.isEmpty() && nav.size() == 0) {
+            // 리스폰도 보행 칸도 없으면 허공 리스폰 → 낙사 반복이 됨
+            throw new IllegalStateException("맵에 리스폰 지점과 걸을 수 있는 칸이 없습니다: " + map);
+        }
+        // 걸어서 갈 수 없는 리스폰 지점(지붕, 막힌 방)은 빼기
+        if (nav.size() > 0 && !gm.spawns.isEmpty()) {
+            List<Vec3> reachable = new ArrayList<>();
+            for (Vec3 sp : gm.spawns) if (nav.inMain(nav.nearest(sp))) reachable.add(sp);
+            if (reachable.size() >= 4) {
+                gm.spawns.clear();
+                gm.spawns.addAll(reachable);
+            }
+        }
+        // 맵 청크를 계속 불러 둠 (플레이어가 멀리 있어도 NPC 몸이 사라지지 않게)
+        for (int cx = (gm.minX >> 4) - 1; cx <= (gm.maxX >> 4) + 1; cx++) {
+            for (int cz = (gm.minZ >> 4) - 1; cz <= (gm.maxZ >> 4) + 1; cz++) world.addPluginChunkTicket(cx, cz, plugin);
+        }
         Arena a = new Arena(world, gm, nav);
         plugin.setArena(a);
         plugin.getLogger().info("보행 그리드: " + nav.size() + " 노드 (" + (System.currentTimeMillis() - t0) + "ms)");
@@ -150,9 +186,11 @@ public final class GameService {
         }
         plugin.doors().spawnDoors(a);
         plugin.clubBeams().start(a);   // 클럽: 쉐이더와 맞춘 공중 빛줄기
-        // 플레이어 참가
-        for (Player p : players) {
-            if (!p.isOnline()) continue;
+        // 플레이어 참가 (맵을 준비하는 동안 들어온 사람도 포함)
+        java.util.LinkedHashSet<Player> joining = new java.util.LinkedHashSet<>(players);
+        joining.addAll(plugin.lobby().participants());
+        for (Player p : joining) {
+            if (!p.isOnline() || a.players.containsKey(p.getUniqueId())) continue;
             addPlayer(a, p);
         }
         plugin.npcs().spawn(a, npcs);
@@ -224,6 +262,14 @@ public final class GameService {
     public void tick(long now) {
         Arena a = plugin.arena();
         if (a == null) return;
+        if ((state == State.RUNNING || state == State.COUNTDOWN) && a.players.isEmpty()
+                && plugin.getConfig().getBoolean("game.end-when-empty", true)) {
+            // 플레이어가 모두 나가면 NPC 끼리 10분을 채우지 않고 정리
+            plugin.getLogger().info("플레이어가 모두 나가 게임을 정리합니다.");
+            bridge.call("gamestop");
+            forceCleanup();
+            return;
+        }
         if (state == State.RUNNING || state == State.COUNTDOWN) {
             if (state == State.RUNNING) {
                 for (PlayerCombatant pc : new ArrayList<>(a.players.values())) {
@@ -389,6 +435,7 @@ public final class GameService {
 
     public void onSuicide(Combatant victim) {
         if (victim instanceof PlayerCombatant vp) {
+            plugin.masks().clearOffer(vp);
             scores.flushCombo(vp);
             plugin.shake().setBaseline(vp.player(), 0);
         }
@@ -400,6 +447,7 @@ public final class GameService {
         Arena a = plugin.arena();
         if (a == null || state == State.ENDING) return;
         state = State.ENDING;
+        plugin.combat().cancelAllExecutions();   // 순위 발표 뒤 처형으로 킬이 늘지 않게
         for (PlayerCombatant pc : a.players.values()) scores.flushCombo(pc);
         List<Combatant> ranking = new ArrayList<>(a.combatants.values());
         ranking.sort(Comparator.<Combatant>comparingInt(c -> -c.kills).thenComparingInt(c -> -c.score));
@@ -441,47 +489,72 @@ public final class GameService {
             sender.sendMessage(Component.text("진행 중인 게임이 없습니다.", NamedTextColor.RED));
             return false;
         }
-        Bukkit.broadcast(Component.text("[VIOLENCE] 게임이 중단되었습니다.", NamedTextColor.RED));
-        bridge.call("gamestop");
+        // Skript 가 있으면 game.sk 가 알림을 보내므로 한 번만
+        if (!bridge.call("gamestop")) Bukkit.broadcast(Component.text("[VIOLENCE] 게임이 중단되었습니다.", NamedTextColor.RED));
         forceCleanup();
         return true;
     }
 
     /** 정리: 플레이어 로비로, 엔티티/월드 제거 */
+    private boolean cleaning;
+
+    /** 정리 중 (플레이어를 로비로 옮기는 월드 이동을 '나감'으로 보지 않기 위해) */
+    public boolean isCleaning() { return cleaning; }
+
     public void forceCleanup() {
+        if (cleaning) return;
+        cleaning = true;
         generation++;
-        plugin.maps().cancelPastes();
         Arena a = plugin.arena();
-        plugin.camera().resetAll();
-        if (a != null) {
-            for (PlayerCombatant pc : new ArrayList<>(a.players.values())) {
-                Player p = pc.player();
-                plugin.hud().clear(p);
-                plugin.shake().remove(p);
-                plugin.ground().removeHighlights(a, p.getUniqueId());
-                if (p.isOnline()) {
-                    pc.restoreDefaults();
-                    plugin.lobby().sendToLobby(p);
+        World w = a != null ? a.world : preparingWorld;
+        // 단계마다 따로 보호: 하나가 실패해도 아레나 해제, 월드 제거, 상태 초기화는 반드시 실행
+        safe("붙여넣기 중단", () -> plugin.maps().cancelPaste(w));
+        safe("카메라 복구", () -> plugin.camera().resetAll());
+        try {
+            if (a != null) {
+                for (PlayerCombatant pc : new ArrayList<>(a.players.values())) {
+                    Player p = pc.player();
+                    safe("플레이어 정리 " + p.getName(), () -> {
+                        plugin.hud().clear(p);
+                        plugin.shake().remove(p);
+                        plugin.ground().removeHighlights(a, p.getUniqueId());
+                        if (p.isOnline()) {
+                            pc.restoreDefaults();
+                            plugin.lobby().sendToLobby(p);
+                        }
+                    });
                 }
+                safe("문 정리", () -> plugin.doors().clear(a));
+                safe("엔티티 정리", () -> {
+                    for (Entity e : new ArrayList<>(a.tracked)) if (e.isValid()) e.remove();
+                    a.tracked.clear();
+                });
+                safe("전투 정리", () -> plugin.combat().clear());
+                safe("가면 정리", () -> plugin.masks().clear());
+                safe("시체 정리", () -> plugin.corpses().clear());
+                safe("연출 정리", () -> plugin.fx().clear());
             }
-            plugin.doors().clear(a);
-            for (Entity e : new ArrayList<>(a.tracked)) if (e.isValid()) e.remove();
-            a.tracked.clear();
-            plugin.combat().clear();
-            plugin.masks().clear();
-            plugin.corpses().clear();
-            plugin.fx().clear();
-            World w = a.world;
+        } finally {
             plugin.setArena(null);
-            // 남은 플레이어(관전자 등)도 내보낸 뒤 월드 제거
-            for (Player p : w.getPlayers()) plugin.lobby().sendToLobby(p);
-            plugin.maps().destroy(w);
-        } else if (preparingWorld != null) {
-            for (Player p : preparingWorld.getPlayers()) plugin.lobby().sendToLobby(p);
-            plugin.maps().destroy(preparingWorld);
+            if (w != null) {
+                // 남은 플레이어(관전자 등)도 내보낸 뒤 월드 제거
+                safe("남은 플레이어 이동", () -> {
+                    for (Player p : w.getPlayers()) plugin.lobby().sendToLobby(p);
+                });
+                safe("월드 제거", () -> plugin.maps().destroy(w));
+            }
+            preparingWorld = null;
+            state = State.IDLE;
+            cleaning = false;
         }
-        preparingWorld = null;
-        state = State.IDLE;
+    }
+
+    private void safe(String what, Runnable r) {
+        try {
+            r.run();
+        } catch (RuntimeException e) {
+            plugin.getLogger().log(java.util.logging.Level.WARNING, "정리 중 오류 (" + what + ")", e);
+        }
     }
 
     // ───────── 입장/퇴장 ─────────
@@ -507,6 +580,7 @@ public final class GameService {
         Arena a = plugin.arena();
         if (a == null || (state != State.RUNNING && state != State.COUNTDOWN)) return;
         if (!plugin.getConfig().getBoolean("game.allow-late-join", true)) return;
+        if (a.players.containsKey(p.getUniqueId()) || !plugin.lobby().participants().contains(p)) return;   // 관전자/제외 대상
         // NPC 하나를 빼고 플레이어를 넣어 총원을 유지
         NpcCombatant n = null;
         for (int i = a.npcs.size() - 1; i >= 0; i--) {
@@ -525,7 +599,13 @@ public final class GameService {
             n.entity().remove();
         }
         addPlayer(a, p);
-        plugin.pack().send(p);
+        PlayerCombatant pc = a.players.get(p.getUniqueId());
+        if (pc != null && state == State.COUNTDOWN) {
+            long now = plugin.now();
+            pc.moveLockUntil = now + 60;
+            pc.actionLockUntil = now + 60;
+            pc.applyStateVisuals();
+        }
     }
 
     public void shutdown() {

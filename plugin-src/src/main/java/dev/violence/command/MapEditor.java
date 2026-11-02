@@ -44,19 +44,20 @@ public final class MapEditor {
     private void msg(Player p, String s) { p.sendMessage(Component.text("[맵 편집] " + s, NamedTextColor.AQUA)); }
 
     public void edit(Player p, String id) {
-        if (plugin.arena() != null) {
-            msg(p, "게임 중에는 편집할 수 없습니다.");
+        if (plugin.arena() != null || plugin.game().state() != dev.violence.game.GameService.State.IDLE) {
+            msg(p, "게임 중(준비 포함)에는 편집할 수 없습니다.");
             return;
         }
         close();
         world = plugin.maps().createWorld("vedit");
         if (plugin.maps().hasSaved(id)) {
-            map = GameMap.load(new File(plugin.maps().mapDir(id), "map.yml"));
             try {
+                map = GameMap.load(new File(plugin.maps().mapDir(id), "map.yml"));
                 BlockStore s = BlockStore.load(new File(plugin.maps().mapDir(id), "blocks.vmap"));
                 plugin.maps().paste(world, s, () -> ready(p));
-            } catch (IOException e) {
+            } catch (IOException | RuntimeException e) {
                 msg(p, "불러오기 실패: " + e.getMessage());
+                close();   // 빈 편집 월드를 남기지 않음
             }
         } else {
             MapGenerator g = Generators.get(id);

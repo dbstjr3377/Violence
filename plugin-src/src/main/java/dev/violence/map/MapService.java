@@ -99,18 +99,33 @@ public final class MapService {
         worldReady.accept(w);
         // 예전 버전에서 낮은 높이로 저장된 맵(클럽, 아파트, 교도소)은 쉐이더 구역 밖이라 새로 생성
         int baseY = dev.violence.fx.ShaderZones.baseY(id);
-        boolean stale = baseY != dev.violence.fx.ShaderZones.DEFAULT_Y0 && hasSaved(id)
-                && GameMap.load(new File(mapDir(id), "map.yml")).minY < baseY - 8;
-        if (stale) plugin.getLogger().info(id + " 맵을 쉐이더 구역 높이(y=" + baseY + ")로 다시 생성합니다");
+        boolean stale = false;
+        try {
+            stale = baseY != dev.violence.fx.ShaderZones.DEFAULT_Y0 && hasSaved(id) && Generators.get(id) != null
+                    && GameMap.load(new File(mapDir(id), "map.yml")).minY < baseY - 8;
+        } catch (RuntimeException e) {
+            plugin.getLogger().log(Level.WARNING, "map.yml 확인 실패: " + id, e);
+        }
+        if (stale) {
+            plugin.getLogger().info(id + " 맵을 쉐이더 구역 높이(y=" + baseY + ")로 다시 생성합니다");
+            backup(id);   // 직접 편집한 내용이 있을 수 있으니 지우지 않고 보관
+        }
         if (!hasSaved(id) || stale) {
             MapGenerator g = Generators.get(id);
             if (g == null) {
-                plugin.getLogger().warning("맵을 찾을 수 없습니다: " + id);
-                done.accept(null, null);
+                plugin.getLogger().warning("맵을 찾을 수 없거나 블록 파일(blocks.vmap)이 없습니다: " + id);
+                done.accept(w, null);
                 return;
             }
             plugin.getLogger().info("내장 맵 생성 중: " + id);
-            GameMap m = g.generate(new WorldBlockAccess(w), new Random(id.hashCode() * 31L + 7));
+            GameMap m;
+            try {
+                m = g.generate(new WorldBlockAccess(w), new Random(id.hashCode() * 31L + 7));
+            } catch (RuntimeException e) {
+                plugin.getLogger().log(Level.SEVERE, "맵 생성 실패: " + id, e);
+                done.accept(w, null);
+                return;
+            }
             try {
                 saveMap(w, m);
             } catch (IOException e) {
@@ -119,47 +134,88 @@ public final class MapService {
             done.accept(w, m);
             return;
         }
-        GameMap m = GameMap.load(new File(mapDir(id), "map.yml"));
+        GameMap m;
         BlockStore store;
         try {
+            m = GameMap.load(new File(mapDir(id), "map.yml"));
             store = BlockStore.load(new File(mapDir(id), "blocks.vmap"));
-        } catch (IOException e) {
-            plugin.getLogger().log(Level.WARNING, "맵 블록 불러오기 실패: " + id, e);
-            done.accept(null, null);
+        } catch (IOException | RuntimeException e) {
+            plugin.getLogger().log(Level.WARNING, "맵 불러오기 실패 (파일이 깨졌을 수 있음): " + id, e);
+            done.accept(w, null);
             return;
         }
-        paste(w, store, () -> done.accept(w, m));
+        paste(w, store, () -> done.accept(w, m), () -> done.accept(w, null));
+    }
+
+    /** 맵 폴더를 maps/<id>.bak-<시각> 으로 복사해 둔다 */
+    private void backup(String id) {
+        File src = mapDir(id);
+        File dst = new File(mapsDir, id + ".bak-" + System.currentTimeMillis());
+        try {
+            dst.mkdirs();
+            File[] files = src.listFiles(File::isFile);
+            if (files != null) for (File f : files) Files.copy(f.toPath(), new File(dst, f.getName()).toPath());
+            plugin.getLogger().info("기존 맵 보관: " + dst.getName());
+        } catch (IOException e) {
+            plugin.getLogger().log(Level.WARNING, "맵 보관 실패: " + id, e);
+        }
     }
 
     /** 블록 저장본을 월드에 나눠서 붙여 넣기 (틱당 일정량) */
     public void paste(World w, BlockStore s, Runnable after) {
-        BlockData[] pal = s.resolvePalette();
-        int perTick = plugin.getConfig().getInt("map.paste-blocks-per-tick", 60000);
+        paste(w, s, after, () -> { });
+    }
+
+    /** 블록 저장본을 월드에 나눠서 붙여 넣기. 오류가 나면 멈추고 failed 를 한 번 부른다 */
+    public void paste(World w, BlockStore s, Runnable after, Runnable failed) {
+        BlockData[] pal;
+        try {
+            pal = s.resolvePalette();
+        } catch (RuntimeException e) {
+            plugin.getLogger().log(Level.WARNING, "블록 목록 해석 실패", e);
+            failed.run();
+            return;
+        }
+        int perTick = Math.max(1000, plugin.getConfig().getInt("map.paste-blocks-per-tick", 60000));
         int[] cursor = {0};
         int total = s.volume();
         int epoch = pasteEpoch;
         java.util.UUID worldId = w.getUID();
+        cancelledPastes.remove(worldId);
         plugin.repeat(1, task -> {
-            if (epoch != pasteEpoch || Bukkit.getWorld(worldId) == null) {
+            if (epoch != pasteEpoch || cancelledPastes.contains(worldId) || Bukkit.getWorld(worldId) == null) {
                 task.cancel();
                 return;
             }
-            int end = Math.min(total, cursor[0] + perTick);
-            for (int i = cursor[0]; i < end; i++) {
-                int v = s.data[i];
-                if (v == 0) continue;
-                int x = i % s.sx;
-                int z = (i / s.sx) % s.sz;
-                int y = i / (s.sx * s.sz);
-                w.getBlockAt(s.ox + x, s.oy + y, s.oz + z).setBlockData(pal[v], false);
-            }
-            cursor[0] = end;
-            if (end >= total) {
+            try {
+                int end = Math.min(total, cursor[0] + perTick);
+                for (int i = cursor[0]; i < end; i++) {
+                    int v = s.data[i];
+                    if (v <= 0 || v >= pal.length || pal[v] == null) continue;   // 알 수 없는 블록은 공기로
+                    int x = i % s.sx;
+                    int z = (i / s.sx) % s.sz;
+                    int y = i / (s.sx * s.sz);
+                    w.getBlockAt(s.ox + x, s.oy + y, s.oz + z).setBlockData(pal[v], false);
+                }
+                cursor[0] = end;
+                if (end >= total) {
+                    task.cancel();
+                    after.run();
+                }
+            } catch (RuntimeException e) {
+                plugin.getLogger().log(Level.SEVERE, "맵 붙여넣기 실패 - 중단합니다", e);
                 task.cancel();
-                after.run();
+                failed.run();
             }
         });
     }
+
+    /** 이 월드의 붙여넣기만 중단 (맵 편집기 붙여넣기는 그대로) */
+    public void cancelPaste(World w) {
+        if (w != null) cancelledPastes.add(w.getUID());
+    }
+
+    private final java.util.Set<java.util.UUID> cancelledPastes = new java.util.HashSet<>();
 
     /** 진행 중인 모든 붙여넣기 중단 */
     public void cancelPastes() {
@@ -220,8 +276,9 @@ public final class MapService {
                 deleteRecursive(p);
                 plugin.getLogger().info("지난 게임 월드 정리: " + p);
             }
-        } catch (IOException e) {
-            plugin.getLogger().fine("잔여 월드 검색 실패: " + e);
+        } catch (IOException | RuntimeException e) {
+            // 읽을 수 없는 폴더가 있어도 플러그인 시작은 계속
+            plugin.getLogger().warning("잔여 월드 검색 실패: " + e);
         }
     }
 

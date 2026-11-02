@@ -209,6 +209,7 @@ public final class ViolencePlugin extends JavaPlugin {
     public Fx fx() { return fx; }
     public dev.violence.fx.ClubBeams clubBeams() { return clubBeams; }
     public dev.violence.cutscene.DialogService dialog() { return dialog; }
+    public ViolenceCommand command() { return command; }
     public Shake shake() { return shake; }
     public CameraService camera() { return camera; }
     public dev.violence.fx.PoseSync poses() { return poses; }

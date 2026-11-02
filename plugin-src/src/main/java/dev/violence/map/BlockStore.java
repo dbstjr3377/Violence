@@ -70,6 +70,17 @@ public final class BlockStore {
 
     public void save(File f) throws IOException {
         f.getParentFile().mkdirs();
+        // 임시 파일에 다 쓴 뒤 바꿔치기: 저장 중 서버가 꺼져도 기존 파일이 깨지지 않음
+        File tmp = new File(f.getParentFile(), f.getName() + ".tmp");
+        writeTo(tmp);
+        try {
+            java.nio.file.Files.move(tmp.toPath(), f.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING, java.nio.file.StandardCopyOption.ATOMIC_MOVE);
+        } catch (java.nio.file.AtomicMoveNotSupportedException e) {
+            java.nio.file.Files.move(tmp.toPath(), f.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        }
+    }
+
+    private void writeTo(File f) throws IOException {
         try (DataOutputStream out = new DataOutputStream(new BufferedOutputStream(new GZIPOutputStream(new FileOutputStream(f))))) {
             out.writeInt(MAGIC);
             out.writeInt(VERSION);

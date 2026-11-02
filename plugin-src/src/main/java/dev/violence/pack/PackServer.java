@@ -58,11 +58,23 @@ public final class PackServer {
                     os.write(data);
                 }
             });
-            http.setExecutor(Executors.newFixedThreadPool(2));
+            pool = Executors.newFixedThreadPool(2, r -> {
+                Thread t = new Thread(r, "violence-pack-http");
+                t.setDaemon(true);                 // 서버 종료를 막지 않게
+                return t;
+            });
+            http.setExecutor(pool);
             http.start();
             plugin.getLogger().info("리소스팩 HTTP 서버 시작: 포트 " + port);
-        } catch (IOException e) {
-            plugin.getLogger().warning("리소스팩 HTTP 서버 시작 실패 (포트 " + port + "): " + e.getMessage());
+            String host = plugin.getConfig().getString("resource-pack.public-host", "");
+            if ((host == null || host.isBlank()) && (plugin.getServer().getIp() == null || plugin.getServer().getIp().isBlank())) {
+                plugin.getLogger().warning("resource-pack.public-host 가 비어 있어 리소스팩 주소가 127.0.0.1 입니다. "
+                        + "같은 컴퓨터에서만 받을 수 있으니 config.yml 에 서버의 외부 주소를 적어 주세요.");
+            }
+        } catch (IOException | RuntimeException e) {
+            http = null;
+            plugin.getLogger().warning("리소스팩 HTTP 서버 시작 실패 (포트 " + port + "): " + e.getMessage()
+                    + " - 리소스팩을 보내지 않습니다. 다른 포트를 쓰거나 resource-pack.url 에 외부 주소를 지정하세요.");
         }
     }
 
@@ -71,6 +83,7 @@ public final class PackServer {
         if (!f.isFile()) {
             plugin.getLogger().warning("리소스팩 파일이 없습니다: " + f + "  (resourcepack 폴더를 tools/build_pack.py 로 압축해 넣으세요)");
             zip = null;
+            sha1 = null;   // 없는 파일을 가리키는 해시로 리소스팩을 요구하지 않게
             return;
         }
         try {
@@ -80,6 +93,7 @@ public final class PackServer {
         } catch (Exception e) {
             plugin.getLogger().warning("리소스팩 읽기 실패: " + e);
             zip = null;
+            sha1 = null;
         }
     }
 
@@ -96,6 +110,10 @@ public final class PackServer {
 
     public void send(Player p) {
         if (!plugin.getConfig().getBoolean("resource-pack.enabled", true) || sha1 == null) return;
+        String external = plugin.getConfig().getString("resource-pack.url", "");
+        boolean usingExternal = external != null && !external.isBlank();
+        if (!usingExternal && http == null) return;   // 내장 서버가 꺼져 있으면 받을 수 없는 주소를 보내지 않음
+        if (p == null || !p.isOnline()) return;
         try {
             ResourcePackInfo info = ResourcePackInfo.resourcePackInfo(packId, URI.create(url()), sha1);
             p.sendResourcePacks(ResourcePackRequest.resourcePackRequest()
@@ -111,5 +129,10 @@ public final class PackServer {
 
     public void stop() {
         if (http != null) http.stop(0);
+        http = null;
+        if (pool != null) pool.shutdownNow();
+        pool = null;
     }
+
+    private java.util.concurrent.ExecutorService pool;
 }

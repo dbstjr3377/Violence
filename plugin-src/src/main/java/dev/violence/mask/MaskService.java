@@ -58,6 +58,7 @@ public final class MaskService {
 
     public void onInventoryClick(PlayerCombatant pc, InventoryClickEvent e) {
         if (pc.maskOffer == null) return;
+        if (pc.state != dev.violence.combat.CombatState.ALIVE) return;   // 쓰러짐/처형/사망 중에는 고를 수 없음
         if (e.getClickedInventory() == null || e.getClickedInventory().getType() != InventoryType.PLAYER) return;
         int slot = e.getSlot();
         for (int i = 0; i < 3; i++) {
@@ -77,27 +78,49 @@ public final class MaskService {
         for (int s : OFFER_SLOTS) inv.setItem(s, null);
     }
 
+    /** weapons.yml 에서 무기를 지웠어도 오류 없이 넘어가도록 */
+    private WeaponInstance make(String id) {
+        WeaponType wt = plugin.weapons().get(id);
+        if (wt == null) {
+            plugin.getLogger().warning("weapons.yml 에 가면 무기 '" + id + "' 가 없습니다");
+            return null;
+        }
+        return new WeaponInstance(wt);
+    }
+
     public void equip(Combatant c, Mask m) {
         long now = plugin.now();
+        if (c.mask == Mask.MARK && m != Mask.MARK) {
+            // 마크 가면을 벗으면 양손 MP5 도 사라짐 (다른 가면으로 양손 사격 유지 방지)
+            c.offhand = null;
+            if (c.weapon != null && c.weapon.vanishOnDrop()) c.weapon = null;
+        }
         c.mask = m;
         c.bulletShield = m.bulletShield();
         WeaponType t;
         switch (m) {
             case DENNIS -> {
-                if (c.weapon == null) c.weapon = new WeaponInstance(plugin.weapons().get("dagger"));
+                if (c.weapon == null) c.weapon = make("dagger");
             }
             case BIKER -> {
-                if (c.weapon == null) c.weapon = new WeaponInstance(plugin.weapons().get("cleaver"));
+                if (c.weapon == null) c.weapon = make("cleaver");
             }
             case RICHTER -> {
-                if (c.weapon != null) plugin.combat().dropWeapons(c, c.look());
-                c.weapon = new WeaponInstance(plugin.weapons().get("silenced_uzi"));
+                WeaponInstance uzi = make("silenced_uzi");
+                if (uzi != null) {
+                    if (c.weapon != null) plugin.combat().dropWeapons(c, c.look());
+                    c.weapon = uzi;
+                }
             }
             case MARK -> {
                 // 기존 소지 무기 제거 후 64발 MP5 양손
+                t = plugin.weapons().get("mp5_dual");
+                if (t == null) {
+                    plugin.getLogger().warning("weapons.yml 에 mp5_dual 이 없어 마크 가면 무기를 줄 수 없습니다");
+                    break;
+                }
                 c.weapon = null;
                 c.stashedWeapon = null;
-                t = plugin.weapons().get("mp5_dual");
                 WeaponInstance right = new WeaponInstance(t);
                 WeaponInstance left = new WeaponInstance(t);
                 right.setVanishOnDrop(true);

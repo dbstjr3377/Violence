@@ -28,6 +28,13 @@ public final class PositionHistory {
         return pos[(head - t + pos.length) % pos.length];
     }
 
+    /** ticksAgo 틱 전에 쓰러져 있었는지 (기록이 없으면 null) */
+    public Boolean downed(int ticksAgo) {
+        if (size == 0) return null;
+        int t = Math.min(ticksAgo, size - 1);
+        return downed[(head - t + pos.length) % pos.length];
+    }
+
     public void clear() {
         size = 0;
         head = -1;

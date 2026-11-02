@@ -17,6 +17,9 @@
 #             또는 tools/portraits/<이름>.png 로 추가한 그림 이름
 #      대사: 두 줄까지. \n 으로 줄을 직접 나눌 수 있습니다.
 #    violenceCutsceneNarration(초상화, 대사)   카메라를 옮기지 않는 대사
+#    violenceCutsceneActor(이름, 가면, 앞, 오른쪽, 각도)   어드민 앞에 임시 배우를 세움 (컷씬이 끝나면 사라짐)
+#    violenceCutsceneActorLine(이름, 초상화, 대사)        그 배우를 비추며 대사
+#  참고: 관전 중인 플레이어는 다른 사람 화면에 보이지 않으므로, 대화하는 인물은 배우(또는 NPC·아머스탠드)로 세우세요.
 # ─────────────────────────────────────────────────────────────
 
 options:
@@ -46,18 +49,24 @@ command /컷씬 [<text>]:
 function violenceCutsceneLine(target: entity, portrait: text, line: text):
 	execute console command "violence cutscene say %uuid of {_target}% %{_portrait}% %{_line}%"
 
+# 임시 배우 세우기: 어드민이 바라보는 방향 기준 앞 forward, 오른쪽 side 블록, 바라보는 각도 facing(도)
+function violenceCutsceneActor(id: text, mask: text, forward: number, side: number, facing: number):
+	execute console command "violence cutscene actor %{_id}% %{_mask}% %{_forward}% %{_side}% %{_facing}%"
+
+# 배우를 비추며 대사
+function violenceCutsceneActorLine(id: text, portrait: text, line: text):
+	execute console command "violence cutscene say actor:%{_id}% %{_portrait}% %{_line}%"
+
 # 카메라를 옮기지 않는 대사 (해설 등)
 function violenceCutsceneNarration(portrait: text, line: text):
 	execute console command "violence cutscene say none %{_portrait}% %{_line}%"
 
-# 예시 컷씬: 시작한 어드민과 다른 플레이어(없으면 어드민)를 번갈아 비춘다
+# 예시 컷씬: 어드민 앞 4블록에 배우 두 명(닭 가면, 정장)을 마주 보게 세우고 번갈아 대화
 function violenceCutsceneIntro(admin: player):
-	set {_other} to {_admin}
-	loop all players:
-		loop-player is not {_admin}
-		set {_other} to loop-player
-	violenceCutsceneLine({_admin}, "richard", "이게 꿈이라고 생각해?\n그렇다면 이제 깨어날 시간이 된 것 같은데?")
-	violenceCutsceneLine({_other}, "unknown", "...누구야? 여기가 어디지?")
-	violenceCutsceneLine({_admin}, "richard", "질문이 많군. 오늘 밤 여기 있는 놈들은 50명이다.")
-	violenceCutsceneLine({_other}, "tony", "그럼 50명 전부 쓰러뜨리면 되는 거지?")
+	violenceCutsceneActor("rooster", "richard", 4, -1.3, 90)
+	violenceCutsceneActor("suit", "none", 4, 1.3, -90)
+	violenceCutsceneActorLine("rooster", "richard", "오늘 밤 손님이 많군. 준비는 됐나?")
+	violenceCutsceneActorLine("suit", "npc", "위층에 놈들이 50명이나 있어요. 정말 혼자 가실 겁니까?")
+	violenceCutsceneActorLine("rooster", "richard", "혼자가 아니지. 네가 문을 열어.")
+	violenceCutsceneActorLine("suit", "npc", "...알겠습니다. 행운을 빌죠.")
 	violenceCutsceneNarration("richard", "YOU THINK THIS IS A DREAM? WELL THEN, MAYBE IT'S TIME TO WAKE UP?")

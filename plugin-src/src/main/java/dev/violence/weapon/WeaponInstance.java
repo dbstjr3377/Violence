@@ -11,6 +11,11 @@ public final class WeaponInstance {
     private long expireTick = -1;
     /** 떨어뜨려도 바닥에 남지 않는 무기 (가면 전용 무기) */
     private boolean vanishOnDrop;
+    /** 라미 가면 보너스 탄창을 이미 받았는지 (던졌다 다시 주워도 한 번만) */
+    private boolean ramiBonus;
+
+    public boolean ramiBonusGiven() { return ramiBonus; }
+    public void markRamiBonus() { ramiBonus = true; }
 
     public WeaponInstance(WeaponType type) {
         this.type = type;

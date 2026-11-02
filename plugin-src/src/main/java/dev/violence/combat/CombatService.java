@@ -204,7 +204,10 @@ public final class CombatService {
             if (c == shooter || !c.state.canBeHit()) continue;
             Vec3 feet = rewind > 0 && c.history.get(rewind) != null ? c.history.get(rewind) : c.feet();
             if (feet.distanceSq(origin) > (endDist + 3) * (endDist + 3)) continue;
-            Hitbox.Result hr = c.state.isDownedLike()
+            // 지연 보상: 그때의 자세(서 있음/쓰러짐)로 판정
+            Boolean wasDowned = rewind > 0 ? c.history.downed(rewind) : null;
+            boolean downedBox = wasDowned != null ? wasDowned : c.state.isDownedLike();
+            Hitbox.Result hr = downedBox
                     ? Hitbox.raycastDowned(feet, c.scale(), origin, dir, endDist)
                     : Hitbox.raycastStanding(feet, c.scale(), origin, dir, endDist);
             if (hr.hit()) hits.add(new TraceResult.EntityHit(c, hr.part(), hr.distance(), origin.add(dir.mul(hr.distance()))));
@@ -398,11 +401,19 @@ public final class CombatService {
 
     public void pickUp(Combatant c, GroundWeapon g) {
         Arena a = arena();
+        if (a == null || g == null || !a.groundWeapons.contains(g)) return;
+        // 손에 남은 무기(임시 무기를 던진 뒤 돌아온 원래 무기 등)는 사라지지 않게 발밑에 내려놓음
+        if (c.weapon != null) {
+            plugin.ground().drop(a, c.weapon, c.feet(), c.look());
+            c.weapon = null;
+        }
         plugin.ground().pickUp(a, c, g);
         WeaponInstance w = c.weapon;
-        if (c.mask == Mask.RAMI && w.type().isGun()) {
-            // 라미: 총을 주우면 탄창 추가
+        if (w == null) return;
+        if (c.mask == Mask.RAMI && w.type().isGun() && !w.ramiBonusGiven()) {
+            // 라미: 총을 주우면 탄창 추가 (같은 총은 한 번만)
             w.setAmmo(w.ammo() + w.type().ammo());
+            w.markRamiBonus();
         }
         plugin.fx().sound(c.world(), g.pos, "violence:weapon.pickup", 0.9f, 1f);
         c.refreshEquipment();
@@ -442,7 +453,13 @@ public final class CombatService {
         Iterator<Projectile> it = projectiles.iterator();
         while (it.hasNext()) {
             Projectile p = it.next();
-            if (p.dead || !p.display.isValid()) {
+            if (p.dead) {
+                it.remove();
+                continue;
+            }
+            if (!p.display.isValid()) {
+                // 표시 엔티티가 사라져도 무기는 잃지 않음
+                land(a, p, p.pos);
                 it.remove();
                 continue;
             }
@@ -530,7 +547,9 @@ public final class CombatService {
             return;
         }
         Vec3 floor = plugin.ground().floorBelow(a, at.add(0, 0.2, 0));
-        plugin.ground().spawn(a, p.weapon, floor != null ? floor : at, plugin.random().nextFloat() * 360);
+        if (floor == null) floor = plugin.ground().reachableSpot(a, at);   // 창밖/허공으로 던진 무기 → 가까운 바닥
+        if (floor == null) return;
+        plugin.ground().spawn(a, p.weapon, floor, plugin.random().nextFloat() * 360);
     }
 
     private void throwHit(Projectile p, Combatant v, Vec3 dir, Vec3 point) {
@@ -581,6 +600,8 @@ public final class CombatService {
             double d = to.length();
             // 바로 위(1.1 이내)이거나 정면 2블록 이내
             if (d > 1.1 && (d > 2.0 || to.normalize().dot(look) < 0.3)) continue;
+            // 벽이나 닫힌 문 너머로 올라타지 못하게
+            if (!lineOfSight(a, c.eye(), o.feet().add(0, 0.3, 0))) continue;
             if (d < bd) {
                 bd = d;
                 best = o;
@@ -626,6 +647,7 @@ public final class CombatService {
     }
 
     private void standUp(Combatant v, long now) {
+        v.lastAttacker = null;     // 일어난 뒤 한참 지나 떨어져 죽어도 예전 공격자에게 킬이 가지 않게
         v.hp = Combatant.MAX_HP;
         v.actionLockUntil = now + STANDUP_LOCK;
         v.setState(CombatState.ALIVE, now);
@@ -692,6 +714,7 @@ public final class CombatService {
         onTop.setYaw((float) face.yaw());
         onTop.setPitch(55);
         ex.teleport(onTop);
+        ex.history.clear();   // 올라타며 순간 이동한 앞쪽 위치로 판정되지 않게
         ex.refreshEquipment();
         // 카메라: 처형자의 살짝 뒤, 위
         ItemDisplay cam = null;
@@ -792,6 +815,9 @@ public final class CombatService {
         long now = plugin.now();
         if (v.state == CombatState.DEAD) return;
         Arena a = arena();
+        if (a == null) return;
+        // 이미 나간 플레이어/교체된 NPC 에게는 킬을 주지 않음
+        if (killer != null && !a.combatants.containsKey(killer.id)) killer = null;
         if (v.execution != null) {
             Execution e = v.execution;
             if (e.executor == v) cancelExecution(e);
@@ -833,6 +859,7 @@ public final class CombatService {
         v.weapon = null;
         v.offhand = null;
         v.respawnAt = -1;
+        v.lastAttacker = null;
         v.history.clear();
         v.actionLockUntil = now + 4;
         v.setState(CombatState.ALIVE, now);
@@ -857,6 +884,12 @@ public final class CombatService {
                 default -> {
                 }
             }
+            // 임시 무기가 처형/빼앗기 등으로 사라졌으면 숨겨 둔 원래 무기를 돌려줌
+            if (c.weapon == null && c.stashedWeapon != null && c.state == CombatState.ALIVE) {
+                c.weapon = c.stashedWeapon;
+                c.stashedWeapon = null;
+                c.refreshEquipment();
+            }
             // 가면 임시 무기 만료
             if (c.weapon != null && c.weapon.expireTick() > 0 && now >= c.weapon.expireTick()) {
                 c.weapon = c.stashedWeapon;
@@ -874,6 +907,16 @@ public final class CombatService {
             else if (e.style == ExecutionStyle.HITS && now - e.startTick > EXECUTION_TIMEOUT) cancelExecution(e);
         }
         tickProjectiles(a, now);
+    }
+
+    public void cancelAllExecutions() {
+        for (Execution e : new ArrayList<>(executions)) {
+            try {
+                cancelExecution(e);
+            } catch (RuntimeException ex) {
+                executions.remove(e);
+            }
+        }
     }
 
     public void clear() {
