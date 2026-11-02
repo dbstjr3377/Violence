@@ -104,8 +104,10 @@ class Map:
             cid += 1
         self.main = np.array([k for k in range(len(idx)) if comp[k] == best])
         self.pos = (idx + self.min + np.array([0.5, 0.0, 0.5])).astype(float)
-        self.spawns = [self.nearest_node(np.array(sp)) for sp in spawns] or list(self.main[:: max(1, len(self.main) // 60)])
-        self.spawns = [k for k in self.spawns if k is not None]
+        self.spawns = [k for k in (self.nearest_node(np.array(sp)) for sp in spawns) if k is not None]
+        if len(self.spawns) < 8:
+            # 리스폰 지점이 걸어 다닐 수 있는 곳과 안 맞으면 보행 칸에서 골고루 (GameService 와 같은 보충)
+            self.spawns += [int(k) for k in self.main[:: max(1, len(self.main) // 60)]]
         self.weapon_spots = [self.nearest_node(np.array(w[:3])) for w in weapons]
         self.weapon_spots = [k for k in self.weapon_spots if k is not None]
         self.area = len(self.main)
