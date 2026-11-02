@@ -1,0 +1,57 @@
+{
+ "model": {
+  "type": "minecraft:select",
+  "property": "minecraft:display_context",
+  "cases": [
+   {
+    "when": [
+     "firstperson_righthand",
+     "firstperson_lefthand"
+    ],
+    "model": {
+     "type": "minecraft:range_dispatch",
+     "property": "minecraft:cooldown",
+     "entries": [
+      {
+       "threshold": 0.18,
+       "model": {
+        "type": "minecraft:model",
+        "model": "violence:item/weapon/bat_fp_a3"
+       }
+      },
+      {
+       "threshold": 0.42,
+       "model": {
+        "type": "minecraft:model",
+        "model": "violence:item/weapon/bat_fp_a2"
+       }
+      },
+      {
+       "threshold": 0.62,
+       "model": {
+        "type": "minecraft:model",
+        "model": "violence:item/weapon/bat_fp_a1"
+       }
+      },
+      {
+       "threshold": 0.82,
+       "model": {
+        "type": "minecraft:model",
+        "model": "violence:item/weapon/bat_fp_a0"
+       }
+      }
+     ],
+     "fallback": {
+      "type": "minecraft:model",
+      "model": "violence:item/weapon/bat_fp"
+     }
+    }
+   }
+  ],
+  "fallback": {
+   "type": "minecraft:model",
+   "model": "violence:item/weapon/bat"
+  }
+ },
+ "hand_animation_on_swap": false
+}

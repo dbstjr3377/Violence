@@ -1,0 +1,132 @@
+package dev.violence.fx;
+
+import dev.violence.ViolencePlugin;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
+import java.util.logging.Level;
+import org.bukkit.GameMode;
+import org.bukkit.Location;
+import org.bukkit.entity.Entity;
+import org.bukkit.entity.ItemDisplay;
+import org.bukkit.entity.Player;
+
+/**
+ * 시점 전환 (처형/사망 연출).
+ * 카메라 패킷(ClientboundSetCameraPacket)을 직접 보내서 플레이어는 생존 모드를 유지한 채
+ * 다른 엔티티의 시점으로 화면만 옮긴다. 클라이언트의 1/3인칭 설정은 그대로 남으므로
+ * 카메라를 되돌리면 자동으로 사용자 설정 시점으로 복귀한다.
+ * 패킷 전송이 실패하면 관전 모드 방식으로 대체한다.
+ */
+public final class CameraService {
+    private final ViolencePlugin plugin;
+    private boolean reflectionOk;
+    private Method getHandle;
+    private Field connectionField;
+    private Method sendMethod;
+    private Constructor<?> cameraPacketCtor;
+    private final Map<UUID, ItemDisplay> cameras = new HashMap<>();
+    private final Map<UUID, GameMode> fallbackModes = new HashMap<>();
+
+    public CameraService(ViolencePlugin plugin) {
+        this.plugin = plugin;
+        try {
+            Class<?> nmsEntity = Class.forName("net.minecraft.world.entity.Entity");
+            Class<?> packetClass = Class.forName("net.minecraft.network.protocol.game.ClientboundSetCameraPacket");
+            Class<?> packetIface = Class.forName("net.minecraft.network.protocol.Packet");
+            cameraPacketCtor = packetClass.getConstructor(nmsEntity);
+            Class<?> craftPlayer = Class.forName(plugin.getServer().getClass().getPackageName() + ".entity.CraftPlayer");
+            getHandle = craftPlayer.getMethod("getHandle");
+            Class<?> serverPlayer = Class.forName("net.minecraft.server.level.ServerPlayer");
+            connectionField = serverPlayer.getField("connection");
+            Class<?> connClass = connectionField.getType();
+            for (Method m : connClass.getMethods()) {
+                if (m.getName().equals("send") && m.getParameterCount() == 1 && m.getParameterTypes()[0].isAssignableFrom(packetIface)) {
+                    sendMethod = m;
+                    break;
+                }
+            }
+            reflectionOk = sendMethod != null;
+        } catch (Throwable t) {
+            plugin.getLogger().log(Level.WARNING, "카메라 패킷 초기화 실패 - 관전 모드 방식으로 대체합니다: " + t);
+            reflectionOk = false;
+        }
+    }
+
+    private Object handle(Entity e) throws Exception {
+        Method m = e.getClass().getMethod("getHandle");
+        return m.invoke(e);
+    }
+
+    private boolean sendCamera(Player p, Entity target) {
+        if (!reflectionOk) return false;
+        try {
+            Object packet = cameraPacketCtor.newInstance(handle(target));
+            Object sp = getHandle.invoke(p);
+            Object conn = connectionField.get(sp);
+            sendMethod.invoke(conn, packet);
+            return true;
+        } catch (Throwable t) {
+            plugin.getLogger().log(Level.WARNING, "카메라 패킷 전송 실패: " + t);
+            reflectionOk = false;
+            return false;
+        }
+    }
+
+    /** 카메라 엔티티를 만든다 (보이지 않는 아이템 디스플레이). */
+    public ItemDisplay spawnCamera(Location at, int smoothTicks) {
+        ItemDisplay cam = at.getWorld().spawn(at, ItemDisplay.class, d -> {
+            d.setPersistent(false);
+            d.setTeleportDuration(smoothTicks);
+            d.setViewRange(8f);
+        });
+        if (plugin.arena() != null) plugin.arena().track(cam);
+        return cam;
+    }
+
+    /** 플레이어의 화면을 cam 엔티티 시점으로 전환. */
+    public void view(Player p, ItemDisplay cam) {
+        ItemDisplay old = cameras.put(p.getUniqueId(), cam);
+        if (old != null && old != cam && old.isValid()) old.remove();
+        if (!sendCamera(p, cam)) {
+            fallbackModes.putIfAbsent(p.getUniqueId(), p.getGameMode());
+            p.setGameMode(GameMode.SPECTATOR);
+            p.setSpectatorTarget(cam);
+        }
+    }
+
+    public ItemDisplay cameraOf(Player p) {
+        return cameras.get(p.getUniqueId());
+    }
+
+    /** 사용자 시점으로 복귀. */
+    public void reset(Player p) {
+        ItemDisplay cam = cameras.remove(p.getUniqueId());
+        GameMode fb = fallbackModes.remove(p.getUniqueId());
+        if (fb != null) {
+            p.setSpectatorTarget(null);
+            p.setGameMode(fb);
+        } else {
+            sendCamera(p, p);
+        }
+        if (cam != null && cam.isValid()) {
+            // 다른 플레이어가 같은 카메라를 보고 있지 않으면 제거
+            if (!cameras.containsValue(cam)) cam.remove();
+        }
+    }
+
+    public boolean isViewing(Player p) {
+        return cameras.containsKey(p.getUniqueId());
+    }
+
+    public void resetAll() {
+        for (UUID id : new java.util.ArrayList<>(cameras.keySet())) {
+            Player p = plugin.getServer().getPlayer(id);
+            if (p != null) reset(p);
+        }
+        cameras.clear();
+    }
+}

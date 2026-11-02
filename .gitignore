@@ -1,0 +1,32 @@
+# Gradle
+plugin-src/.gradle/
+plugin-src/build/
+.gradle/
+# IDE
+.idea/
+*.iml
+.vscode/
+# 서버 실행 시 생성되는 파일
+bukkit/paper.jar
+bukkit/cache/
+bukkit/libraries/
+bukkit/versions/
+bukkit/logs/
+bukkit/world*/
+bukkit/vgame_*/
+bukkit/crash-reports/
+bukkit/plugins/Skript.jar
+bukkit/plugins/.paper-remapped/
+bukkit/plugins/bStats/
+bukkit/plugins/Skript/*.csv
+bukkit/plugins/Skript/backups/
+bukkit/plugins/Skript/variables*
+bukkit/usercache.json
+bukkit/banned-*.json
+bukkit/ops.json
+bukkit/whitelist.json
+bukkit/version_history.json
+bukkit/.console_history
+# 리소스팩 빌드 결과
+build-out/
+__pycache__/

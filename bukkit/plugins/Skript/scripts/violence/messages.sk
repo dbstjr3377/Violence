@@ -1,0 +1,24 @@
+# ─────────────────────────────────────────────────────────────
+#  VIOLENCE - 알림 메시지
+# ─────────────────────────────────────────────────────────────
+
+options:
+	prefix: &d&l[VIOLENCE]&r
+
+function violenceAnnounceStart(map: text, players: text, npcs: text, kills: text, seconds: text):
+	set {_sec} to {_seconds} parsed as integer
+	set {_min} to floor(({_sec} ? 600) / 60)
+	broadcast "{@prefix} &f맵 &e%{_map}% &7| &f플레이어 &e%{_players}% &7+ &fNPC &e%{_npcs}%"
+	broadcast "{@prefix} &f목표 &c%{_kills}%킬 &7| &f제한 시간 &e%{_min}%분"
+	broadcast "&7  왼클릭 사용 · 우클릭 던지기/줍기 · Space 처형/발차기 · 연속 3/5킬 시 E 로 가면 선택"
+
+function violenceAnnounceStreak(name: text, streak: text):
+	if {_streak} is "3":
+		broadcast "{@prefix} &e%{_name}% &f님이 &c연속 3킬&f! 가면을 쓸 수 있습니다."
+	else:
+		broadcast "{@prefix} &e%{_name}% &f님이 &4&l연속 %{_streak}%킬&f! 피에 굶주렸습니다."
+
+function violenceAnnounceEnd(winner: text, kills: text):
+	broadcast "&8&m                                        "
+	broadcast "{@prefix} &f&l게임 종료!  &f우승: &e&l%{_winner}% &7(%{_kills}%킬)"
+	broadcast "&8&m                                        "

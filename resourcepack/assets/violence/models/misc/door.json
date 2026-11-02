@@ -1,0 +1,76 @@
+{
+ "textures": {
+  "d": "violence:misc/door",
+  "particle": "violence:misc/door"
+ },
+ "elements": [
+  {
+   "from": [
+    0,
+    0,
+    7
+   ],
+   "to": [
+    16,
+    32,
+    9
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      0,
+      0,
+      16,
+      16
+     ],
+     "texture": "#d"
+    },
+    "south": {
+     "uv": [
+      16,
+      0,
+      0,
+      16
+     ],
+     "texture": "#d"
+    },
+    "east": {
+     "uv": [
+      0,
+      0,
+      2,
+      16
+     ],
+     "texture": "#d"
+    },
+    "west": {
+     "uv": [
+      14,
+      0,
+      16,
+      16
+     ],
+     "texture": "#d"
+    },
+    "up": {
+     "uv": [
+      0,
+      0,
+      16,
+      1
+     ],
+     "texture": "#d"
+    },
+    "down": {
+     "uv": [
+      0,
+      15,
+      16,
+      16
+     ],
+     "texture": "#d"
+    }
+   }
+  }
+ ]
+}

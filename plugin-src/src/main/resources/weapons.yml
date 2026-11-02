@@ -1,0 +1,264 @@
+# ─────────────────────────────────────────────────────────────
+#  VIOLENCE 무기 정의
+#  category: FIST / MELEE / GUN / THROWABLE
+#  execution: AUTO(자동 즉사) / HITS(왼클릭 N회) / GUN_DROP(총 버리고 맨손) / GUN_SHOT
+#  melee-cooldown 단위: 틱 (20틱 = 1초)
+#  rpm: 분당 발사 수, automatic: 왼클릭 유지 시 연사
+# ─────────────────────────────────────────────────────────────
+weapons:
+  fist:
+    name: "맨손"
+    category: FIST
+    melee-range: 2.1
+    melee-cooldown: 8
+    execution: HITS
+    execution-hits: 4
+    map-spawn: false
+
+  # ── 근접 무기 ─────────────────────────────────────────────
+  dagger:
+    name: "단검"
+    category: MELEE
+    melee-range: 1.9
+    melee-cooldown: 5
+    execution: AUTO
+    throw-kill-chance: 0.5
+    spawn-weight: 10
+  bat:
+    name: "몽둥이"
+    category: MELEE
+    melee-range: 2.5
+    melee-cooldown: 10
+    execution: HITS
+    execution-hits: 2
+    spawn-weight: 10
+  pipe:
+    name: "쇠파이프"
+    category: MELEE
+    melee-range: 2.5
+    melee-cooldown: 10
+    execution: HITS
+    execution-hits: 2
+    spawn-weight: 9
+  golf_club:
+    name: "골프채"
+    category: MELEE
+    melee-range: 2.6
+    melee-cooldown: 10
+    execution: HITS
+    execution-hits: 2
+    spawn-weight: 7
+  fire_axe:
+    name: "소방도끼"
+    category: MELEE
+    melee-range: 2.6
+    melee-cooldown: 13
+    execution: AUTO
+    spawn-weight: 6
+  machete:
+    name: "마체테"
+    category: MELEE
+    melee-range: 2.4
+    melee-cooldown: 9
+    execution: AUTO
+    spawn-weight: 7
+  pot:
+    name: "냄비"
+    category: MELEE
+    melee-range: 2.2
+    melee-cooldown: 11
+    execution: HITS
+    execution-hits: 3
+    spawn-weight: 6
+  frying_pan:
+    name: "프라이팬"
+    category: MELEE
+    melee-range: 2.3
+    melee-cooldown: 11
+    execution: HITS
+    execution-hits: 3
+    spawn-weight: 7
+  crowbar:
+    name: "크로우바"
+    category: MELEE
+    melee-range: 2.4
+    melee-cooldown: 10
+    execution: HITS
+    execution-hits: 2
+    spawn-weight: 8
+  katana:
+    name: "카타나"
+    category: MELEE
+    melee-range: 2.8
+    melee-cooldown: 9
+    execution: AUTO
+    spawn-weight: 4
+  baton:
+    name: "삼단봉"
+    category: MELEE
+    melee-range: 2.3
+    melee-cooldown: 8
+    execution: HITS
+    execution-hits: 3
+    spawn-weight: 7
+  hammer:
+    name: "망치"
+    category: MELEE
+    melee-range: 2.2
+    melee-cooldown: 18
+    execution: HITS
+    execution-hits: 2
+    spawn-weight: 6
+  briefcase:
+    name: "서류가방"
+    category: MELEE
+    melee-range: 2.2
+    melee-cooldown: 18
+    execution: HITS
+    execution-hits: 3
+    spawn-weight: 5
+  pool_cue:
+    name: "당구 큐대"
+    category: MELEE
+    melee-range: 2.5
+    melee-cooldown: 10
+    execution: HITS
+    execution-hits: 2
+    breaks-into: pool_cue_short
+    spawn-weight: 6
+  pool_cue_short:
+    name: "짧은 큐대"
+    category: MELEE
+    melee-range: 1.9
+    melee-cooldown: 5
+    execution: AUTO
+    map-spawn: false
+  cleaver:
+    name: "중식도"
+    category: MELEE
+    melee-range: 2.2
+    melee-cooldown: 7
+    execution: AUTO
+    map-spawn: false
+
+  # ── 총기 (히트스캔) ──────────────────────────────────────
+  shotgun:
+    name: "샷건"
+    category: GUN
+    ammo: 6
+    rpm: 130
+    pellets: 12
+    spread: 5.5
+    range: 40
+    sound: "violence:gun.shotgun"
+    spawn-weight: 7
+  double_barrel:
+    name: "더블배럴"
+    category: GUN
+    ammo: 2
+    rpm: 1200
+    pellets-min: 20
+    pellets-max: 28
+    spread: 9.0
+    range: 36
+    sound: "violence:gun.double_barrel"
+    spawn-weight: 5
+  m16:
+    name: "M16"
+    category: GUN
+    ammo: 24
+    rpm: 860
+    automatic: true
+    spread: 1.6
+    sound: "violence:gun.rifle"
+    spawn-weight: 6
+  uzi:
+    name: "UZI"
+    category: GUN
+    ammo: 30
+    rpm: 1800
+    automatic: true
+    spread: 3.8
+    range: 60
+    sound: "violence:gun.smg"
+    spawn-weight: 6
+  silenced_pistol:
+    name: "소음기 피스톨"
+    category: GUN
+    ammo: 13
+    rpm: 420
+    spread: 0.9
+    silenced: true
+    sound: "violence:gun.silenced"
+    spawn-weight: 7
+  silenced_uzi:
+    name: "소음기 UZI"
+    category: GUN
+    ammo: 30
+    rpm: 1800
+    automatic: true
+    spread: 3.8
+    range: 60
+    silenced: true
+    sound: "violence:gun.silenced"
+    map-spawn: false
+  magnum:
+    name: "매그넘"
+    category: GUN
+    ammo: 6
+    rpm: 150
+    spread: 0.3
+    pierce: true
+    tracer: orange
+    range: 100
+    sound: "violence:gun.magnum"
+    spawn-weight: 4
+  mp5:
+    name: "MP5"
+    category: GUN
+    ammo: 32
+    rpm: 1200
+    automatic: true
+    spread: 2.6
+    range: 70
+    sound: "violence:gun.smg"
+    spawn-weight: 6
+  mp5_dual:
+    name: "MP5 (양손)"
+    model: "violence:weapon/mp5"
+    category: GUN
+    ammo: 64
+    magazine: 32
+    reload-ticks: 30
+    rpm: 1200
+    automatic: true
+    spread: 3.2
+    range: 70
+    sound: "violence:gun.smg"
+    map-spawn: false
+
+  # ── 투척 전용 ────────────────────────────────────────────
+  small_hammer:
+    name: "소형 해머"
+    category: THROWABLE
+    spawn-weight: 5
+  bottle:
+    name: "유리병"
+    category: THROWABLE
+    spawn-weight: 7
+  throwing_knife:
+    name: "투척용 단검"
+    category: THROWABLE
+    spawn-weight: 5
+  dart:
+    name: "다트"
+    category: THROWABLE
+    spawn-weight: 5
+  brick:
+    name: "벽돌"
+    category: THROWABLE
+    spawn-weight: 7
+  scissors:
+    name: "가위"
+    category: THROWABLE
+    spawn-weight: 5

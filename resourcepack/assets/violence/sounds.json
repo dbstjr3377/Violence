@@ -1,0 +1,312 @@
+{
+ "gun.rifle": {
+  "sounds": [
+   {
+    "name": "minecraft:entity.firework_rocket.large_blast",
+    "type": "event",
+    "volume": 0.9,
+    "pitch": 1.45
+   }
+  ]
+ },
+ "gun.smg": {
+  "sounds": [
+   {
+    "name": "minecraft:entity.firework_rocket.blast",
+    "type": "event",
+    "volume": 0.8,
+    "pitch": 1.9
+   }
+  ]
+ },
+ "gun.shotgun": {
+  "sounds": [
+   {
+    "name": "minecraft:entity.generic.explode",
+    "type": "event",
+    "volume": 0.55,
+    "pitch": 1.6
+   }
+  ]
+ },
+ "gun.double_barrel": {
+  "sounds": [
+   {
+    "name": "minecraft:entity.generic.explode",
+    "type": "event",
+    "volume": 0.7,
+    "pitch": 1.25
+   }
+  ]
+ },
+ "gun.magnum": {
+  "sounds": [
+   {
+    "name": "minecraft:entity.firework_rocket.large_blast",
+    "type": "event",
+    "volume": 1.0,
+    "pitch": 0.75
+   }
+  ]
+ },
+ "gun.silenced": {
+  "sounds": [
+   {
+    "name": "minecraft:entity.arrow.shoot",
+    "type": "event",
+    "volume": 0.7,
+    "pitch": 1.9
+   }
+  ]
+ },
+ "gun.empty": {
+  "sounds": [
+   {
+    "name": "minecraft:block.lever.click",
+    "type": "event",
+    "volume": 0.8,
+    "pitch": 1.8
+   }
+  ]
+ },
+ "melee.swing": {
+  "sounds": [
+   {
+    "name": "minecraft:entity.player.attack.sweep",
+    "type": "event",
+    "volume": 0.7,
+    "pitch": 1.4
+   }
+  ]
+ },
+ "melee.punch_swing": {
+  "sounds": [
+   {
+    "name": "minecraft:entity.player.attack.weak",
+    "type": "event",
+    "volume": 0.8,
+    "pitch": 1.2
+   }
+  ]
+ },
+ "melee.punch_hit": {
+  "sounds": [
+   {
+    "name": "minecraft:entity.player.attack.strong",
+    "type": "event",
+    "volume": 1.0,
+    "pitch": 0.9
+   }
+  ]
+ },
+ "melee.blunt_hit": {
+  "sounds": [
+   {
+    "name": "minecraft:entity.player.attack.knockback",
+    "type": "event",
+    "volume": 1.0,
+    "pitch": 0.8
+   }
+  ]
+ },
+ "melee.slash_hit": {
+  "sounds": [
+   {
+    "name": "minecraft:entity.player.attack.crit",
+    "type": "event",
+    "volume": 1.0,
+    "pitch": 0.9
+   }
+  ]
+ },
+ "melee.cue_break": {
+  "sounds": [
+   {
+    "name": "minecraft:block.bamboo.break",
+    "type": "event",
+    "volume": 1.0,
+    "pitch": 0.8
+   }
+  ]
+ },
+ "melee.kick": {
+  "sounds": [
+   {
+    "name": "minecraft:entity.player.attack.knockback",
+    "type": "event",
+    "volume": 0.8,
+    "pitch": 0.6
+   }
+  ]
+ },
+ "melee.mount": {
+  "sounds": [
+   {
+    "name": "minecraft:item.armor.equip_leather",
+    "type": "event",
+    "volume": 1.0,
+    "pitch": 0.7
+   }
+  ]
+ },
+ "melee.roll": {
+  "sounds": [
+   {
+    "name": "minecraft:entity.player.attack.sweep",
+    "type": "event",
+    "volume": 0.6,
+    "pitch": 0.6
+   }
+  ]
+ },
+ "hit.knockdown": {
+  "sounds": [
+   {
+    "name": "minecraft:entity.player.big_fall",
+    "type": "event",
+    "volume": 1.0,
+    "pitch": 0.9
+   }
+  ]
+ },
+ "hit.death": {
+  "sounds": [
+   {
+    "name": "minecraft:entity.player.death",
+    "type": "event",
+    "volume": 1.0,
+    "pitch": 0.9
+   }
+  ]
+ },
+ "hit.shield": {
+  "sounds": [
+   {
+    "name": "minecraft:item.shield.block",
+    "type": "event",
+    "volume": 1.0,
+    "pitch": 1.2
+   }
+  ]
+ },
+ "world.glass_break": {
+  "sounds": [
+   {
+    "name": "minecraft:block.glass.break",
+    "type": "event",
+    "volume": 1.0,
+    "pitch": 1.0
+   }
+  ]
+ },
+ "world.door_push": {
+  "sounds": [
+   {
+    "name": "minecraft:block.wooden_door.open",
+    "type": "event",
+    "volume": 0.8,
+    "pitch": 1.2
+   }
+  ]
+ },
+ "world.door_kick": {
+  "sounds": [
+   {
+    "name": "minecraft:entity.zombie.break_wooden_door",
+    "type": "event",
+    "volume": 0.7,
+    "pitch": 1.2
+   }
+  ]
+ },
+ "world.door_hit": {
+  "sounds": [
+   {
+    "name": "minecraft:block.wood.hit",
+    "type": "event",
+    "volume": 1.0,
+    "pitch": 0.8
+   }
+  ]
+ },
+ "world.door_slam": {
+  "sounds": [
+   {
+    "name": "minecraft:block.wooden_door.close",
+    "type": "event",
+    "volume": 1.0,
+    "pitch": 0.7
+   }
+  ]
+ },
+ "weapon.pickup": {
+  "sounds": [
+   {
+    "name": "minecraft:item.armor.equip_iron",
+    "type": "event",
+    "volume": 0.8,
+    "pitch": 1.4
+   }
+  ]
+ },
+ "weapon.throw": {
+  "sounds": [
+   {
+    "name": "minecraft:item.trident.throw",
+    "type": "event",
+    "volume": 0.8,
+    "pitch": 1.4
+   }
+  ]
+ },
+ "weapon.land": {
+  "sounds": [
+   {
+    "name": "minecraft:block.chain.fall",
+    "type": "event",
+    "volume": 0.8,
+    "pitch": 1.2
+   }
+  ]
+ },
+ "ui.mask_offer": {
+  "sounds": [
+   {
+    "name": "minecraft:block.amethyst_block.chime",
+    "type": "event",
+    "volume": 1.0,
+    "pitch": 0.8
+   }
+  ]
+ },
+ "ui.mask_equip": {
+  "sounds": [
+   {
+    "name": "minecraft:item.armor.equip_turtle",
+    "type": "event",
+    "volume": 1.0,
+    "pitch": 1.0
+   }
+  ]
+ },
+ "ui.combo_end": {
+  "sounds": [
+   {
+    "name": "minecraft:entity.experience_orb.pickup",
+    "type": "event",
+    "volume": 0.9,
+    "pitch": 0.7
+   }
+  ]
+ },
+ "ui.heartbeat": {
+  "sounds": [
+   {
+    "name": "minecraft:entity.warden.heartbeat",
+    "type": "event",
+    "volume": 1.0,
+    "pitch": 1.4
+   }
+  ]
+ }
+}

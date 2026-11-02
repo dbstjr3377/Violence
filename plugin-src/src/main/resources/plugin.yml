@@ -1,0 +1,20 @@
+name: ViolenceCore
+version: '${version}'
+main: dev.violence.ViolencePlugin
+api-version: '26.3'
+description: 속도감 있는 1/3인칭 데스매치 슈터 엔진 (Skript 연동)
+author: Violence
+softdepend: [Skript]
+commands:
+  violence:
+    description: VIOLENCE 관리 명령어
+    aliases: [vio]
+    permission: violence.admin
+    usage: /violence help
+permissions:
+  violence.admin:
+    description: 게임 시작/중단 및 맵 편집
+    default: op
+  violence.exempt:
+    description: 게임 참가에서 제외 (관전용)
+    default: false

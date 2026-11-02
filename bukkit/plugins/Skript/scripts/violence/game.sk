@@ -1,0 +1,66 @@
+# ─────────────────────────────────────────────────────────────
+#  VIOLENCE - 게임 진행 (명령어 / 인원 계산 / 자바 엔진 연동)
+#
+#  /게임시작 [맵] [목표킬] [제한시간(초)]
+#      플레이어 수를 세어 "플레이어 + NPC = 50" 이 되도록 NPC 수를 정한 뒤
+#      ViolenceCore 엔진에 게임 시작을 요청합니다.
+#  /게임중단
+#
+#  /vhook 은 ViolenceCore 가 콘솔로 호출하는 내부 명령어입니다 (플레이어는 쓸 수 없음).
+# ─────────────────────────────────────────────────────────────
+
+options:
+	total: 50
+	prefix: &d&l[VIOLENCE]&r
+
+command /게임시작 [<text>] [<integer>] [<integer>]:
+	permission: violence.admin
+	permission message: &c이 명령어를 사용할 권한이 없습니다.
+	description: VIOLENCE 데스매치를 시작합니다.
+	usage: &e/게임시작 [맵] [목표킬] [제한시간(초)]
+	trigger:
+		set {_players} to 0
+		loop all players:
+			if loop-player's gamemode is not spectator:
+				add 1 to {_players}
+		set {_npcs} to {@total} - {_players}
+		if {_npcs} < 0:
+			set {_npcs} to 0
+		set {_map} to arg-1 ? "random"
+		set {_kills} to arg-2 ? -1
+		set {_time} to arg-3 ? -1
+		send "{@prefix} &f플레이어 &e%{_players}%&f명 + NPC &e%{_npcs}%&f명으로 게임을 준비합니다." to sender
+		execute console command "violence start %{_map}% %{_npcs}% %{_kills}% %{_time}%"
+
+command /게임중단:
+	permission: violence.admin
+	permission message: &c이 명령어를 사용할 권한이 없습니다.
+	description: 진행 중인 VIOLENCE 게임을 중단합니다.
+	trigger:
+		execute console command "violence stop"
+
+# ViolenceCore → Skript 이벤트 전달 (콘솔 전용)
+command /vhook <text>:
+	executable by: console
+	trigger:
+		set {_a::*} to split arg-1 at " "
+		set {_event} to {_a::1}
+		if {_event} is "kill":
+			# kill <처치자> <희생자> <방식> <헤드샷> <콤보수>
+			set {_combo} to {_a::6} parsed as integer
+			set {_points} to violenceKillPoints({_a::4}, {_a::5}, {_combo} ? 1)
+			execute console command "violence award %{_a::2}% %{_points}%"
+		else if {_event} is "comboend":
+			# comboend <플레이어> <콤보수> <처치점수합>
+			set {_count} to {_a::3} parsed as integer
+			set {_base} to {_a::4} parsed as integer
+			set {_bonus} to violenceComboBonus({_count} ? 0, {_base} ? 0)
+			execute console command "violence combobonus %{_a::2}% %{_bonus}%"
+		else if {_event} is "streak":
+			violenceAnnounceStreak({_a::2}, {_a::3})
+		else if {_event} is "gamestart":
+			violenceAnnounceStart({_a::2}, {_a::3}, {_a::4}, {_a::5}, {_a::6})
+		else if {_event} is "gameend":
+			violenceAnnounceEnd({_a::2}, {_a::3})
+		else if {_event} is "gamestop":
+			broadcast "{@prefix} &c게임이 중단되었습니다."
