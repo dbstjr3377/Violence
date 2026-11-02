@@ -97,11 +97,12 @@ public final class MapService {
     public void prepare(String id, Consumer<World> worldReady, java.util.function.BiConsumer<World, GameMap> done) {
         World w = createWorld("vgame");
         worldReady.accept(w);
-        // 예전 버전에서 저장된 클럽(낮은 높이)은 클럽 조명 쉐이더 구역 밖이라 새로 생성
-        boolean staleClub = "club".equals(id) && hasSaved(id)
-                && GameMap.load(new File(mapDir(id), "map.yml")).minY < dev.violence.fx.ClubLights.Y0 - 8;
-        if (staleClub) plugin.getLogger().info("클럽 맵을 조명 구역 높이로 다시 생성합니다");
-        if (!hasSaved(id) || staleClub) {
+        // 예전 버전에서 낮은 높이로 저장된 맵(클럽, 아파트, 교도소)은 쉐이더 구역 밖이라 새로 생성
+        int baseY = dev.violence.fx.ShaderZones.baseY(id);
+        boolean stale = baseY != dev.violence.fx.ShaderZones.DEFAULT_Y0 && hasSaved(id)
+                && GameMap.load(new File(mapDir(id), "map.yml")).minY < baseY - 8;
+        if (stale) plugin.getLogger().info(id + " 맵을 쉐이더 구역 높이(y=" + baseY + ")로 다시 생성합니다");
+        if (!hasSaved(id) || stale) {
             MapGenerator g = Generators.get(id);
             if (g == null) {
                 plugin.getLogger().warning("맵을 찾을 수 없습니다: " + id);

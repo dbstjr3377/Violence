@@ -194,6 +194,17 @@ public final class MapBuilder {
 
     public void lights(Rect r, int y, int spacing) {
         int ceil = y + H;
+        if (theme.light.contains("hanging=true")) {
+            // 천장에 매다는 등: 위층 바닥에 덮이지 않고, 간격을 넓혀 불빛이 웅덩이처럼 고이게 (벅샷 룰렛 느낌)
+            int sp = spacing * 2;
+            int x0 = (r.x1() + r.x2()) / 2 - ((r.x2() - r.x1()) / 2 / sp) * sp;
+            int z0 = (r.z1() + r.z2()) / 2 - ((r.z2() - r.z1()) / 2 / sp) * sp;
+            for (int x = x0; x <= r.x2(); x += sp)
+                for (int z = z0; z <= r.z2(); z += sp) {
+                    if (isAir(x, ceil - 1, z) && isAir(x, ceil - 2, z) && !isAir(x, ceil, z)) set(x, ceil - 1, z, theme.light);
+                }
+            return;
+        }
         for (int x = r.x1() + spacing / 2; x <= r.x2(); x += spacing)
             for (int z = r.z1() + spacing / 2; z <= r.z2(); z += spacing) set(x, ceil, z, theme.light);
     }

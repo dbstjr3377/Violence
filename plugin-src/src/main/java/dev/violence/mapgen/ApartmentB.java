@@ -15,11 +15,11 @@ public final class ApartmentB implements MapGenerator {
     @Override
     public GameMap generate(BlockAccess world, Random rnd) {
         Theme t = Theme.of("minecraft:bricks", "minecraft:terracotta", "minecraft:spruce_planks",
-                "minecraft:mud_bricks", "minecraft:smooth_sandstone", "minecraft:ochre_froglight",
+                "minecraft:mud_bricks", "minecraft:smooth_sandstone", "minecraft:lantern[hanging=true]",
                 "minecraft:glass_pane", "minecraft:dark_oak_slab[type=top]", "minecraft:polished_granite",
                 "minecraft:stripped_spruce_wood", "minecraft:grass_block");
         MapBuilder m = new MapBuilder(world, rnd, t);
-        int y0 = 64;
+        int y0 = dev.violence.fx.ShaderZones.baseY(id());   // 쉐이더 구역 높이
         // 안뜰 바닥 (지붕 없음)
         Rect yard = new Rect(-21, -13, 21, 33);
         m.floor(yard, y0, "minecraft:grass_block");

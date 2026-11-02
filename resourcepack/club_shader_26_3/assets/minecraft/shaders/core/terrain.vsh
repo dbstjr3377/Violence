@@ -1,5 +1,5 @@
 #version 330
-// VIOLENCE: 바닐라 26.3 terrain 쉐이더 + 클럽 맵 조명 (violence_club.glsl). 바뀐 줄에 "VIOLENCE" 표시
+// VIOLENCE: 바닐라 26.3 terrain 쉐이더 + 클럽 조명(violence_club.glsl) + 벅샷 룰렛 색감(violence_grim.glsl). 바뀐 줄에 "VIOLENCE" 표시
 #extension GL_ARB_separate_shader_objects : require
 
 #include <minecraft:fog.glsl>
@@ -32,6 +32,7 @@ layout(location = 3) out vec2 texCoord0;
 layout(location = 4) out float chunkVisibility;
 layout(location = 5) out vec3 clubWorldPos;    // VIOLENCE: 월드 좌표
 layout(location = 6) out vec3 clubBlockColor;  // VIOLENCE: 조명 빼고 블록 색(AO·바이옴)
+layout(location = 7) out vec2 clubLightLevel;  // VIOLENCE: (블록 밝기, 하늘 밝기) 0..1
 
 void main() {
     vec3 pos = Position + (ChunkPosition - CameraBlockPos) + CameraOffset;
@@ -47,6 +48,7 @@ void main() {
     texCoord0 = UV0;
     clubWorldPos = Position + vec3(ChunkPosition);  // VIOLENCE
     clubBlockColor = Color.rgb;                     // VIOLENCE
+    clubLightLevel = clamp(vec2(UV2) / 240.0, 0.0, 1.0);  // VIOLENCE
 
     const float chunkFullyVisibleRange = 16.0;
     float dist = length(pos);

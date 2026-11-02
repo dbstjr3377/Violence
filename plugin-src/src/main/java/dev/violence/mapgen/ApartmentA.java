@@ -15,14 +15,15 @@ public final class ApartmentA implements MapGenerator {
     @Override
     public GameMap generate(BlockAccess world, Random rnd) {
         Theme t = Theme.of("minecraft:white_concrete", "minecraft:light_gray_concrete", "minecraft:oak_planks",
-                "minecraft:gray_concrete", "minecraft:smooth_stone", "minecraft:pearlescent_froglight",
+                "minecraft:gray_concrete", "minecraft:smooth_stone", "minecraft:lantern[hanging=true]",
                 "minecraft:glass_pane", "minecraft:spruce_slab[type=top]", "minecraft:polished_andesite",
                 "minecraft:stripped_dark_oak_wood", "minecraft:gray_concrete");
         MapBuilder m = new MapBuilder(world, rnd, t);
         int floors = 3;
+        int base = dev.violence.fx.ShaderZones.baseY(id());   // 쉐이더 구역 높이
         Rect outer = new Rect(-47, -17, 47, 17);
         for (int f = 0; f < floors; f++) {
-            int y = 64 + f * MapBuilder.H;
+            int y = base + f * MapBuilder.H;
             m.shell(outer, y, t.wall, t.floor, t.ceiling);
             // 계단실 (서/동 끝)
             Rect west = new Rect(-46, -16, -35, 16);
@@ -70,11 +71,11 @@ public final class ApartmentA implements MapGenerator {
         // 층간 계단: 각 계단실에 1→2층, 2→3층
         var solid = t.floorAlt;
         var slab = "minecraft:smooth_stone_slab";
-        m.stairs(-45, 64, -14, 0, 1, 2, solid, slab);
-        m.stairs(-45, 64 + MapBuilder.H, 14, 0, -1, 2, solid, slab);
-        m.stairs(44, 64, 14, 0, -1, 2, solid, slab);
-        m.stairs(44, 64 + MapBuilder.H, -14, 0, 1, 2, solid, slab);
-        m.floor(outer, 64 + floors * MapBuilder.H, "minecraft:gray_concrete");
+        m.stairs(-45, base, -14, 0, 1, 2, solid, slab);
+        m.stairs(-45, base + MapBuilder.H, 14, 0, -1, 2, solid, slab);
+        m.stairs(44, base, 14, 0, -1, 2, solid, slab);
+        m.stairs(44, base + MapBuilder.H, -14, 0, 1, 2, solid, slab);
+        m.floor(outer, base + floors * MapBuilder.H, "minecraft:gray_concrete");
         return m.finish(id(), displayName());
     }
 }

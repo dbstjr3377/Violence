@@ -1,5 +1,5 @@
 #version 330
-// VIOLENCE: 바닐라 26.3 terrain 쉐이더 + 클럽 맵 조명 (violence_club.glsl). 바뀐 줄에 "VIOLENCE" 표시
+// VIOLENCE: 바닐라 26.3 terrain 쉐이더 + 클럽 조명(violence_club.glsl) + 벅샷 룰렛 색감(violence_grim.glsl). 바뀐 줄에 "VIOLENCE" 표시
 #extension GL_ARB_separate_shader_objects : require
 
 #include <minecraft:fog.glsl>
@@ -8,6 +8,7 @@
 #include <minecraft:oit.glsl>
 #include <minecraft:terrainglobals.glsl>
 #include <minecraft:violence_club.glsl>  // VIOLENCE
+#include <minecraft:violence_grim.glsl>  // VIOLENCE
 #ifndef MULTIDRAW_TERRAIN
     #include <minecraft:chunksection.glsl>
 #endif
@@ -21,6 +22,7 @@ layout(location = 3) in vec2 texCoord0;
 layout(location = 4) in float chunkVisibility;
 layout(location = 5) in vec3 clubWorldPos;    // VIOLENCE
 layout(location = 6) in vec3 clubBlockColor;  // VIOLENCE
+layout(location = 7) in vec2 clubLightLevel;  // VIOLENCE
 
 #ifndef OIT_ALPHA_ONLY
 layout(location = 0) out vec4 fragColor;
@@ -40,9 +42,12 @@ void main() {
     vec4 texColor = (UseRgss == 1 ? sampleRGSS(Sampler0, texCoord0, 1.0f / TextureSize) : sampleNearest(Sampler0, texCoord0, 1.0f / TextureSize));  // VIOLENCE
     vec4 color = texColor * vertexColor;
     #ifndef OIT_ALPHA_ONLY
-    // VIOLENCE: 카메라가 클럽 구역에 있을 때만 클럽 조명
+    // VIOLENCE: 카메라가 있는 구역에 따라 클럽 조명 / 벅샷 룰렛 색감
     if (club_active(CameraBlockPos)) {
         color.rgb = club_light(color.rgb, texColor.rgb * clubBlockColor, clubWorldPos, GameTime * 1200.0);
+    } else if (grim_active(CameraBlockPos)) {
+        color.rgb = grim_grade(color.rgb, texColor.rgb * clubBlockColor, clubLightLevel, sphericalVertexDistance,
+                gl_FragCoord.xy, ScreenSize, GameTime * 1200.0);
     }
     #endif
     #ifndef OIT_ALPHA_ONLY

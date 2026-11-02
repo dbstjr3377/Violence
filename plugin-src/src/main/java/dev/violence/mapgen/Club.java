@@ -20,7 +20,7 @@ public final class Club implements MapGenerator {
                 "minecraft:purpur_block", "minecraft:stone");
         MapBuilder m = new MapBuilder(world, rnd, t);
         // 클럽은 높은 y 대역에 짓는다: 리소스팩 쉐이더가 카메라 높이로 클럽 안인지 판단해 조명을 켠다
-        int y0 = dev.violence.fx.ClubLights.Y0, y1 = y0 + MapBuilder.H;
+        int y0 = dev.violence.fx.ShaderZones.baseY(id()), y1 = y0 + MapBuilder.H;
         Rect outer = new Rect(-36, -30, 36, 30);
         m.shell(outer, y0, t.wall, t.floor, t.ceiling);
         m.shell(outer, y1, t.wall, t.floor, t.ceiling);

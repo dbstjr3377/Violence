@@ -15,11 +15,11 @@ public final class Prison implements MapGenerator {
     @Override
     public GameMap generate(BlockAccess world, Random rnd) {
         Theme t = Theme.of("minecraft:stone_bricks", "minecraft:cracked_stone_bricks", "minecraft:smooth_stone",
-                "minecraft:polished_andesite", "minecraft:stone_bricks", "minecraft:redstone_lamp[lit=true]",
+                "minecraft:polished_andesite", "minecraft:stone_bricks", "minecraft:lantern[hanging=true]",
                 "minecraft:glass_pane", "minecraft:iron_trapdoor[half=top,open=false]", "minecraft:polished_andesite",
                 "minecraft:iron_block", "minecraft:gravel");
         MapBuilder m = new MapBuilder(world, rnd, t);
-        int y0 = 64, y1 = 64 + MapBuilder.H;
+        int y0 = dev.violence.fx.ShaderZones.baseY(id()), y1 = y0 + MapBuilder.H;   // 쉐이더 구역 높이
         Rect outer = new Rect(-38, -34, 38, 34);
         m.shell(outer, y0, t.wall, t.floor, t.ceiling);
         m.shell(outer, y1, t.wall, t.floor, t.ceiling);
@@ -47,7 +47,7 @@ public final class Prison implements MapGenerator {
                     m.set(cx, y + 1, bz, "minecraft:white_wool");
                     m.set(cx, y + 1, bz - side, "minecraft:white_wool");
                     m.set(cx + 3, y + 1, bz, "minecraft:cauldron");
-                    m.set(cx + 1, y + MapBuilder.H, front + side * 3, t.light);
+                    m.set(cx + 1, y + MapBuilder.H - 1, front + side * 3, t.light);   // 감방마다 전구 하나
                     if (rnd.nextInt(2) == 0) m.weaponSpot(cx + 0.5, y + 2, bz + 0.5);
                     if (rnd.nextInt(2) == 0) m.spawn(cx + 2.5, y + 1, front + side * 4 + 0.5);
                 }
@@ -63,7 +63,7 @@ public final class Prison implements MapGenerator {
             }
         }
         // 홀 조명
-        for (int x = -30; x <= 30; x += 6) m.set(x, y1 + MapBuilder.H, 0, t.light);
+        for (int x = -30; x <= 30; x += 12) m.set(x, y1 + MapBuilder.H - 1, 0, t.light);
         m.populate(hall, y0, 10, 5);
         // 홀 양 끝 계단 (1층 → 2층 통로)
         String slab = "minecraft:smooth_stone_slab";
