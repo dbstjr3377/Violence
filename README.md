@@ -167,6 +167,12 @@ Violence/
 
 ![가면](docs/images/masks_preview.png)
 
+**1인칭 플레이 (줍기 → 연사 → 던지기)**
+
+![1인칭 플레이](docs/images/gameplay.png)
+
+교도소 맵(벅샷 룰렛 쉐이더)에서 바닥의 M16을 조준해 줍고, NPC에게 연사한 뒤 다른 NPC에게 던지는 장면입니다. 리소스팩 모델·쿨다운 프레임·연사 속도·탄 궤적·흔들림을 게임과 같은 규칙으로 계산한 시뮬레이션입니다(`python3 tools/gameplay_preview.py` → `build-out/gameplay/gameplay.gif`). 게임 캡처가 아닙니다.
+
 ## 클럽 조명 쉐이더
 
 클럽 맵에서만 켜지는 리소스팩 코어 쉐이더입니다(마인크래프트 26.3 전용).

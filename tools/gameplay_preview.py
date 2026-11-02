@@ -29,10 +29,10 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 NS = os.path.join(ROOT, "resourcepack", "assets", "violence")
 OUT = os.path.join(ROOT, "build-out", "gameplay")
 FONT_KR = os.path.join(ROOT, "tools", "fonts", "blackhansans_BlackHanSans-Regular.ttf")
-OW, OH = 960, 540
+OW, OH = 640, 360
 GP.W, GP.H = 640, 360           # 배경 광선 추적 해상도
 fp_sim.W, fp_sim.H = OW, OH     # 1인칭 모델/월드 물체 투영
-GUI = 2                          # GUI 배율 (480x270)
+GUI = 1.5                        # GUI 배율 (427x240)
 FLOOR = 129.0
 
 rng = random.Random(4)
@@ -263,10 +263,11 @@ def lying_boxes(feet, along, kind):
 
 class Hud:
     def __init__(self):
-        self.font = ImageFont.truetype(FONT_KR, 10 * GUI)
-        self.bullet = Image.open(os.path.join(NS, "textures", "font", "bullet.png")).convert("RGBA").resize((5 * GUI, 8 * GUI), Image.NEAREST)
-        self.skull = Image.open(os.path.join(NS, "textures", "font", "skull.png")).convert("RGBA").resize((8 * GUI, 8 * GUI), Image.NEAREST)
-        self.star = Image.open(os.path.join(NS, "textures", "font", "star.png")).convert("RGBA").resize((9 * GUI, 9 * GUI), Image.NEAREST)
+        g = lambda v: max(1, round(v * GUI))
+        self.font = ImageFont.truetype(FONT_KR, g(10))
+        self.bullet = Image.open(os.path.join(NS, "textures", "font", "bullet.png")).convert("RGBA").resize((g(5), g(8)), Image.NEAREST)
+        self.skull = Image.open(os.path.join(NS, "textures", "font", "skull.png")).convert("RGBA").resize((g(8), g(8)), Image.NEAREST)
+        self.star = Image.open(os.path.join(NS, "textures", "font", "star.png")).convert("RGBA").resize((g(9), g(9)), Image.NEAREST)
 
     def text_w(self, s):
         return self.font.getlength(s)
@@ -279,12 +280,12 @@ class Hud:
                  ("   ", None), ("SKULL", None), (f" {kills}   ", (90, 230, 255)), ("STAR", None), (f" {score:,}", (90, 230, 255))]
         widths = [self.text_w(t) if c else (8 * GUI if t == "SKULL" else 9 * GUI) for t, c in parts]
         x = cx - sum(widths) / 2
-        y = 4 * GUI
+        y = int(4 * GUI)
         for (t, c), w in zip(parts, widths):
             if t == "SKULL":
-                img.alpha_composite(self.skull, (int(x), y + GUI))
+                img.alpha_composite(self.skull, (int(x), int(y + GUI)))
             elif t == "STAR":
-                img.alpha_composite(self.star, (int(x), y))
+                img.alpha_composite(self.star, (int(x), int(y)))
             elif c:
                 d.text((x + GUI, y + GUI), t, font=self.font, fill=(40, 40, 40))
                 d.text((x, y), t, font=self.font, fill=c)
@@ -293,22 +294,22 @@ class Hud:
         label = weapon
         bw = self.text_w(label) + (self.text_w(f"   {ammo}") + 6 * GUI if ammo is not None else 0)
         x = cx - bw / 2
-        y = OH - 68 * GUI
+        y = int(OH - 68 * GUI)
         d.text((x + GUI, y + GUI), label, font=self.font, fill=(40, 40, 40))
         d.text((x, y), label, font=self.font, fill=(255, 255, 255))
         if ammo is not None:
             x += self.text_w(label + "  ")
-            img.alpha_composite(self.bullet, (int(x), y + GUI))
+            img.alpha_composite(self.bullet, (int(x), int(y + GUI)))
             col = (255, 80, 80) if ammo == 0 else ((255, 225, 77) if ammo <= 6 else (255, 255, 255))
             d.text((x + 7 * GUI + GUI, y + GUI), str(ammo), font=self.font, fill=(40, 40, 40))
             d.text((x + 7 * GUI, y), str(ammo), font=self.font, fill=col)
         # 핫바 (첫 칸 선택)
         hw = 182 * GUI
         hx, hy = cx - hw // 2, OH - 22 * GUI
-        d.rectangle([hx, hy, hx + hw, hy + 22 * GUI], fill=(20, 20, 20, 150), outline=(90, 90, 90, 200), width=GUI)
+        d.rectangle([hx, hy, hx + hw, hy + 22 * GUI], fill=(20, 20, 20, 150), outline=(90, 90, 90, 200), width=max(1, round(GUI)))
         for i in range(1, 9):
-            d.line([(hx + i * 20 * GUI, hy + GUI), (hx + i * 20 * GUI, hy + 21 * GUI)], fill=(70, 70, 70, 200), width=GUI)
-        d.rectangle([hx - GUI, hy - GUI, hx + 22 * GUI, hy + 23 * GUI], outline=(235, 235, 235, 255), width=GUI)
+            d.line([(hx + i * 20 * GUI, hy + GUI), (hx + i * 20 * GUI, hy + 21 * GUI)], fill=(70, 70, 70, 200), width=max(1, round(GUI)))
+        d.rectangle([hx - GUI, hy - GUI, hx + 22 * GUI, hy + 23 * GUI], outline=(235, 235, 235, 255), width=max(1, round(GUI)))
         # 조준점
         c2 = (cx, OH // 2)
         d.line([(c2[0] - 9, c2[1]), (c2[0] + 9, c2[1])], fill=(255, 255, 255), width=2)
@@ -355,10 +356,10 @@ def main():
     gun_anim = 3                                    # WeaponType.fireAnimTicks (860rpm)
 
     start_eye = np.array([-27.5, FLOOR + 1.62, 2.5])
-    gun_pos = np.array([-24.4, FLOOR + 0.05, 2.7])
-    gun_rot = rot_matrix(90, 0, 0) @ rot_matrix(0, 0, 30)       # 바닥에 눕힘 (GroundWeapon 표시)
-    npc_a = {"feet": np.array([-13.5, FLOOR, 3.0]), "facing": -1, "kind": "npc", "down": None}
-    npc_b = {"feet": np.array([-19.0, FLOOR, 6.4]), "facing": -1, "kind": "rooster", "down": None}
+    gun_pos = np.array([-23.0, FLOOR + 0.06, 2.6])
+    gun_rot = rot_matrix(0, 35, 0) @ rot_matrix(0, 0, 90)       # 옆으로 눕힘 (GroundWeapon 표시)
+    npc_a = {"feet": np.array([-17.0, FLOOR, 2.8]), "facing": -1, "kind": "npc", "down": None}
+    npc_b = {"feet": np.array([-20.5, FLOOR, 5.6]), "facing": -1, "kind": "rooster", "down": None}
 
     # 시간표 (틱)
     T_WALK = (4, 22)          # 걸어가며 내려다봄
@@ -475,7 +476,9 @@ def main():
         last_yaw_off, last_pitch_off = yoff, poff
         trauma = max(0.0, trauma - 0.06)
 
-        # ── 그리기 ──
+        # ── 그리기 (시뮬레이션은 매 틱, 그림은 2틱마다 = 10fps) ──
+        if tk % 2:
+            continue
         cam_eye = eye + np.array([0, bob, 0])
         cy, cp = yaw + yoff, pitch + poff
         b = basis(cy, cp)
@@ -558,13 +561,12 @@ def main():
         frames.append(img.convert("RGB"))
         print(f"\r{tk + 1}/{TOTAL}", end="", flush=True)
     print()
-    pal = [f.quantize(colors=160, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE) for f in frames]
+    pal = [f.quantize(colors=128, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE) for f in frames]
     path = os.path.join(OUT, "gameplay.gif")
-    pal[0].save(path, save_all=True, append_images=pal[1:], duration=50, loop=0, optimize=True)
-    slow = os.path.join(OUT, "gameplay_slow_x2.gif")
-    pal[0].save(slow, save_all=True, append_images=pal[1:], duration=100, loop=0, optimize=True)
-    for i, tk in enumerate((20, 52, 90)):
-        frames[tk].save(os.path.join(OUT, f"still_{i + 1}.png"))
+    pal[0].save(path, save_all=True, append_images=pal[1:], duration=100, loop=0, optimize=True)
+    for i, k in enumerate((10, 26, 46)):
+        if k < len(frames):
+            frames[k].save(os.path.join(OUT, f"still_{i + 1}.png"))
     print(path, os.path.getsize(path) // 1024, "KB", len(frames), "장")
 
 
