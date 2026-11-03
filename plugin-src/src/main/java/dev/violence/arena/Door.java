@@ -86,6 +86,29 @@ public final class Door {
         }
     }
 
+    /** 걸어서 통과할 때 문판을 미는 최대 회전 속도 (DoorPhysics.isDangerous 의 14 보다 작아야 사람을 쓰러뜨리지 않음) */
+    public static final double PASS_SPEED = 12;
+
+    /**
+     * 몸(point, 반지름 r)과 겹친 열린 문판을 몸에서 비켜날 때까지 sign 방향으로 돌린다.
+     * 속도로만 밀면 사람이 문판보다 빨리 걸어 문을 뚫고 지나가 보이므로, 각도를 직접 옮기고
+     * 남은 회전 속도는 PASS_SPEED 이하로 둔다.
+     * @return 돌렸으면 true
+     */
+    public boolean pushOutOf(Vec3 point, double r, int sign) {
+        if (!obb().overlapsPoint(point, r)) return false;
+        double start = physics.angle();
+        double a = start;
+        for (int i = 0; i < 40; i++) {
+            a = Math.max(-DoorPhysics.MAX_ANGLE, Math.min(DoorPhysics.MAX_ANGLE, a + sign * 3));
+            physics.set(a, physics.velocity());
+            if (!obb().overlapsPoint(point, r) || Math.abs(a) >= DoorPhysics.MAX_ANGLE) break;
+        }
+        double v = sign * Math.min(PASS_SPEED, Math.max(Math.abs(physics.velocity()), Math.abs(a - start) * 0.5));
+        physics.set(a, v);
+        return a != start;
+    }
+
     /** 사람이 서 있는 위치 기준, 문틀 중심에서 법선 방향 거리 */
     public double planeDistance(Vec3 p) {
         return p.sub(center()).dot(normal());

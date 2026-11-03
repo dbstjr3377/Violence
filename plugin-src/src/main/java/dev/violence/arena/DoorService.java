@@ -129,12 +129,16 @@ public final class DoorService {
                     if (d.physics.isDangerous() && d.lastPusher != c) {
                         hitByDoor(a, d, c, now);
                     } else {
-                        // 천천히 밀어서 통과
+                        // 밀어서 통과: 문판이 몸에서 비켜나도록 돌림 (몸이 문판을 뚫고 지나가 보이지 않게)
                         Vec3 away = p.sub(d.hinge()).horizontal();
                         Vec3 tangent = new Vec3(-d.dir().z(), 0, d.dir().x());
                         int side = away.dot(tangent) >= 0 ? -1 : 1;
                         Vec3 pushDir = tangent.mul(side);
-                        d.pushAlong(pushDir.dot(d.normal()) >= 0 ? d.normal() : d.normal().mul(-1), WALK_PUSH * 0.6, c, false);
+                        int towardSide = pushDir.dot(d.normal()) >= 0 ? 1 : -1;
+                        if (d.pushOutOf(p.add(0, 0.9, 0), 0.32, d.rotationSignToward(towardSide))) {
+                            d.lastPusher = c;
+                            d.lastPushWasKick = false;
+                        }
                     }
                 }
             }

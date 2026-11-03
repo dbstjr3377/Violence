@@ -53,4 +53,30 @@ class DoorTest {
             assertEquals(-1, t, "열린 문이 문틀을 막음, angle=" + d.physics.angle());
         }
     }
+
+    @Test
+    void walkingThroughPushesPanelOutOfTheBodyWithoutKnockingDown() {
+        // 북쪽으로 걸어 문을 밀고 지나가는 동안 문판이 몸과 겹친 채로 남지 않아야 함
+        Door d = new Door(0, 64, 0, true, false);
+        Vec3 walk = new Vec3(0, 0, -1);
+        d.pushAlong(walk, 9, null, false);
+        d.physics.tick();
+        Vec3 p = new Vec3(0.5, 64, 1.3);
+        for (int t = 0; t < 12; t++) {
+            p = p.add(walk.mul(0.29));                  // 사람 걷는 속도 (블록/틱)
+            Vec3 body = p.add(0, 0.9, 0);
+            if (!d.physics.isClosed() && d.obb().overlapsPoint(body, 0.32)) {
+                Vec3 away = p.sub(d.hinge()).horizontal();
+                Vec3 tangent = new Vec3(-d.dir().z(), 0, d.dir().x());
+                int side = away.dot(tangent) >= 0 ? -1 : 1;
+                int toward = tangent.mul(side).dot(d.normal()) >= 0 ? 1 : -1;
+                d.pushOutOf(body, 0.32, d.rotationSignToward(toward));
+                assertFalse(d.obb().overlapsPoint(body, 0.32) && Math.abs(d.physics.angle()) < dev.violence.logic.DoorPhysics.MAX_ANGLE,
+                        "문판이 몸을 비켜나야 함 (틱 " + t + ")");
+                assertFalse(d.physics.isDangerous(), "걸어서 민 문은 사람을 쓰러뜨릴 만큼 빠르면 안 됨");
+            }
+            d.physics.tick();
+        }
+        assertTrue(Math.abs(d.physics.angle()) > 45, "지나간 뒤 문이 충분히 열려 있어야 함: " + d.physics.angle());
+    }
 }
