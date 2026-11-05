@@ -272,6 +272,8 @@ def weapons():
                     item_b = select_by_context(dispatch(frames_b, wid + "_fp"), ref(f"violence:item/weapon/{wid}"))
                     item_b["hand_animation_on_swap"] = False
                     write(os.path.join(NS, "items", "weapon", wid + "_b.json"), item_b)
+            if animated and wid not in STAB_WEAPONS:
+                melee_third_person(wid, grip)
             item = select_by_context(fp_model, ref(f"violence:item/weapon/{wid}"))
             if animated:
                 # 오→왼 / 왼→오 아이템을 바꿔 낄 때 손이 내려갔다 올라오지 않게
@@ -294,6 +296,24 @@ def weapons():
         write(os.path.join(NS, "items", "mask", mid + ".json"), item_def("violence:item/mask/" + mid))
         count += 1
     return count
+
+
+def melee_third_person(wid, grip):
+    """다른 사람에게 보이는 근접 무기 (melee_tp.py 참고)
+    - "<id>_world": 두 손 대기 자세 (오른손 주 손 = 오른쪽 어깨 위, 왼손 주 손 = 왼쪽 어깨 위)
+    - "<id>_world_swing": 사용 시간(틱)에 따라 휘두르기 프레임, 끝나면 반대쪽 대기 자세로 멈춤"""
+    import melee_tp
+    weapon_dir = os.path.join(NS, "models", "item", "weapon")
+    write(os.path.join(weapon_dir, wid + "_tp.json"),
+          {"parent": "violence:item/weapon/" + wid, "display": melee_tp.stance(grip)})
+    write(os.path.join(NS, "items", "weapon", wid + "_world.json"), item_def(f"violence:item/weapon/{wid}_tp"))
+    entries = []
+    for k, disp in enumerate(melee_tp.swing_frames(grip)):
+        write(os.path.join(weapon_dir, f"{wid}_tp_s{k}.json"), {"parent": "violence:item/weapon/" + wid, "display": disp})
+        entries.append({"threshold": k, "model": ref(f"violence:item/weapon/{wid}_tp_s{k}")})
+    write(os.path.join(NS, "items", "weapon", wid + "_world_swing.json"), {"model": {
+        "type": "minecraft:range_dispatch", "property": "minecraft:use_duration",
+        "entries": entries, "fallback": ref(f"violence:item/weapon/{wid}_tp_s0")}})
 
 
 def melee_fp_display(grip):
@@ -804,10 +824,44 @@ def shaders():
             shutil.copyfile(os.path.join(src, sub, f), os.path.join(dst, sub, f))
 
 
+# 쓰러질 때 넘어지는 인형 (FallService): 플레이어 모델 크기(픽셀)의 상자, 색은 아이템의 custom_model_data 색 0/1
+PUPPET_PARTS = {
+    # 이름: [(from, to, 색 번호)]  — 16 단위 좌표, 중심 (8, 8, 8)
+    "head": [([4, 4, 4], [12, 12, 12], 0), ([3.9, 10, 3.9], [12.1, 12.1, 12.1], 1), ([3.9, 7.5, 11.9], [12.1, 10, 12.1], 1)],
+    "body": [([4, 2, 6], [12, 14, 10], 0)],
+    "arm": [([6, 10, 6], [10, 14, 10], 0), ([6, 2, 6], [10, 10, 10], 1)],
+    "leg": [([6, 4, 6], [10, 14, 10], 0), ([6, 2, 6], [10, 4, 10], 1)],
+}
+PUPPET_DEFAULT = {"head": (0xC89A7A, 0x3B2A1E), "body": (0x3C8C96, 0x3C8C96), "arm": (0x3C8C96, 0xC89A7A), "leg": (0x323278, 0x222222)}
+
+
+def puppet():
+    img = Image.new("RGBA", (16, 16), (255, 255, 255, 255))
+    d = ImageDraw.Draw(img)
+    for i in range(16):
+        for j in range(16):
+            if (i * 7 + j * 3) % 11 == 0:
+                d.point((i, j), (236, 236, 236, 255))
+    save_png(img, os.path.join(NS, "textures", "item", "puppet", "white.png"))
+    for name, boxes in PUPPET_PARTS.items():
+        elements = []
+        for a, b, tint in boxes:
+            faces = {f: {"uv": [0, 0, 16, 16], "texture": "#t", "tintindex": tint} for f in ("north", "south", "east", "west", "up", "down")}
+            elements.append({"from": a, "to": b, "faces": faces})
+        write(os.path.join(NS, "models", "item", "puppet", name + ".json"),
+              {"textures": {"t": "violence:item/puppet/white", "particle": "violence:item/puppet/white"}, "elements": elements})
+        c0, c1 = PUPPET_DEFAULT[name]
+        write(os.path.join(NS, "items", "puppet", name + ".json"), {"model": {
+            "type": "minecraft:model", "model": "violence:item/puppet/" + name,
+            "tints": [{"type": "minecraft:custom_model_data", "index": 0, "default": c0},
+                      {"type": "minecraft:custom_model_data", "index": 1, "default": c1}]}})
+
+
 def main():
     clean()
     mcmeta()
     n = weapons()
+    puppet()
     fx()
     misc()
     equipment()

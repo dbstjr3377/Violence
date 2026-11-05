@@ -1,0 +1,61 @@
+{
+ "model": {
+  "type": "minecraft:range_dispatch",
+  "property": "minecraft:use_duration",
+  "entries": [
+   {
+    "threshold": 0,
+    "model": {
+     "type": "minecraft:model",
+     "model": "violence:item/weapon/katana_tp_s0"
+    }
+   },
+   {
+    "threshold": 1,
+    "model": {
+     "type": "minecraft:model",
+     "model": "violence:item/weapon/katana_tp_s1"
+    }
+   },
+   {
+    "threshold": 2,
+    "model": {
+     "type": "minecraft:model",
+     "model": "violence:item/weapon/katana_tp_s2"
+    }
+   },
+   {
+    "threshold": 3,
+    "model": {
+     "type": "minecraft:model",
+     "model": "violence:item/weapon/katana_tp_s3"
+    }
+   },
+   {
+    "threshold": 4,
+    "model": {
+     "type": "minecraft:model",
+     "model": "violence:item/weapon/katana_tp_s4"
+    }
+   },
+   {
+    "threshold": 5,
+    "model": {
+     "type": "minecraft:model",
+     "model": "violence:item/weapon/katana_tp_s5"
+    }
+   },
+   {
+    "threshold": 6,
+    "model": {
+     "type": "minecraft:model",
+     "model": "violence:item/weapon/katana_tp_s6"
+    }
+   }
+  ],
+  "fallback": {
+   "type": "minecraft:model",
+   "model": "violence:item/weapon/katana_tp_s0"
+  }
+ }
+}

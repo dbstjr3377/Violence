@@ -79,7 +79,7 @@ public final class WeaponItems {
      * 다른 플레이어와 NPC 에게 보이는 손 아이템 (3인칭 상체 애니메이션용).
      * - 양손 총: 장전된 석궁 → 바닐라의 양팔 조준 자세 (다리는 이동하며 따로 움직임)
      * - 권총: 한 손으로 들기
-     * - 근접: 공격 시 휘두르기 동작이 보이도록 (부러진 큐대만 찌르기)
+     * - 근접: 두 손 대기 자세 (meleeStance). 부러진 큐대만 한 손 찌르기
      * - 맨손: 손에 보이는 것 없이 주먹 휘두르기
      */
     public static ItemStack world(WeaponType type) {
@@ -104,11 +104,50 @@ public final class WeaponItems {
                     .build());
             return it;
         }
+        if (swings(type)) return meleeStance(type, false);
         if (type.isFist()) it.setData(DataComponentTypes.ITEM_MODEL, Key.key("violence:misc/blank"));
         if (type.isMelee() || type.isFist()) {
             SwingAnimation.Animation a = type.id().equals("pool_cue_short") ? SwingAnimation.Animation.STAB : SwingAnimation.Animation.WHACK;
             it.setData(DataComponentTypes.ATTACK_ANIMATION, SwingAnimation.swingAnimation().type(a).duration(Math.max(5, Math.min(10, type.meleeCooldown()))).build());
         }
+        return it;
+    }
+
+    /**
+     * 3인칭 휘두르기 길이 (틱). 리소스팩 "<id>_world_swing" 의 프레임 수와 같아야 한다 (tools/melee_tp.py SWING_TICKS).
+     */
+    public static final int TP_SWING_TICKS = 6;
+
+    /** 휘두르는 근접 무기의 3인칭 휘두르기 아이템: 사용 시간(틱)에 따라 무기가 옆으로 크게 휘둘러지는 프레임 */
+    public static ItemStack worldSwing(WeaponType type) {
+        return meleeStance(type, true);
+    }
+
+    /**
+     * 휘두르는 근접 무기의 3인칭 아이템 (두 손 대기 자세).
+     * "석궁 장전" 동작의 소모품으로 만들어, 보는 사람에게 "사용 중" 상태를 보내면 양손을 몸 앞에 모은 자세가 된다.
+     * 빠른 장전 IV 로 보조 팔이 0.25초 만에 자세를 잡는다 (반짝임은 끔). 공격하면 바닐라 휘두르기가 팔과 몸통을 비튼다.
+     */
+    private static ItemStack meleeStance(WeaponType type, boolean swing) {
+        ItemStack it = new ItemStack(Material.STICK);
+        it.setData(DataComponentTypes.ITEM_MODEL, Key.key(type.model() + (swing ? "_world_swing" : "_world")));
+        it.setData(DataComponentTypes.MAX_STACK_SIZE, 1);
+        it.setData(DataComponentTypes.TOOLTIP_DISPLAY, TooltipDisplay.tooltipDisplay().hideTooltip(true).build());
+        it.setData(DataComponentTypes.CONSUMABLE, io.papermc.paper.datacomponent.item.Consumable.consumable()
+                .consumeSeconds(3600f)
+                .animation(io.papermc.paper.datacomponent.item.consumable.ItemUseAnimation.CROSSBOW)
+                .sound(Key.key("minecraft:intentionally_empty"))
+                .hasConsumeParticles(false)
+                .build());
+        try {
+            it.setData(DataComponentTypes.ENCHANTMENTS, io.papermc.paper.datacomponent.item.ItemEnchantments.itemEnchantments()
+                    .add(org.bukkit.enchantments.Enchantment.QUICK_CHARGE, 4).build());
+            it.setData(DataComponentTypes.ENCHANTMENT_GLINT_OVERRIDE, false);
+        } catch (RuntimeException ignored) {
+            // 마법 부여 등록이 없으면 보조 팔이 천천히(1.25초) 자세를 잡을 뿐
+        }
+        it.setData(DataComponentTypes.ATTACK_ANIMATION, SwingAnimation.swingAnimation().type(SwingAnimation.Animation.WHACK).duration(TP_SWING_TICKS).build());
+        it.setData(DataComponentTypes.INTERACT_ANIMATION, SwingAnimation.swingAnimation().type(SwingAnimation.Animation.NONE).duration(1).build());
         return it;
     }
 

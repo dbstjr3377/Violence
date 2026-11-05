@@ -52,6 +52,7 @@ public final class ViolencePlugin extends JavaPlugin {
     private Shake shake;
     private CameraService camera;
     private dev.violence.fx.PoseSync poses;
+    private dev.violence.fx.FallService falls;
     private Hud hud;
     private CombatService combat;
     private GlassService glass;
@@ -87,6 +88,7 @@ public final class ViolencePlugin extends JavaPlugin {
         shake = new Shake();
         camera = new CameraService(this);
         poses = new dev.violence.fx.PoseSync(this);
+        falls = new dev.violence.fx.FallService(this);
         hud = new Hud(this);
         combat = new CombatService(this);
         glass = new GlassService(this);
@@ -213,6 +215,7 @@ public final class ViolencePlugin extends JavaPlugin {
     public Shake shake() { return shake; }
     public CameraService camera() { return camera; }
     public dev.violence.fx.PoseSync poses() { return poses; }
+    public dev.violence.fx.FallService falls() { return falls; }
     public Hud hud() { return hud; }
     public CombatService combat() { return combat; }
     public GlassService glass() { return glass; }

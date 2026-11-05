@@ -130,7 +130,8 @@ public final class PlayerCombatant extends Combatant {
             case DOWNED, BEING_EXECUTED -> {
                 dev.violence.fx.Poses.lying(player);
                 applyCrawl();
-                player.setInvisible(false);
+                // 넘어지는 동작(인형) 중에는 실제 몸을 숨김
+                player.setInvisible(plugin().falls() != null && plugin().falls().hiding(this));
             }
             case DEAD -> {
                 clearCrawl();

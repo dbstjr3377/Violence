@@ -190,6 +190,18 @@ def main():
         for i in range(4):
             if prefix + str(i) not in item_ids:
                 err(f"혈흔 모델 없음 {prefix}{i}")
+    # 3인칭 근접: 휘두르는 무기마다 대기/휘두르기 아이템, 휘두르기 길이는 플러그인과 같아야 함
+    import melee_tp
+    import models_melee
+    tick = re.search(r"TP_SWING_TICKS = (\d+);", java)
+    if not tick or int(tick.group(1)) != melee_tp.SWING_TICKS:
+        err(f"3인칭 휘두르기 길이 불일치: 자바 {tick.group(1) if tick else '없음'} / 리소스팩 {melee_tp.SWING_TICKS}")
+    for wid in models_melee.MELEE:
+        if wid == "pool_cue_short":
+            continue
+        for suffix in ("_world", "_world_swing"):
+            if f"violence:weapon/{wid}{suffix}" not in item_ids:
+                err(f"3인칭 근접 아이템 없음: {wid}{suffix}")
     # 가면
     for m in re.findall(r'^\s+([A-Z_]+)\("[^"]+", "[^"]+", "[^"]+"\)', open(os.path.join(src, "java", "dev", "violence", "mask", "Mask.java"), encoding="utf-8").read(), re.M):
         if "violence:mask/" + m.lower() not in item_ids:

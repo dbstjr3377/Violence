@@ -57,6 +57,12 @@ public abstract class Combatant {
     /** 끊기지 않고 이어진 휘두르기 횟수 (홀수 번째는 왼→오) */
     public int swingChain;
     public long dualToggle;
+    /** 3인칭 근접 대기 방향: true = 왼쪽 대기 (다음 휘두르기가 왼→오, 보는 사람에게 주 손을 왼손으로 보냄) */
+    public boolean tpStanceLeft;
+    /** 3인칭 휘두르기 아이템을 보여주는 중 (이 틱 전까지) */
+    public long tpSwingUntil = -100;
+    public WeaponType tpSwingType;
+    public int tpSwingSeq;
 
     protected Combatant(UUID id) {
         this.id = id;

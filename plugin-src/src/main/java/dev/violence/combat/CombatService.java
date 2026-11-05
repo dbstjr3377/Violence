@@ -266,6 +266,8 @@ public final class CombatService {
         boolean backhand = swings && (c.swingChain & 1) == 1;
         c.lastSwingTick = now;
         c.entity().swingMainHand();
+        // 3인칭: 두 손 대기 자세에서 무기를 옆으로 크게 휘두름 (연속 공격은 좌우를 번갈아)
+        if (swings) plugin.game().tpSwing(c, t, backhand, now);
         int animTicks = Math.max(6, Math.min(9, t.meleeCooldown()));
         if (c instanceof PlayerCombatant pcm) {
             if (swings) {
@@ -644,6 +646,7 @@ public final class CombatService {
         v.feelImpact(0.5);
         plugin.fx().sound(v.world(), v.eye(), "violence:hit.knockdown", 1.2f, 1f);
         v.refreshEquipment();
+        plugin.falls().start(v);   // 6프레임 넘어지는 동작
     }
 
     private void standUp(Combatant v, long now) {

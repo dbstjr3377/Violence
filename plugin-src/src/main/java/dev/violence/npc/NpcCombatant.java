@@ -73,6 +73,8 @@ public final class NpcCombatant extends Combatant {
 
     public ResolvableProfile profile() { return profile; }
 
+    public int outfitColor() { return outfitColor; }
+
     @Override public LivingEntity entity() { return body; }
     @Override public String name() { return name; }
     @Override public boolean isPlayer() { return false; }
@@ -121,7 +123,8 @@ public final class NpcCombatant extends Combatant {
     public void applyStateVisuals() {
         switch (state) {
             case DOWNED, BEING_EXECUTED -> {
-                body.setInvisible(false);
+                dev.violence.fx.FallService falls = ViolencePlugin.get().falls();
+                body.setInvisible(falls != null && falls.hiding(this));
                 dev.violence.fx.Poses.lying(body);
             }
             case DEAD -> {

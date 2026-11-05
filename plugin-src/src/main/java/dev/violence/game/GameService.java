@@ -221,6 +221,7 @@ public final class GameService {
 
     private void addPlayer(Arena a, Player p) {
         PlayerCombatant pc = new PlayerCombatant(p);
+        plugin.falls().prefetch(p);   // 넘어지는 인형 색 (스킨)
         Vec3 spot = plugin.spawns().choose(a, pc);
         Location l = new Location(a.world, spot.x(), spot.y(), spot.z(), plugin.random().nextFloat() * 360, 0);
         p.teleport(l);
@@ -288,11 +289,13 @@ public final class GameService {
             }
             plugin.doors().tick(a, now);
             plugin.ground().tick(a, now);
+            plugin.falls().tick();
             // 새로 시야에 들어온 사람에게도 3인칭 손 아이템이 보이도록 주기적으로 다시 보냄
             if (now % 10 == 0) {
                 for (PlayerCombatant pc : a.players.values()) syncHeld(pc);
                 for (NpcCombatant n : a.npcs) syncNpcPose(n);
             }
+            for (Combatant c : a.combatants.values()) resetStance(a, c, now);
             updateHud(a, now);
             List<Player> online = new ArrayList<>();
             for (PlayerCombatant pc : a.players.values()) online.add(pc.player());
@@ -386,27 +389,101 @@ public final class GameService {
     public void syncHeld(PlayerCombatant pc) {
         Arena a = plugin.arena();
         if (a == null) return;
-        java.util.Map<org.bukkit.inventory.EquipmentSlot, org.bukkit.inventory.ItemStack> eq = new java.util.EnumMap<>(org.bukkit.inventory.EquipmentSlot.class);
         WeaponType held = pc.weaponType(plugin.weapons().fist());
+        // 3인칭 휘두르기 프레임 재생 중에는 손 아이템을 다시 보내지 않음 (프레임이 처음으로 튐)
+        if (swingShowing(pc, held)) return;
+        java.util.Map<org.bukkit.inventory.EquipmentSlot, org.bukkit.inventory.ItemStack> eq = new java.util.EnumMap<>(org.bukkit.inventory.EquipmentSlot.class);
         eq.put(org.bukkit.inventory.EquipmentSlot.HAND, pc.state == CombatState.DEAD ? null : dev.violence.weapon.WeaponItems.world(held));
         eq.put(org.bukkit.inventory.EquipmentSlot.OFF_HAND, pc.offhand != null && pc.state != CombatState.DEAD ? dev.violence.weapon.WeaponItems.world(pc.offhand.type()) : null);
-        boolean oneArm = pc.state == CombatState.ALIVE && held.isGun() && dev.violence.weapon.WeaponItems.oneHanded(held);
+        boolean using = usingPose(pc, held);
+        if (!dev.violence.weapon.WeaponItems.swings(held)) pc.tpStanceLeft = false;
         for (PlayerCombatant viewer : a.players.values()) {
             if (viewer == pc || !viewer.player().isOnline()) continue;
+            plugin.poses().sendMainHand(viewer.player(), pc.player(), pc.tpStanceLeft);
             viewer.player().sendEquipmentChange(pc.player(), eq);
-            plugin.poses().sendUsing(viewer.player(), pc.player(), oneArm);
+            plugin.poses().sendUsing(viewer.player(), pc.player(), using);
         }
     }
 
-    /** NPC 의 권총 한 팔 조준 자세를 모든 플레이어에게 */
+    /** "사용 중" 자세가 필요한 손 아이템: 권총 한 팔 조준, 근접 무기 두 손 대기 */
+    private static boolean usingPose(Combatant c, WeaponType held) {
+        if (c.state != CombatState.ALIVE) return false;
+        return held.isGun() ? dev.violence.weapon.WeaponItems.oneHanded(held) : dev.violence.weapon.WeaponItems.swings(held);
+    }
+
+    private boolean swingShowing(Combatant c, WeaponType held) {
+        return c.state == CombatState.ALIVE && held == c.tpSwingType && plugin.now() < c.tpSwingUntil;
+    }
+
+    /** NPC 의 권총 한 팔 조준 / 근접 두 손 대기 자세를 모든 플레이어에게 */
     public void syncNpcPose(NpcCombatant n) {
         Arena a = plugin.arena();
         if (a == null) return;
         WeaponType held = n.weaponType(plugin.weapons().fist());
-        boolean oneArm = n.state == CombatState.ALIVE && held.isGun() && dev.violence.weapon.WeaponItems.oneHanded(held);
-        if (!oneArm && !n.poseSent) return;
-        n.poseSent = oneArm;
-        for (PlayerCombatant viewer : a.players.values()) plugin.poses().sendUsing(viewer.player(), n.entity(), oneArm);
+        if (swingShowing(n, held)) return;
+        boolean using = usingPose(n, held);
+        if (!dev.violence.weapon.WeaponItems.swings(held)) n.tpStanceLeft = false;
+        if (!using && !n.poseSent) return;
+        n.poseSent = using;
+        org.bukkit.Location at = n.entity().getLocation();
+        for (PlayerCombatant viewer : a.players.values()) {
+            Player vp = viewer.player();
+            // 멀리 있어 보이지 않는 NPC 는 건너뜀 (가까워지면 다음 주기에 받음)
+            if (!vp.isOnline() || vp.getWorld() != at.getWorld() || vp.getLocation().distanceSquared(at) > 72 * 72) continue;
+            // 주 손 기본값(오른손)은 서버가 이미 보냄 → 왼쪽 대기일 때만
+            if (n.tpStanceLeft) plugin.poses().sendMainHand(vp, n.entity(), true);
+            plugin.poses().sendUsing(vp, n.entity(), using);
+        }
+    }
+
+    /**
+     * 3인칭 근접 휘두르기 (보는 사람 모두에게).
+     * fromLeft 이면 주 손을 왼손으로 보내 왼→오로 휘두르고, 아니면 오른손 주 손으로 오→왼.
+     * 휘두르기 아이템으로 바꾸고 "사용 시작"을 다시 보내 프레임을 0 틱부터 재생한다.
+     * 끝나면 주 손을 반대로 바꿔 반대쪽 대기 자세가 된다 (휘두르기 끝 자세와 같은 방향이라 무기가 튀지 않음).
+     */
+    public void tpSwing(Combatant c, WeaponType t, boolean fromLeft, long now) {
+        Arena a = plugin.arena();
+        if (a == null || !dev.violence.weapon.WeaponItems.swings(t) || c.state != CombatState.ALIVE) return;
+        int seq = ++c.tpSwingSeq;
+        c.tpStanceLeft = fromLeft;
+        c.tpSwingType = t;
+        c.tpSwingUntil = now + dev.violence.weapon.WeaponItems.TP_SWING_TICKS;
+        sendHand(a, c, dev.violence.weapon.WeaponItems.worldSwing(t), fromLeft, true);
+        plugin.laterIn(a, dev.violence.weapon.WeaponItems.TP_SWING_TICKS, () -> {
+            if (c.tpSwingSeq != seq) return;
+            c.tpSwingType = null;
+            if (c.state != CombatState.ALIVE || c.weaponType(plugin.weapons().fist()) != t) return;
+            c.tpStanceLeft = !fromLeft;
+            sendHand(a, c, dev.violence.weapon.WeaponItems.world(t), c.tpStanceLeft, false);
+        });
+    }
+
+    private void sendHand(Arena a, Combatant c, org.bukkit.inventory.ItemStack item, boolean left, boolean restart) {
+        org.bukkit.entity.LivingEntity e = c.entity();
+        if (e == null) return;
+        java.util.Map<org.bukkit.inventory.EquipmentSlot, org.bukkit.inventory.ItemStack> eq = new java.util.EnumMap<>(org.bukkit.inventory.EquipmentSlot.class);
+        eq.put(org.bukkit.inventory.EquipmentSlot.HAND, item);
+        for (PlayerCombatant viewer : a.players.values()) {
+            if (viewer == c || !viewer.player().isOnline()) continue;
+            plugin.poses().sendMainHand(viewer.player(), e, left);
+            viewer.player().sendEquipmentChange(e, eq);
+            if (restart) plugin.poses().restartUsing(viewer.player(), e);
+            else plugin.poses().sendUsing(viewer.player(), e, true);
+        }
+    }
+
+    /** 연속 휘두르기가 끊기면(1인칭과 같은 기준) 다시 오른쪽 대기로 */
+    private void resetStance(Arena a, Combatant c, long now) {
+        if (!c.tpStanceLeft || plugin.now() < c.tpSwingUntil) return;
+        WeaponType t = c.weaponType(plugin.weapons().fist());
+        if (now - c.lastSwingTick <= t.meleeCooldown() + 12) return;
+        c.tpStanceLeft = false;
+        if (c.state != CombatState.ALIVE || !dev.violence.weapon.WeaponItems.swings(t)) return;
+        for (PlayerCombatant viewer : a.players.values()) {
+            if (viewer == c || !viewer.player().isOnline()) continue;
+            plugin.poses().sendMainHand(viewer.player(), c.entity(), false);
+        }
     }
 
     // ───────── 처치 ─────────
@@ -524,6 +601,7 @@ public final class GameService {
                         }
                     });
                 }
+                safe("넘어지는 인형 정리", () -> plugin.falls().clear());
                 safe("문 정리", () -> plugin.doors().clear(a));
                 safe("엔티티 정리", () -> {
                     for (Entity e : new ArrayList<>(a.tracked)) if (e.isValid()) e.remove();
