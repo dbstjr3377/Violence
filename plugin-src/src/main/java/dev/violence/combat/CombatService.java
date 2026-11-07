@@ -409,8 +409,12 @@ public final class CombatService {
         }
     }
 
+    /** 날이 있는 무기 (베는 소리) */
     private static boolean sharp(WeaponType t) {
-        return t.execution() == ExecutionStyle.AUTO;
+        return switch (t.id()) {
+            case "dagger", "katana", "fire_axe", "machete", "cleaver", "pool_cue_short" -> true;
+            default -> false;
+        };
     }
 
     // ───────────────────────────── 던지기 / 줍기 (우클릭) ─────────────────────────────
@@ -706,7 +710,11 @@ public final class CombatService {
         Execution e = new Execution(ex, victim);
         WeaponType t = ex.weaponType(fist());
         e.fast = ex.mask != null && ex.mask.fastExecution();
-        if (t.isGun()) {
+        // 벽에 기대 기절한 적: 어떤 상황이든(무기·가면 상관없이) 머리를 발로 차서 처형
+        boolean wallKick = plugin.falls().wallStunned(victim);
+        if (wallKick) {
+            e.style = ExecutionStyle.WALL_KICK;
+        } else if (t.isGun()) {
             if (ex.mask == Mask.DETECTIVE && ex.weapon.hasAmmo()) {
                 e.style = ExecutionStyle.GUN_SHOT;
             } else {
@@ -725,20 +733,29 @@ public final class CombatService {
         } else {
             e.style = t.execution();
         }
-        if (t.isFist() && ex.mask == Mask.TONY) e.style = ExecutionStyle.AUTO;
-        // 벽에 기대 기절한 적: 무기와 상관없이 머리를 발로 차서 처형
-        boolean wallKick = plugin.falls().wallStunned(victim);
-        if (wallKick) e.style = ExecutionStyle.WALL_KICK;
-        e.bikerStyle = ex.mask == Mask.BIKER && t.id().equals("cleaver");
+        // 처형 동작 (맨손 머리 박기 / 밟기 / 둔기 / 무거운 무기 / 가벼운 무기 / 날붙이)
+        dev.violence.fx.ExecutionAnims anims = plugin.falls().execAnims();
+        dev.violence.fx.ExecutionAnims.Anim anim = null;
+        if (!wallKick && e.style != ExecutionStyle.GUN_SHOT && anims != null) {
+            anim = anims.get(anims.animFor(t, ex.mask));
+        }
+        e.anim = anim == null ? null : anim.name();
+        if (anim != null) {
+            e.style = anim.hits() ? ExecutionStyle.HITS : ExecutionStyle.AUTO;
+            // 토니(맨주먹 즉사)·바이커 중식도는 왼클릭 처형도 자동으로 연달아 침
+            if (anim.hits() && ((t.isFist() && ex.mask == Mask.TONY) || (ex.mask == Mask.BIKER && t.id().equals("cleaver")))) {
+                e.autoHits = true;
+            }
+        }
         e.hitsLeft = t.isFist() ? fist().executionHits() : t.executionHits();
         if (e.fast) e.hitsLeft = Math.max(1, e.hitsLeft / 2);
         e.startTick = now;
-        int autoTicks = e.bikerStyle ? 22 : 16;
-        e.finishTick = now + (e.fast ? autoTicks / 2 : autoTicks);
+        e.finishTick = now + (e.fast ? 8 : 16);
         if (e.style == ExecutionStyle.GUN_SHOT) e.finishTick = now + (e.fast ? 6 : 12);
         int contact = plugin.falls().pose(dev.violence.fx.FallPose.Kind.KICK) == null ? 3
                 : Math.max(1, plugin.falls().pose(dev.violence.fx.FallPose.Kind.KICK).contact());
         if (e.style == ExecutionStyle.WALL_KICK) e.finishTick = now + contact + 1;
+        if (anim != null && !anim.hits()) e.finishTick = now + anim.kill();
         e.nextHitReady = now + 3;
         e.victimDownedRemaining = Math.max(20, victim.downedUntil - now);
         ex.execution = e;
@@ -750,15 +767,15 @@ public final class CombatService {
         if (face.lengthSq() < 0.01) face = ex.look().horizontal().normalize();
         Vec3 camPos;
         Vec3 camLook;
+        Location exAt;
         if (wallKick) {
             // 처형자를 기절한 적 앞(벽 반대쪽)에 세우고 발차기 인형
             Vec3 out = plugin.falls().wallFacing(victim);
             if (out == null) out = face.mul(-1);
             face = out.mul(-1);
-            Location front = Fx.loc(arena().world, vf.add(out.mul(0.6 * victim.scale())));   // 뻗은 다리 위에 서서
-            front.setYaw((float) face.yaw());
-            front.setPitch(25);
-            ex.teleport(front);
+            exAt = Fx.loc(arena().world, vf.add(out.mul(0.6 * victim.scale())));   // 뻗은 다리 위에 서서
+            exAt.setYaw((float) face.yaw());
+            exAt.setPitch(25);
             ex.actionLockUntil = now + 12;
             ex.moveLockUntil = now + 12;
             // 카메라: 옆에서 (발차기와 벽이 함께 보이게)
@@ -767,26 +784,30 @@ public final class CombatService {
             camPos = mid.add(side.mul(2.4)).add(out.mul(0.9)).add(0, 1.3, 0);
             camLook = mid.add(0, 0.8, 0);
         } else {
-            // 처형자를 누운 몸의 가슴 위에 머리 쪽을 보게 세움 (머리를 내려침)
+            // 처형자를 누운 몸 위에 머리 쪽을 보게 세움 (기준점: 동작마다 발에서 머리 쪽으로 anchor 블록, 가슴 0.85)
             Vec3 head = plugin.falls().head(victim);
             Vec3 chest = vf;
             if (head != null && head.sub(vf).horizontal().lengthSq() > 0.04) {
                 face = head.sub(vf).horizontal().normalize();
-                chest = vf.add(face.mul(head.sub(vf).horizontal().length() * 0.55));
+                double along = anim != null ? anim.anchor() * victim.scale() : head.sub(vf).horizontal().length() * 0.55;
+                chest = vf.add(face.mul(along));
             }
-            Location onTop = Fx.loc(arena().world, chest.add(face.mul(-0.1)).add(0, 0.05, 0));
-            onTop.setYaw((float) face.yaw());
-            onTop.setPitch(55);
-            ex.teleport(onTop);
+            exAt = Fx.loc(arena().world, (anim != null ? chest : chest.add(face.mul(-0.1))).add(0, anim != null ? 0 : 0.05, 0));
+            exAt.setYaw((float) face.yaw());
+            exAt.setPitch(55);
             // 카메라: 처형자의 뒤 오른쪽 위에서 머리를 봄 (처형자 몸에 머리가 가리지 않게)
             Vec3 right = face.cross(Vec3.UP).normalize();
             camPos = chest.sub(face.mul(1.5)).add(right.mul(1.1)).add(0, 2.7, 0);
             camLook = head != null ? head : vf.add(0, 0.4, 0);
         }
+        ex.teleport(exAt);
         ex.history.clear();   // 순간 이동한 앞쪽 위치로 판정되지 않게
         ex.refreshEquipment();
-        // 발차기 인형은 장비를 다시 보낸 뒤에 시작 (실제 몸과 손 아이템을 숨김)
+        // 인형은 장비를 다시 보낸 뒤에 시작 (실제 몸과 손 아이템을 숨김)
         if (wallKick) plugin.falls().kick(ex, (float) face.yaw());
+        if (anim != null && !plugin.falls().startExec(ex, victim, anim.name(), t, exAt, (float) face.yaw())) {
+            e.anim = null;   // 인형을 못 만들면 예전 연출(휘두르기)로
+        }
         ItemDisplay cam = null;
         if (ex.isPlayer() || victim.isPlayer()) {
             Vec3 lookDir = camLook.sub(camPos).normalize();
@@ -804,28 +825,141 @@ public final class CombatService {
                 if (ex.execution == e) wallKickStrike(e);
             });
         }
-        if (e.style == ExecutionStyle.AUTO) {
-            // 자동 처형 중간 타격 연출
-            int strikes = e.bikerStyle ? 3 : 1;
-            long span = e.finishTick - now;
-            for (int i = 1; i <= strikes; i++) {
-                long at = (span * i) / (strikes + 1);
-                plugin.laterIn(arena(), (int) Math.max(1, at), () -> {
-                    if (ex.execution == e) executionStrike(e, false);
+        final dev.violence.fx.ExecutionAnims.Anim fa = anim;
+        if (wallKick) {
+            // 위에서 처리
+        } else if (e.anim != null && fa != null && !fa.hits()) {
+            // 자동 처형: 동작의 닿는 틱마다 피, 추가 피(뽑기·동맥)
+            int[] impacts = fa.impacts();
+            for (int k = 0; k < impacts.length; k++) {
+                boolean last = k == impacts.length - 1;
+                plugin.laterIn(arena(), Math.max(1, impacts[k]), () -> {
+                    if (ex.execution == e) executionImpact(e, last);
                 });
             }
+            for (dev.violence.fx.ExecutionAnims.Event ev : fa.events()) {
+                plugin.laterIn(arena(), Math.max(1, ev.tick()), () -> executionEvent(e, ev.kind()));
+            }
+        } else if (e.anim != null && e.autoHits) {
+            for (int k = 0; k < e.hitsLeft; k++) {
+                plugin.laterIn(arena(), 3 + k * Math.max(4, fa.strikeLength() - 2), () -> {
+                    if (ex.execution == e) executionClick(ex, plugin.now(), true);
+                });
+            }
+        } else if (e.anim == null && e.style == ExecutionStyle.AUTO) {
+            // 예전 자동 처형: 중간 타격 한 번
+            plugin.laterIn(arena(), (int) Math.max(1, (e.finishTick - now) / 2), () -> {
+                if (ex.execution == e) executionStrike(e, false);
+            });
         }
     }
 
     /** 처형 중 왼클릭 */
     public void executionClick(Combatant ex, long now) {
+        executionClick(ex, now, false);
+    }
+
+    private void executionClick(Combatant ex, long now, boolean auto) {
         Execution e = ex.execution;
         if (e == null || e.executor != ex) return;
-        if (e.style != ExecutionStyle.HITS || now < e.nextHitReady) return;
-        e.nextHitReady = now + (e.fast ? 3 : 6);
+        if (e.style != ExecutionStyle.HITS || (e.autoHits && !auto) || now < e.nextHitReady || e.hitsLeft <= 0) return;
         e.hitsLeft--;
-        executionStrike(e, e.hitsLeft <= 0);
-        if (e.hitsLeft <= 0) finishExecution(e);
+        boolean last = e.hitsLeft <= 0;
+        int impact = e.anim != null ? plugin.falls().strike(ex) : -1;
+        if (impact < 0) {
+            // 인형 없이: 바로 타격
+            e.nextHitReady = now + (e.fast ? 3 : 6);
+            executionStrike(e, last);
+            if (last) finishExecution(e);
+            return;
+        }
+        // 인형이 한 번 치는 동작을 하고, 머리에 닿는 틱에 피·소리 → 마지막이면 그다음 틱에 처치
+        dev.violence.fx.ExecutionAnims.Anim anim = plugin.falls().execAnims().get(e.anim);
+        e.nextHitReady = now + Math.max(3, anim.strikeLength() - (e.fast ? 3 : 1));
+        plugin.laterIn(arena(), Math.max(1, impact), () -> {
+            if (ex.execution != e) return;
+            executionImpact(e, last);
+            if (last) finishExecution(e);
+        });
+    }
+
+    /**
+     * 처형 동작이 머리에 닿음: 동작마다 다른 피와 소리.
+     *  맨손: 머리를 바닥에 박음 → 머리 밑에 튀고 위로 방울 / 밟기: 사방으로 크게 튐
+     *  둔기·가벼운 무기: 내려친 방향으로 튐 / 무거운 무기: 양옆으로 크게 튀고 바닥에 크게 고임 / 날붙이: 목에서 옆으로 뿜어 나옴
+     */
+    private void executionImpact(Execution e, boolean last) {
+        Combatant ex = e.executor;
+        Combatant v = e.victim;
+        Arena a = arena();
+        if (a == null) return;
+        Vec3 head = headPoint(v);
+        Vec3 out = head.sub(ex.feet()).horizontal();
+        out = out.lengthSq() < 1e-6 ? ex.look().horizontal().normalize() : out.normalize();
+        Vec3 side = out.cross(Vec3.UP).normalize();
+        WeaponType t = ex.weaponType(fist());
+        String name = e.anim == null ? "fist" : e.anim;
+        switch (name) {
+            case "fist" -> {
+                plugin.fx().sound(ex.world(), head, last ? "violence:melee.blunt_hit" : "violence:melee.punch_hit", 1.4f, last ? 0.7f : 0.9f);
+                plugin.blood().spray(a, head, new Vec3(0, 0.7, 0).add(out.mul(0.3)), last ? 4 : 2);
+                plugin.blood().floorSplat(a, head, last ? 0.8f : 0.45f);
+            }
+            case "stomp" -> {
+                plugin.fx().sound(ex.world(), head, "violence:melee.blunt_hit", 1.6f, 0.55f);
+                plugin.fx().sound(ex.world(), head, "violence:melee.kick", 1.2f, 0.7f);
+                plugin.blood().spray(a, head, side.add(0, 0.3, 0), 4);
+                plugin.blood().spray(a, head, side.mul(-1).add(0, 0.3, 0), 4);
+                plugin.blood().floorSplat(a, head, 1.0f);
+                plugin.blood().floorSplat(a, head.add(out.mul(0.5)), 0.6f);
+            }
+            case "heavy" -> {
+                plugin.fx().sound(ex.world(), head, sharp(t) ? "violence:melee.slash_hit" : "violence:melee.blunt_hit", 1.6f, 0.6f);
+                plugin.blood().spray(a, head, side.add(0, 0.25, 0), 4);
+                plugin.blood().spray(a, head, side.mul(-1).add(0, 0.25, 0), 4);
+                plugin.blood().floorSplat(a, head, 1.1f);
+            }
+            case "blade" -> {
+                plugin.fx().sound(ex.world(), head, "violence:melee.slash_hit", 1.4f, 0.8f);
+                Vec3 neck = head.sub(out.mul(0.22 * v.scale()));
+                plugin.blood().jet(a, neck, side.add(0, 0.35, 0), 16);
+                plugin.blood().floorSplat(a, neck, 0.7f);
+            }
+            default -> {   // blunt, light
+                boolean light = "light".equals(name);
+                plugin.fx().sound(ex.world(), head, sharp(t) ? "violence:melee.slash_hit" : "violence:melee.blunt_hit", 1.4f, last ? 0.75f : 0.95f);
+                plugin.blood().spray(a, head, out.mul(0.8).add(0, 0.45, 0), last ? 4 : (light ? 2 : 3));
+                plugin.blood().floorSplat(a, head, light ? 0.45f : 0.6f);
+            }
+        }
+        ex.feelImpact(last ? 0.7 : 0.4);
+        v.feelImpact(last ? 0.8 : 0.5);
+    }
+
+    /** 처형 동작 중 추가 피: 무거운 무기를 흔들어 뽑음(tug), 뽑아 올림(pull) */
+    private void executionEvent(Execution e, String kind) {
+        Arena a = arena();
+        if (a == null) return;
+        Combatant ex = e.executor;
+        Vec3 head = e.victim.state == CombatState.DEAD ? lastHead(e) : headPoint(e.victim);
+        if (head == null) return;
+        Vec3 back = ex.feet().sub(head).horizontal();
+        back = back.lengthSq() < 1e-6 ? Vec3.UP : back.normalize();
+        switch (kind) {
+            case "tug" -> {
+                plugin.blood().spray(a, head, new Vec3(0, 1, 0), 1);
+                plugin.fx().sound(ex.world(), head, "violence:melee.blunt_hit", 0.7f, 0.5f);
+            }
+            case "pull" -> {
+                plugin.blood().spray(a, head.add(0, 0.3, 0), back.add(0, 0.8, 0), 3);
+                plugin.fx().sound(ex.world(), head, "violence:melee.slash_hit", 1.0f, 0.6f);
+            }
+            default -> { }
+        }
+    }
+
+    private Vec3 lastHead(Execution e) {
+        return e.lastHead;
     }
 
     private void executionStrike(Execution e, boolean finalBlow) {
@@ -870,10 +1004,18 @@ public final class CombatService {
             plugin.fx().sound(ex.world(), v.eye(), ex.weapon.type().sound(), 2.5f, 0.9f);
             plugin.fx().muzzle(arena(), ex.eye(), v.feet().sub(ex.eye()).normalize(), false);
         }
-        if (e.style != ExecutionStyle.HITS && e.style != ExecutionStyle.WALL_KICK) executionStrike(e, true);
+        if (e.anim == null && e.style != ExecutionStyle.HITS && e.style != ExecutionStyle.WALL_KICK) executionStrike(e, true);
+        e.lastHead = headPoint(v);
         ex.execution = null;
         v.execution = null;
         ex.actionLockUntil = now + 4;
+        if (e.anim != null) {
+            // 처형 동작을 마저 하는 동안 (무거운 무기 뽑기 등) 움직이지 못함
+            int rest = plugin.falls().execRemaining(ex);
+            ex.actionLockUntil = now + Math.max(4, rest);
+            ex.moveLockUntil = now + rest;
+            plugin.falls().finishExec(ex);
+        }
         ex.setState(CombatState.ALIVE, now);
         ex.onExecutionEnd(e);
         kill(v, ex, KillType.EXECUTION, new Vec3(0, -1, 0), false);
@@ -885,6 +1027,7 @@ public final class CombatService {
         if (e == null) return;
         long now = plugin.now();
         executions.remove(e);
+        plugin.falls().cancelExec(e.executor);
         Combatant ex = e.executor;
         Combatant v = e.victim;
         ex.execution = null;

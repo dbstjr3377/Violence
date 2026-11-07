@@ -176,6 +176,18 @@ def hammer(name="hammer", short=False):
     return m.mirror_z()
 
 
+def sledgehammer():
+    """오함마: 긴 나무 자루 + 큰 쇠 머리 (양쪽 치는 면)"""
+    m = Model("sledgehammer", seed=118, auto_round=0.16)
+    rod(m, 0, 27, 0.85, "wood_y")
+    rod(m, 0, 5, 1.0, "grip", painter=wrap(0.9))
+    m.box([6.6, 25.0, 3.4], [9.4, 29.8, 12.6], "dark_steel")                  # 머리
+    m.box([6.9, 25.3, 2.4], [9.1, 29.5, 3.4], "steel")                        # 치는 면
+    m.box([6.9, 25.3, 12.6], [9.1, 29.5, 13.6], "steel")
+    m.box([7.2, 24.2, 6.6], [8.8, 25.0, 9.4], "dark_steel")                   # 쐐기
+    return m
+
+
 def briefcase():
     """손잡이를 쥐고 가방 몸통이 위로 서도록 (몽둥이처럼 휘두름)"""
     m = Model("briefcase", seed=114, auto_round=0.16)
@@ -277,7 +289,7 @@ MELEE = {
     "dagger": lambda: dagger(), "bat": bat, "pipe": pipe, "golf_club": golf_club, "fire_axe": fire_axe,
     "machete": machete, "pot": pot, "frying_pan": frying_pan, "crowbar": crowbar, "katana": katana,
     "baton": baton, "hammer": lambda: hammer(), "briefcase": briefcase, "pool_cue": lambda: pool_cue(False),
-    "pool_cue_short": lambda: pool_cue(True), "cleaver": cleaver,
+    "pool_cue_short": lambda: pool_cue(True), "cleaver": cleaver, "sledgehammer": sledgehammer,
 }
 THROWABLES = {
     "small_hammer": lambda: hammer("small_hammer", True), "bottle": bottle, "throwing_knife": throwing_knife,

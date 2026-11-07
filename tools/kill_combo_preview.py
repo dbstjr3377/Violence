@@ -237,7 +237,7 @@ class Blood:
                     along /= np.linalg.norm(along)
                     shape, sx, sz, head = "drip", size * 1.7, size * 1.1, 0.24
                 elif glance >= 0.45 and along is not None:
-                    shape, sx, sz, head = "streak", size * 1.6 * (1 + glance * 1.2), size * 0.8, 0.26
+                    shape, sx, sz, head = "streak", size * 1.6 * (1 + glance * 0.45), size * 1.35, 0.26
                 else:
                     shape, sx, sz, head, along = "splat", size * 1.25, size * 1.25, 0, None
                 count = {"splat": 3, "streak": 3, "drip": 3, "drops": 2, "spray": 2}[shape]

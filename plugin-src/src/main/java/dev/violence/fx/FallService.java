@@ -78,6 +78,46 @@ public final class FallService {
     private final Map<UUID, Lying> downed = new HashMap<>();
     /** 발차기 중인 처형자 */
     private final Map<UUID, Lying> acting = new HashMap<>();
+    /** 처형 중 (처형자 id) */
+    private final Map<UUID, ExecAct> execs = new HashMap<>();
+    private final ExecutionAnims execAnims;
+
+    /** 처형 동작: 처형자 인형(+무기)과 피처형자 인형 */
+    private static final class ExecAct {
+        final Combatant ex;
+        final Combatant victim;
+        final Arena arena;
+        final ExecutionAnims.Anim anim;
+        final Lying exPuppet;
+        final Lying vPuppet;
+        final Lying vLying;
+        ItemDisplay weapon;
+        double[] grip;
+        ItemStack[] victimEquip;
+        boolean victimReleased;
+        /** 0 = 대기(ready), 1 = 한 번 치기(strike), 2 = 전체(full) */
+        int mode;
+        int tick;
+        boolean ending;
+
+        ExecAct(Combatant ex, Combatant victim, Arena arena, ExecutionAnims.Anim anim, Lying exPuppet, Lying vPuppet, Lying vLying) {
+            this.ex = ex;
+            this.victim = victim;
+            this.arena = arena;
+            this.anim = anim;
+            this.exPuppet = exPuppet;
+            this.vPuppet = vPuppet;
+            this.vLying = vLying;
+        }
+
+        ExecutionAnims.Track exTrack() {
+            return mode == 0 ? anim.readyExec() : mode == 1 ? anim.strikeExec() : anim.fullExec();
+        }
+
+        ExecutionAnims.Track vTrack() {
+            return mode == 0 ? anim.readyVictim() : mode == 1 ? anim.strikeVictim() : anim.fullVictim();
+        }
+    }
     /** 넘어지는 중인 시체 */
     private final List<Lying> falling = new ArrayList<>();
     private final Map<UUID, int[]> skins = new ConcurrentHashMap<>();
@@ -88,7 +128,7 @@ public final class FallService {
         final Combatant victim;
         final Arena arena;
         final FallPose.Kind kind;
-        final FallPose pose;
+        FallPose pose;
         /** 넘어지기 전 몸 방향 → 넘어지는 방향(맞은 쪽을 봄) */
         final float startYaw;
         final float yaw;
@@ -139,11 +179,21 @@ public final class FallService {
             p = null;
         }
         this.poses = p;
+        ExecutionAnims ea;
+        try {
+            ea = ExecutionAnims.load();
+        } catch (RuntimeException e) {
+            plugin.getLogger().log(Level.WARNING, "execution.json 읽기 실패 - 처형 동작 없이 진행합니다: " + e);
+            ea = null;
+        }
+        this.execAnims = ea;
     }
+
+    public ExecutionAnims execAnims() { return execAnims; }
 
     /** 실제 몸을 숨기고 대역(인형/마네킹)을 보여주는 중인지 (쓰러짐, 처형 발차기) */
     public boolean hiding(Combatant c) {
-        return downed.containsKey(c.id) || acting.containsKey(c.id);
+        return downed.containsKey(c.id) || acting.containsKey(c.id) || execs.containsKey(c.id);
     }
 
     public FallPose pose(FallPose.Kind k) {
@@ -222,6 +272,10 @@ public final class FallService {
      * execution 이면 자리를 잡은 뒤 머리에서 피가 흐른다.
      */
     public Mannequin corpse(Arena a, Combatant v, Vec3 push, boolean strong, boolean execution) {
+        // 처형 중에 죽으면 피처형자 인형을 치우고 누운 대역(=시체)을 다시 보임 (처형자 인형은 동작을 마저 함)
+        for (ExecAct act : execs.values()) {
+            if (act.victim == v) releaseVictim(act);
+        }
         Lying l = downed.remove(v.id);
         if (l != null) {
             // 실제 몸은 죽어서 숨겨진 상태 → 다음 틱에 실제 장비(죽으며 비워짐)를 다시 보냄
@@ -262,6 +316,162 @@ public final class FallService {
         l.execution = execution;
         falling.add(l);
         return l.body;
+    }
+
+    // ───────── 처형 동작 ─────────
+
+    /**
+     * 처형 동작 시작. 처형자는 at(발 위치)에서 yaw(누운 적의 머리 쪽)를 보고, 인형이 동작을 한다.
+     * 피처형자는 누운 대역 대신 인형이 머리·팔을 움직인다. weapon 이 있으면 처형자 오른손에 들림.
+     * 등으로 누운 대역이 없으면(벽 기절 등) false.
+     */
+    public boolean startExec(Combatant ex, Combatant victim, String animName, dev.violence.weapon.WeaponType weapon, Location at, float yaw) {
+        Arena a = plugin.arena();
+        LivingEntity e = ex.entity();
+        Lying vl = downed.get(victim.id);
+        ExecutionAnims.Anim anim = execAnims == null ? null : execAnims.get(animName);
+        if (a == null || e == null || anim == null || vl == null || vl.pose.end() != FallPose.End.FACE_UP || execs.containsKey(ex.id)) return false;
+        int mode = anim.hits() ? 0 : 2;
+        ExecutionAnims.Track et = mode == 0 ? anim.readyExec() : anim.fullExec();
+        ExecutionAnims.Track vt = mode == 0 ? anim.readyVictim() : anim.fullVictim();
+        Lying exP = new Lying(ex, a, FallPose.Kind.KICK, et.pose(), yaw, yaw);
+        exP.start = exP.end = feet(at);
+        Location vAt = vl.anchor(vl.pose.frameCount() - 1);
+        Lying vP = new Lying(victim, a, FallPose.Kind.KICK, vt.pose(), vl.yaw, vl.yaw);
+        vP.start = vP.end = vAt;
+        if (!spawnPuppet(a, ex, exP)) return false;
+        if (!spawnPuppet(a, victim, vP)) {
+            removePuppet(exP);
+            return false;
+        }
+        ExecAct act = new ExecAct(ex, victim, a, anim, exP, vP, vl);
+        act.mode = mode;
+        if (!"none".equals(anim.weapon()) && weapon != null && !weapon.isFist()) {
+            act.grip = execAnims.grip(weapon.id());
+            try {
+                act.weapon = a.track(a.world.spawn(exP.start, ItemDisplay.class, d -> setup(d, dev.violence.weapon.WeaponItems.create(weapon, 0))));
+            } catch (RuntimeException ignored) {
+                act.weapon = null;
+            }
+        }
+        // 실제 몸 숨김: 처형자 (장비 포함), 피처형자 대역
+        e.setInvisible(true);
+        sendEquipment(a, ex, true);
+        if (vl.body != null && vl.body.isValid()) {
+            EntityEquipment eq = vl.body.getEquipment();
+            act.victimEquip = new ItemStack[] {eq.getHelmet(), eq.getChestplate(), eq.getLeggings(), eq.getBoots()};
+            eq.setHelmet(null);
+            eq.setChestplate(null);
+            eq.setLeggings(null);
+            eq.setBoots(null);
+            vl.body.setInvisible(true);
+        }
+        execs.put(ex.id, act);
+        placeAct(act, 0, false);
+        return true;
+    }
+
+    /** 왼클릭 처형: 한 번 치는 동작 재생. 머리에 닿는 틱(지금부터)을 돌려줌, 없으면 -1 */
+    public int strike(Combatant ex) {
+        ExecAct act = execs.get(ex.id);
+        if (act == null || !act.anim.hits()) return -1;
+        act.mode = 1;
+        act.tick = 0;
+        placeAct(act, 0, true);
+        return act.anim.impact();
+    }
+
+    /** 처형이 끝남: 지금 동작(치기/전체)을 마저 하고 실제 몸으로 */
+    public void finishExec(Combatant ex) {
+        ExecAct act = execs.get(ex.id);
+        if (act == null) return;
+        act.ending = true;
+        if (act.mode == 0) endExec(act);
+    }
+
+    /** 처형 취소: 바로 실제 몸으로, 피처형자 대역도 다시 보임 */
+    public void cancelExec(Combatant ex) {
+        ExecAct act = execs.get(ex.id);
+        if (act != null) endExec(act);
+    }
+
+    /** 처형 인형이 남은 틱 수 (처형자 행동 잠금용) */
+    public int execRemaining(Combatant ex) {
+        ExecAct act = execs.get(ex.id);
+        if (act == null) return 0;
+        return Math.max(0, act.exTrack().length() - act.tick);
+    }
+
+    private void releaseVictim(ExecAct act) {
+        if (act.victimReleased) return;
+        act.victimReleased = true;
+        removePuppet(act.vPuppet);
+        Mannequin body = act.vLying.body;
+        if (body != null && body.isValid()) {
+            if (act.victimEquip != null) {
+                EntityEquipment eq = body.getEquipment();
+                eq.setHelmet(act.victimEquip[0]);
+                eq.setChestplate(act.victimEquip[1]);
+                eq.setLeggings(act.victimEquip[2]);
+                eq.setBoots(act.victimEquip[3]);
+            }
+            body.setInvisible(false);
+        }
+    }
+
+    private void endExec(ExecAct act) {
+        execs.remove(act.ex.id);
+        removePuppet(act.exPuppet);
+        if (act.weapon != null && act.weapon.isValid()) act.weapon.remove();
+        releaseVictim(act);
+        LivingEntity e = act.ex.entity();
+        if (e == null || !e.isValid() || plugin.arena() != act.arena || !act.arena.combatants.containsKey(act.ex.id)) return;
+        act.ex.applyStateVisuals();
+        sendEquipment(act.arena, act.ex, false);
+    }
+
+    private void tickExecs() {
+        for (ExecAct act : new ArrayList<>(execs.values())) {
+            LivingEntity e = act.ex.entity();
+            if (e == null || !e.isValid() || plugin.arena() != act.arena || !act.arena.combatants.containsKey(act.ex.id)) {
+                endExec(act);
+                continue;
+            }
+            if (act.mode == 0) continue;
+            act.tick++;
+            if (act.tick >= act.exTrack().length()) {
+                if (act.mode == 2 || act.ending) {
+                    endExec(act);
+                    continue;
+                }
+                act.mode = 0;
+                act.tick = 0;
+            }
+            placeAct(act, act.tick, true);
+        }
+    }
+
+    private void placeAct(ExecAct act, int frame, boolean animate) {
+        ExecutionAnims.Track et = act.exTrack();
+        act.exPuppet.pose = et.pose();
+        int f = Math.min(frame, et.length() - 1);
+        place(act.exPuppet, f, animate);
+        if (act.weapon != null && act.weapon.isValid() && act.grip != null) {
+            FallPose.Placement w = ExecutionAnims.weapon(et, f, act.exPuppet.scale, act.grip);
+            Vector3d c = FallPose.toWorld(w.center(), act.exPuppet.yaw);
+            // 디스플레이가 아이템을 Y180° 돌려 그리므로 미리 되돌림
+            Quaternionf r = new Quaternionf(FallPose.toWorld(w.rotation(), act.exPuppet.yaw)).rotateY((float) Math.PI);
+            float sc = (float) (ExecutionAnims.WEAPON_SCALE * act.exPuppet.scale);
+            if (act.weapon.getLocation().distanceSquared(act.exPuppet.start) > 1e-4) act.weapon.teleport(act.exPuppet.start);
+            act.weapon.setTransformation(new Transformation(new Vector3f((float) c.x, (float) c.y, (float) c.z), r,
+                    new Vector3f(sc, sc, sc), new Quaternionf()));
+            if (animate) act.weapon.setInterpolationDelay(0);
+        }
+        if (!act.victimReleased) {
+            ExecutionAnims.Track vt = act.vTrack();
+            act.vPuppet.pose = vt.pose();
+            place(act.vPuppet, Math.min(frame, vt.length() - 1), animate);
+        }
     }
 
     /** 처형자 발차기 인형 (yaw: 피처형자를 보는 방향). 끝나면 실제 몸으로 돌아감 */
@@ -426,6 +636,7 @@ public final class FallService {
     // ───────── 매 틱 ─────────
 
     public void tick() {
+        if (!execs.isEmpty()) tickExecs();
         if (!downed.isEmpty()) {
             for (Lying l : new ArrayList<>(downed.values())) {
                 LivingEntity e = l.victim.entity();
@@ -534,6 +745,8 @@ public final class FallService {
 
     /** 아레나 정리 시: 모두 실제 몸으로 */
     public void clear() {
+        for (ExecAct act : new ArrayList<>(execs.values())) endExec(act);
+        execs.clear();
         for (Lying l : new ArrayList<>(downed.values())) end(l, true);
         for (Lying l : new ArrayList<>(acting.values())) end(l, true);
         for (Lying l : falling) removePuppet(l);

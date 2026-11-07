@@ -15,7 +15,12 @@ public final class Execution {
     /** 피처형자의 쓰러짐 남은 시간 (취소 시 복원) */
     public long victimDownedRemaining;
     public boolean fast;
-    public boolean bikerStyle;
+    /** 처형 동작 이름 (execution.json: fist / stomp / blunt / heavy / light / blade), 없으면 예전 연출 */
+    public String anim;
+    /** 왼클릭 처형을 자동으로 연달아 침 (토니, 바이커 중식도) */
+    public boolean autoHits;
+    /** 처치된 순간의 머리 위치 (처형 뒤 추가 피) */
+    public dev.violence.math.Vec3 lastHead;
 
     public Execution(Combatant executor, Combatant victim) {
         this.executor = executor;

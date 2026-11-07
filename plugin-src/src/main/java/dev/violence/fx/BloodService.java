@@ -30,9 +30,9 @@ import org.joml.Vector3f;
  *
  * 핏방울은 공격 방향으로 튀어 중력을 받으며 날아가고(날아가는 동안은 붉은 입자),
  * 바닥이나 벽에 닿으면 그 면에 붙는 혈흔(아이템 디스플레이)이 된다.
- * 혈흔은 면의 방향에 맞춰 눕거나 서고, 상황에 따라 모양이 다르다 (핫라인 마이애미 풍 두 가지 색 픽셀 그림):
+ * 혈흔은 면의 방향에 맞춰 눕거나 서고, 상황에 따라 모양이 다르다 (한 가지 빨강, 굵은 픽셀 그림):
  *  - 바닥에 곧게 떨어짐: 둥근 얼룩 + 왕관처럼 튄 방울 (splat)
- *  - 비스듬히 닿음: 날아가던 쪽으로 늘어나는 꼬리 (streak)
+ *  - 비스듬히 닿음: 날아가던 쪽으로 넓게 퍼짐 (streak)
  *  - 벽: 아래로 흘러내리는 줄기 (drip)
  *  - 작은 방울: 점 몇 개 (drops)
  *  - 강한 공격(헤드샷·처형·샷건)의 첫 방울: 부채꼴로 흩뿌림 (spray)
@@ -144,6 +144,32 @@ public final class BloodService {
         });
     }
 
+    /** 처형: 머리·목 밑 바닥에 바로 혈흔 (모양: 둥근 얼룩, 크면 흩뿌림을 하나 더) */
+    public void floorSplat(Arena a, Vec3 at, float size) {
+        Vec3 floor = floorBelow(a, at.add(0, 0.4, 0), 2.0);
+        if (floor == null) return;
+        decal(a, floor, Vec3.UP, null, "violence:fx/blood_splat_" + rnd.nextInt(SHAPES.get("splat")), size, size, SPLAT_LIFE + 60);
+        if (size >= 0.7f) {
+            decal(a, floor, Vec3.UP, null, "violence:fx/blood_spray_" + rnd.nextInt(SHAPES.get("spray")), size * 1.8f, size * 1.4f, SPLAT_LIFE + 60);
+        }
+    }
+
+    /** 동맥: from 에서 dir 쪽으로 ticks 동안 맥박치듯 뿜어져 나옴 (날붙이 처형) */
+    public void jet(Arena a, Vec3 from, Vec3 dir, int ticks) {
+        Vec3 d = dir.normalize();
+        for (int t = 0; t < ticks; t++) {
+            final int k = t;
+            plugin.laterIn(a, t, () -> {
+                double pulse = (k % 4 < 2 ? 1.0 : 0.55) * (1.0 - k / (double) (ticks + 4));
+                for (int i = 0; i < 2; i++) {
+                    Vec3 r = new Vec3(rnd.nextGaussian(), rnd.nextGaussian(), rnd.nextGaussian()).mul(0.12);
+                    Vec3 v = d.add(r).normalize().mul(0.16 + 0.14 * pulse);
+                    drops.add(new Drop(a, from, v, 0.24f + rnd.nextFloat() * 0.12f, false));
+                }
+            });
+        }
+    }
+
     public void tick() {
         if (!drops.isEmpty()) {
             for (Iterator<Drop> it = drops.iterator(); it.hasNext(); ) {
@@ -225,10 +251,11 @@ public final class BloodService {
             sz = size * 1.1f;
             head = 0.24;
         } else if (glance >= 0.45 && along != null) {
+            // 넓게 퍼짐 (가늘고 길게 늘이지 않음)
             shape = "streak";
-            float stretch = (float) (1.0 + glance * 1.2);
+            float stretch = (float) (1.0 + glance * 0.45);
             sx = size * 1.6f * stretch;
-            sz = size * 0.8f;
+            sz = size * 1.35f;
             head = 0.26;
         } else {
             shape = "splat";

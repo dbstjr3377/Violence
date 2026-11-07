@@ -375,105 +375,87 @@ def splat(path, color, size=32, blobs=9, spread=0.38, seed=0, holes=False):
 BLOOD_FADE = [1.0, 0.8, 0.6, 0.42, 0.26, 0.12]
 
 
-# 피 (핫라인 마이애미 / 카타나 제로 풍): 두 가지 색만 쓰는 선명한 픽셀 그림
-BLOOD_MAIN = (184, 14, 24)
-BLOOD_DARK = (106, 4, 14)
-# 상황별 모양: 이름 → (종류, 개수). 그림의 +x 가 늘어나는 방향(진행 방향 / 벽에서는 아래)
+# 피 (참고 그림 풍): 한 가지 빨강, 굵은 픽셀(32px), 덩어리 + 네모난 파편 + 가는 흘러내림
+BLOOD_COLOR = (200, 10, 16)
+# 상황별 모양: 이름 → 개수. 그림의 +x 가 늘어나는 방향(진행 방향 / 벽에서는 아래)
 BLOOD_SHAPES = {"splat": 3, "streak": 3, "drip": 3, "drops": 2, "spray": 2}
 
 
-def _disc(d, x, y, r, fill=1):
-    d.ellipse([x - r, y - r, x + r, y + r], fill=fill)
+def _blob(d, x, y, r, rng):
+    """울퉁불퉁한 덩어리: 겹친 사각형 + 원"""
+    d.ellipse([x - r, y - r * 0.9, x + r, y + r * 0.9], fill=1)
+    for k in range(6):
+        a = rng.uniform(0, math.tau)
+        rr = r * rng.uniform(0.45, 0.7)
+        cx, cy = x + math.cos(a) * r * 0.55, y + math.sin(a) * r * 0.55
+        d.rectangle([cx - rr, cy - rr * 0.8, cx + rr, cy + rr * 0.8], fill=1)
 
 
-def blood_mask(kind, seed, size=64):
-    """1비트 모양 (0/1). 안티앨리어싱 없이 그려 가장자리가 또렷한 픽셀"""
+def _frags(d, x, y, n, r0, r1, rng, spread_x=1.0, spread_y=1.0, bias=None):
+    """네모난 파편 (1~2픽셀)"""
+    for k in range(n):
+        a = rng.gauss(bias, 0.6) if bias is not None else rng.uniform(0, math.tau)
+        dist = rng.uniform(r0, r1)
+        px, py = int(x + math.cos(a) * dist * spread_x), int(y + math.sin(a) * dist * spread_y)
+        w = 1 if rng.random() < 0.65 else 2
+        d.rectangle([px, py, px + w - 1, py + w - 1], fill=1)
+
+
+def blood_mask(kind, seed, size=32):
     r = random.Random(seed * 7919 + len(kind))
     m = Image.new("1", (size, size), 0)
     d = ImageDraw.Draw(m)
     c = size / 2
-    if kind == "splat":            # 바닥에 곧게 떨어짐: 둥근 몸통 + 왕관처럼 튄 가시와 방울
-        _disc(d, c, c, size * 0.2)
-        for k in range(5):
-            a = r.uniform(0, math.tau)
-            _disc(d, c + math.cos(a) * size * 0.1, c + math.sin(a) * size * 0.1, size * r.uniform(0.09, 0.14))
-        for k in range(r.randint(7, 10)):
-            a = k / 9 * math.tau + r.uniform(-0.25, 0.25)
-            ln = size * r.uniform(0.26, 0.4)
-            w = size * 0.035
-            ex, ey = c + math.cos(a) * ln, c + math.sin(a) * ln
-            d.polygon([(c + math.cos(a + 1.57) * w, c + math.sin(a + 1.57) * w), (ex, ey), (c + math.cos(a - 1.57) * w, c + math.sin(a - 1.57) * w)], fill=1)
-            _disc(d, c + math.cos(a) * (ln + size * 0.06), c + math.sin(a) * (ln + size * 0.06), size * r.uniform(0.015, 0.03))
-    elif kind == "streak":         # 비스듬히 닿음: 뭉친 머리 → 진행 방향(+x)으로 가늘어지는 꼬리, 꼬리 끝에 방울
-        hx, hy = size * 0.24, c
-        _disc(d, hx, hy, size * 0.15)
-        x, w = hx, size * 0.13
-        while x < size * 0.84 and w > 0.8:
-            _disc(d, x, hy + r.uniform(-0.4, 0.4), w)
-            x += max(1.0, w * 0.6)
-            w *= 0.94
-        for k in range(r.randint(3, 5)):
-            _disc(d, size * r.uniform(0.55, 0.95), hy + r.gauss(0, size * 0.07), size * r.uniform(0.012, 0.03))
-        for k in range(3):
-            _disc(d, hx - size * r.uniform(0.12, 0.2), hy + r.gauss(0, size * 0.1), size * 0.02)
-    elif kind == "drip":           # 벽에 맞음: 위쪽(-x) 얼룩에서 아래(+x)로 흘러내리는 줄기 2~4개, 끝은 둥근 방울
-        _disc(d, size * 0.24, c, size * 0.17)
-        _disc(d, size * 0.2, c + size * 0.12, size * 0.1)
-        _disc(d, size * 0.2, c - size * 0.13, size * 0.09)
+    if kind == "splat":            # 바닥에 곧게: 덩어리 + 사방으로 튄 네모 파편
+        _blob(d, c, c, size * 0.2, r)
+        _frags(d, c, c, 26, size * 0.24, size * 0.46, r)
+    elif kind == "streak":         # 비스듬히: 넓적한 덩어리가 진행 방향(+x)으로 퍼지고 그쪽으로 파편이 몰림
+        _blob(d, size * 0.36, c, size * 0.2, r)
+        _blob(d, size * 0.55, c + r.uniform(-1, 1), size * 0.15, r)
+        _blob(d, size * 0.7, c + r.uniform(-1.5, 1.5), size * 0.09, r)
+        _frags(d, size * 0.55, c, 24, size * 0.12, size * 0.42, r, 1.0, 0.8, bias=0.0)
+        _frags(d, size * 0.36, c, 8, size * 0.2, size * 0.32, r)
+    elif kind == "drip":           # 벽: 덩어리 + 아래(+x)로 가는 흘러내림 1~2줄 + 파편
+        _blob(d, size * 0.34, c, size * 0.19, r)
+        _frags(d, size * 0.34, c, 18, size * 0.22, size * 0.4, r)
+        for k in range(r.randint(1, 2)):
+            y = int(c + r.uniform(-0.12, 0.12) * size)
+            x1 = int(size * r.uniform(0.7, 0.94))
+            d.rectangle([int(size * 0.45), y, x1, y], fill=1)
+    elif kind == "drops":          # 작은 방울: 작은 덩어리 몇 개 + 파편
         for k in range(r.randint(2, 4)):
-            y = c + r.uniform(-0.15, 0.15) * size
-            x1 = size * r.uniform(0.55, 0.92)
-            w = max(1, int(size * r.uniform(0.025, 0.04)))
-            d.rectangle([size * 0.3, y - w, x1, y + w], fill=1)
-            _disc(d, x1, y, w * 1.6)
-        for k in range(4):
-            _disc(d, size * r.uniform(0.05, 0.4), c + r.gauss(0, size * 0.2), size * 0.018)
-    elif kind == "drops":          # 작은 방울 몇 개
-        for k in range(r.randint(4, 7)):
-            _disc(d, c + r.gauss(0, size * 0.18), c + r.gauss(0, size * 0.18), size * r.uniform(0.03, 0.09))
-    elif kind == "spray":          # 강한 공격: 부채꼴로 흩뿌린 잔 점들 (+x 방향으로 퍼짐)
-        for k in range(42):
-            a = r.gauss(0, 0.5)
-            dist = size * r.uniform(0.05, 0.45)
-            _disc(d, size * 0.1 + math.cos(a) * dist, c + math.sin(a) * dist, size * r.uniform(0.01, 0.035))
-        _disc(d, size * 0.12, c, size * 0.07)
-    elif kind == "pool":           # 시체 밑 웅덩이: 매끈한 덩어리
-        _disc(d, c, c, size * 0.3)
-        for k in range(8):
-            a = k / 8 * math.tau + r.uniform(-0.3, 0.3)
-            _disc(d, c + math.cos(a) * size * 0.2, c + math.sin(a) * size * 0.2, size * r.uniform(0.13, 0.19))
-    elif kind == "flow":           # 머리에서 흐르는 피: 고인 머리 쪽 → 구불구불한 줄기 → 끝에 고임
-        _disc(d, size * 0.1, c, size * 0.1)
-        x = size * 0.1
-        while x < size * 0.86:
+            _blob(d, c + r.gauss(0, size * 0.14), c + r.gauss(0, size * 0.14), size * r.uniform(0.04, 0.08), r)
+        _frags(d, c, c, 10, size * 0.1, size * 0.36, r)
+    elif kind == "spray":          # 강한 공격: 넓게 흩뿌린 파편 (+x 로 몰림)
+        _blob(d, size * 0.2, c, size * 0.09, r)
+        _frags(d, size * 0.2, c, 60, size * 0.06, size * 0.7, r, 1.0, 0.9, bias=0.0)
+    elif kind == "pool":           # 웅덩이
+        _blob(d, c, c, size * 0.3, r)
+        _blob(d, c + size * 0.08, c - size * 0.05, size * 0.2, r)
+        _frags(d, c, c, 12, size * 0.34, size * 0.46, r)
+    elif kind == "flow":           # 머리에서 흐르는 피
+        _blob(d, size * 0.14, c, size * 0.12, r)
+        x = size * 0.14
+        while x < size * 0.84:
             y = c + math.sin(x / size * 8 + seed) * size * 0.05
-            _disc(d, x, y, size * 0.075)
+            d.rectangle([x, y - size * 0.06, x + 1, y + size * 0.06], fill=1)
             x += 1
-        _disc(d, size * 0.85, c, size * 0.12)
-    elif kind == "mist":           # 맞은 자리 핏덩이 (화면을 보는 판): 별 모양으로 터짐
-        _disc(d, c, c, size * 0.16)
-        for k in range(9):
-            a = k / 9 * math.tau + r.uniform(-0.2, 0.2)
-            ln = size * r.uniform(0.3, 0.46)
-            w = size * 0.05
-            d.polygon([(c + math.cos(a + 1.57) * w, c + math.sin(a + 1.57) * w), (c + math.cos(a) * ln, c + math.sin(a) * ln),
-                       (c + math.cos(a - 1.57) * w, c + math.sin(a - 1.57) * w)], fill=1)
+        _blob(d, size * 0.84, c, size * 0.11, r)
+    elif kind == "mist":           # 맞은 자리 핏덩이 (화면을 보는 판)
+        _blob(d, c, c, size * 0.18, r)
+        _frags(d, c, c, 30, size * 0.2, size * 0.48, r)
     return m
 
 
-def blood_base(kind, seed, size=64):
-    """두 가지 색: 밝은 피(가장자리, 튄 방울) + 어두운 피(굵은 덩어리 안쪽, 빛 반대쪽으로 치우침)"""
+def blood_base(kind, seed, size=32):
+    """한 가지 빨강"""
     m = blood_mask(kind, seed, size)
-    core = m.filter(ImageFilter.MinFilter(5 if size >= 48 else 3))
     out = Image.new("RGBA", (size, size), (0, 0, 0, 0))
-    mp, cp, px = m.load(), core.load(), out.load()
+    mp, px = m.load(), out.load()
     for y in range(size):
         for x in range(size):
-            if not mp[x, y]:
-                continue
-            # 어두운 쪽은 안쪽 + 오른쪽 아래로 1픽셀 밀어서 평면 그림자처럼
-            dark = cp[max(0, x - 1), max(0, y - 1)]
-            px[x, y] = (BLOOD_DARK if dark else BLOOD_MAIN) + (255,)
+            if mp[x, y]:
+                px[x, y] = BLOOD_COLOR + (255,)
     return out
 
 

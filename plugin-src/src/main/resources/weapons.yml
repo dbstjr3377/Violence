@@ -1,7 +1,9 @@
 # ─────────────────────────────────────────────────────────────
 #  VIOLENCE 무기 정의
 #  category: FIST / MELEE / GUN / THROWABLE
-#  execution: AUTO(자동 즉사) / HITS(왼클릭 N회) / GUN_DROP(총 버리고 맨손) / GUN_SHOT
+#  execution: AUTO(자동) / HITS(왼클릭 N회) / GUN_DROP(총 버리고 맨손) / GUN_SHOT
+#  처형 동작은 무기 묶음별 (ExecutionAnim): 맨손 머리 박기 5회, 둔기 내려치기 3회, 무거운 무기 한 번에 내려치고 빼기,
+#  가벼운 무기 한 손 내려치기 3회, 날붙이 목 긋기. 벽에 기대 기절한 적은 언제나 머리 발차기
 #  melee-cooldown 단위: 틱 (20틱 = 1초)
 #  rpm: 분당 발사 수, automatic: 왼클릭 유지 시 연사
 # ─────────────────────────────────────────────────────────────
@@ -12,7 +14,7 @@ weapons:
     melee-range: 2.1
     melee-cooldown: 8
     execution: HITS
-    execution-hits: 4
+    execution-hits: 5
     map-spawn: false
 
   # ── 근접 무기 ─────────────────────────────────────────────
@@ -30,7 +32,7 @@ weapons:
     melee-range: 2.5
     melee-cooldown: 10
     execution: HITS
-    execution-hits: 2
+    execution-hits: 3
     spawn-weight: 10
   pipe:
     name: "쇠파이프"
@@ -38,7 +40,7 @@ weapons:
     melee-range: 2.5
     melee-cooldown: 10
     execution: HITS
-    execution-hits: 2
+    execution-hits: 3
     spawn-weight: 9
   golf_club:
     name: "골프채"
@@ -46,7 +48,7 @@ weapons:
     melee-range: 2.6
     melee-cooldown: 10
     execution: HITS
-    execution-hits: 2
+    execution-hits: 3
     spawn-weight: 7
   fire_axe:
     name: "소방도끼"
@@ -60,7 +62,8 @@ weapons:
     category: MELEE
     melee-range: 2.4
     melee-cooldown: 9
-    execution: AUTO
+    execution: HITS
+    execution-hits: 3
     spawn-weight: 7
   pot:
     name: "냄비"
@@ -84,7 +87,7 @@ weapons:
     melee-range: 2.4
     melee-cooldown: 10
     execution: HITS
-    execution-hits: 2
+    execution-hits: 3
     spawn-weight: 8
   katana:
     name: "카타나"
@@ -107,7 +110,7 @@ weapons:
     melee-range: 2.2
     melee-cooldown: 18
     execution: HITS
-    execution-hits: 2
+    execution-hits: 3
     spawn-weight: 6
   briefcase:
     name: "서류가방"
@@ -122,10 +125,16 @@ weapons:
     category: MELEE
     melee-range: 2.5
     melee-cooldown: 10
-    execution: HITS
-    execution-hits: 2
+    execution: AUTO
     breaks-into: pool_cue_short
     spawn-weight: 6
+  sledgehammer:
+    name: "오함마"
+    category: MELEE
+    melee-range: 2.7
+    melee-cooldown: 16
+    execution: AUTO
+    spawn-weight: 4
   pool_cue_short:
     name: "짧은 큐대"
     category: MELEE
@@ -138,7 +147,8 @@ weapons:
     category: MELEE
     melee-range: 2.2
     melee-cooldown: 7
-    execution: AUTO
+    execution: HITS
+    execution-hits: 3
     map-spawn: false
 
   # ── 총기 (히트스캔) ──────────────────────────────────────
