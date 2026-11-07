@@ -190,6 +190,17 @@ public final class FallService {
         return headWorld(l, l.pose.frameCount() - 1, l.end);
     }
 
+    /**
+     * 쓰러져 있는(누운·벽에 기댄) 대상의 머리 위치 (지금 보이는 인형 프레임 또는 대역 자세 기준). 없으면 null.
+     * 머리를 때리는 처형·공격의 피와 소리가 여기서 나온다.
+     */
+    public Vec3 head(Combatant c) {
+        Lying l = downed.get(c.id);
+        if (l == null) return null;
+        int frame = Math.min(l.tick, l.pose.frameCount() - 1);
+        return headWorld(l, frame, l.anchor(frame));
+    }
+
     /** 벽 기절한 대상이 보는 방향 (벽 반대쪽, 수평 단위 벡터) */
     public Vec3 wallFacing(Combatant c) {
         Lying l = downed.get(c.id);

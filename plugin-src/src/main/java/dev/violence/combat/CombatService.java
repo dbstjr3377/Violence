@@ -360,8 +360,22 @@ public final class CombatService {
         return false;
     }
 
+    /**
+     * 머리 위치: 서 있으면 눈높이 조금 아래(얼굴), 쓰러져 있으면 누운·벽에 기댄 몸의 머리.
+     * 휘두르기·주먹·처형 타격은 머리를 노리므로 피와 소리가 여기서 나온다.
+     */
+    public Vec3 headPoint(Combatant v) {
+        if (v.state.isDownedLike()) {
+            Vec3 h = plugin.falls().head(v);
+            if (h != null) return h;
+            return v.feet().add(0, 0.3, 0);
+        }
+        return v.feet().add(0, 1.55 * v.scale(), 0);
+    }
+
     private void meleeHit(Combatant attacker, Combatant v, WeaponType t, Vec3 dir) {
-        Vec3 point = v.state.isDownedLike() ? v.feet().add(0, plugin.falls().wallStunned(v) ? 0.7 : 0.3, 0) : v.feet().add(0, 1.3 * v.scale(), 0);
+        // 근접 무기 휘두르기와 주먹은 머리 높이를 지나감 → 머리에서 피
+        Vec3 point = headPoint(v);
         v.lastAttacker = attacker;
         if (t.isFist()) {
             plugin.fx().sound(v.world(), point, "violence:melee.punch_hit", 1.2f, 1f);
@@ -753,14 +767,21 @@ public final class CombatService {
             camPos = mid.add(side.mul(2.4)).add(out.mul(0.9)).add(0, 1.3, 0);
             camLook = mid.add(0, 0.8, 0);
         } else {
-            // 처형자를 피처형자 위로 이동
-            Location onTop = Fx.loc(arena().world, vf.add(face.mul(-0.25)).add(0, 0.05, 0));
+            // 처형자를 누운 몸의 가슴 위에 머리 쪽을 보게 세움 (머리를 내려침)
+            Vec3 head = plugin.falls().head(victim);
+            Vec3 chest = vf;
+            if (head != null && head.sub(vf).horizontal().lengthSq() > 0.04) {
+                face = head.sub(vf).horizontal().normalize();
+                chest = vf.add(face.mul(head.sub(vf).horizontal().length() * 0.55));
+            }
+            Location onTop = Fx.loc(arena().world, chest.add(face.mul(-0.1)).add(0, 0.05, 0));
             onTop.setYaw((float) face.yaw());
             onTop.setPitch(55);
             ex.teleport(onTop);
-            // 카메라: 처형자의 살짝 뒤, 위
-            camPos = vf.sub(face.mul(1.9)).add(0, 2.5, 0);
-            camLook = vf.add(0, 0.4, 0);
+            // 카메라: 처형자의 뒤 오른쪽 위에서 머리를 봄 (처형자 몸에 머리가 가리지 않게)
+            Vec3 right = face.cross(Vec3.UP).normalize();
+            camPos = chest.sub(face.mul(1.5)).add(right.mul(1.1)).add(0, 2.7, 0);
+            camLook = head != null ? head : vf.add(0, 0.4, 0);
         }
         ex.history.clear();   // 순간 이동한 앞쪽 위치로 판정되지 않게
         ex.refreshEquipment();
@@ -812,11 +833,14 @@ public final class CombatService {
         Combatant v = e.victim;
         ex.entity().swingMainHand();
         if (ex instanceof PlayerCombatant pce) pce.playAnim(WeaponItems.animGroup(ex.weaponType(fist())), 7);
-        Vec3 p = v.feet().add(0, 0.35, 0);
+        // 처형 타격은 누운 머리를 내려침 → 피는 머리에서 바닥·머리 너머로
+        Vec3 p = headPoint(v);
+        Vec3 over = p.sub(ex.feet()).horizontal();
+        over = over.lengthSq() < 1e-6 ? ex.look().horizontal() : over.normalize();
         WeaponType t = ex.weaponType(fist());
         String snd = t.isFist() ? "violence:melee.punch_hit" : (sharp(t) ? "violence:melee.slash_hit" : "violence:melee.blunt_hit");
         plugin.fx().sound(ex.world(), p, snd, 1.3f, finalBlow ? 0.8f : 1f);
-        plugin.fx().blood(arena(), p, new Vec3(0, -1, 0).add(ex.look().mul(0.3)), finalBlow ? 4 : 2);
+        plugin.fx().blood(arena(), p, new Vec3(0, -0.6, 0).add(over.mul(0.8)), finalBlow ? 4 : 2);
         ex.feelImpact(finalBlow ? 0.7 : 0.4);
         v.feelImpact(finalBlow ? 0.8 : 0.5);
     }

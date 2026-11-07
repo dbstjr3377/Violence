@@ -538,19 +538,25 @@ def main():
             sc.knockdown("B", d, tk)
             sc.landed = B["feet"] + np.array([1.0, 0.05, 0.4])
         if tk == T_MOUNT:
+            # CombatService.startExecution: 누운 몸의 가슴 위에 머리 쪽을 보게 서서 머리를 내려침
             vf = B["feet"]
-            face = vf - sc.me
+            head = B["lying"].head_world(tk)
+            face = head - vf
             face[1] = 0
-            face /= np.linalg.norm(face)
-            sc.me = vf - face * 0.25 + [0, 0.05, 0]
+            span = np.linalg.norm(face)
+            face /= span
+            chest = vf + face * span * 0.55
+            sc.me = chest - face * 0.1 + [0, 0.05, 0]
             sc.me_yaw, sc.me_pitch = yaw_of(face), 55
-            cam = vf - face * 1.9 + [0, 2.5, 0]
-            ly, lp = G.look_angles(cam, vf + [0, 0.4, 0])
+            right = np.cross(face, [0, 1.0, 0])
+            right /= np.linalg.norm(right)
+            cam = chest - face * 1.5 + right * 1.1 + [0, 2.7, 0]
+            ly, lp = G.look_angles(cam, head)
             sc.exec = ("mount", tk, (tuple(round(float(x), 4) for x in cam), round(ly, 3), round(lp, 3)), 4)
         if sc.exec and sc.exec[0] == "mount" and tk in T_PUNCHES:
             sc.punch = tk
-            vf = B["feet"]
-            sc.blood.spray(vf + [0, 0.35, 0], np.array([0, -1.0, 0]) + fwd(sc.me_yaw) * 0.3, 4 if tk == T_PUNCHES[-1] else 2)
+            head = B["lying"].head_world(tk)
+            sc.blood.spray(head, np.array([0, -0.6, 0]) + fwd(sc.me_yaw) * 0.8, 4 if tk == T_PUNCHES[-1] else 2)
             sc.exec = (sc.exec[0], sc.exec[1], sc.exec[2], 4 - (T_PUNCHES.index(tk) + 1))
             if tk == T_PUNCHES[-1]:
                 sc.kill("B", tk, execution=True)
@@ -564,7 +570,7 @@ def main():
             sc.punch = tk
             sc.fp_anim = (fist_frames, tk, 8)
             d = C["feet"] - sc.me
-            sc.blood.spray(C["feet"] + [0, 1.3, 0], d / np.linalg.norm(d), 1)
+            sc.blood.spray(C["feet"] + [0, 1.55, 0], d / np.linalg.norm(d), 1)   # 주먹은 얼굴에
             sc.knockdown("C", d, tk)
         if tk == T_KICK:
             l = C["lying"]
