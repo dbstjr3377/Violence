@@ -60,6 +60,15 @@ def lerp(a, b, t):
 def track(keys, length=None):
     """[(틱, 자세)] → 틱마다 프레임 (부드럽게 이어 붙임)"""
     keys = sorted(keys, key=lambda k: k[0])
+    # 손목·무기 회전은 앞 키에서 가까운 쪽으로 돌림 (같은 각도를 360° 다르게 적어 무기가 한 바퀴 도는 일 없게)
+    fixed = [keys[0]]
+    for t, f in keys[1:]:
+        f = pose(f)
+        prev = fixed[-1][1]
+        for key in ("wrist", "twist"):
+            f[key] = prev[key] + ((f[key] - prev[key] + 180) % 360 - 180)
+        fixed.append((t, f))
+    keys = fixed
     length = length or keys[-1][0] + 1
     out = []
     for t in range(length):
@@ -126,14 +135,35 @@ HEAD = np.array([0.0, 0.32, 1.64 - 0.85])
 NECK = np.array([0.0, 0.27, 1.41 - 0.85])
 
 
-def solve(base, target, along_px=None, hands=("arm_r", "arm_l"), free=("x", "wrist"), inward=12, xr=(-190, -10)):
+def head_at(anchor):
+    """기준점이 anchor 일 때 피처형자 머리 (처형자 기준 좌표)"""
+    return np.array([0.0, 0.32, 1.64 - anchor])
+
+
+def weapon_axes(fr):
+    """오른손 무기의 방향(모델 +Y = 손잡이→끝), 앞면(모델 +Z = 치는 면·갈고리 쪽), 옆(모델 +X)"""
+    R = _rx(math.radians(fr["pitch"])) @ _rxyz(fr["arm_r"]) @ _rx(math.pi) @ _rx(math.radians(fr["wrist"])) @ _ry(math.radians(fr["twist"]))
+    return R[:, 1], R[:, 2], R[:, 0]
+
+
+def _unit(v):
+    v = np.array(v, dtype=float)
+    return v / np.linalg.norm(v)
+
+
+def solve(base, target, along_px=None, hands=("arm_r", "arm_l"), free=("x", "wrist"), inward=12, xr=(-190, -10),
+          yr=(-45, 45), zr=(-50, 50), step=3.0, aim=None, face=None, side=None, k=0.5):
     """target 에 (오른손 무기의 along_px 지점, 없으면 hands[0] 주먹)이 닿도록 격자 탐색.
-    free: 움직일 값 — x(팔 앞뒤), y(팔 비틀기: 꺾인 무기를 안쪽으로), z(팔 좌우), wrist(손목).
+    free: 움직일 값 — x(팔 앞뒤), y(팔 비틀기: 무기를 머리 가운데로), z(팔 좌우), wrist(손목).
+    aim: 무기가 향할 방향, face: 앞면(+Z)이 향할 방향, side: 옆면(±X, 날붙이의 날)이 향할 방향 — 벗어난 만큼 k 배로 벌점.
     두 손이면 왼팔은 오른팔과 좌우 대칭"""
     xs = np.arange(xr[0], xr[1] + 1, 2.0) if "x" in free else [base[hands[0]][0]]
-    ys = np.arange(-60, 61, 3.0) if "y" in free else [None]
-    zs = np.arange(-50, 51, 3.0) if "z" in free else [None]
-    ws = np.arange(-270, 91, 3.0) if "wrist" in free else [base["wrist"]]
+    ys = np.arange(yr[0], yr[1] + 1, step) if "y" in free else [None]
+    zs = np.arange(zr[0], zr[1] + 1, step) if "z" in free else [None]
+    ws = np.arange(-180, 181, step) if "wrist" in free else [base["wrist"]]
+    aim = None if aim is None else _unit(aim)
+    face = None if face is None else _unit(face)
+    side = None if side is None else _unit(side)
     best = None
     for ax in xs:
         for ay in ys:
@@ -147,17 +177,36 @@ def solve(base, target, along_px=None, hands=("arm_r", "arm_l"), free=("x", "wri
                 if along_px is None:
                     err = np.linalg.norm(fist(f, hands[0]) - target)
                     if best is None or err < best[0]:
-                        best = (err, pose(f))
+                        best = (err, err, pose(f))
                     continue
                 for wr in ws:
                     f["wrist"] = float(wr)
-                    err = np.linalg.norm(weapon_point(f, along_px) - target)
+                    hit = np.linalg.norm(weapon_point(f, along_px) - target)
+                    err = hit
+                    if aim is not None or face is not None or side is not None:
+                        d, z_, x_ = weapon_axes(f)
+                        if aim is not None:
+                            err += k * np.linalg.norm(d - aim)
+                        if face is not None:
+                            err += k * np.linalg.norm(z_ - face)
+                        if side is not None:
+                            err += k * (1 - abs(float(x_ @ side)))
                     if best is None or err < best[0]:
-                        best = (err, pose(f))
-    if best[0] > 0.12:
-        print(f"  [solve] 목표에서 {best[0]:.2f} 떨어짐 (목표 {np.round(target, 2)})")
-    return best[1]
+                        best = (err, hit, pose(f))
+    if best[1] > 0.12:
+        print(f"  [solve] 목표에서 {best[1]:.2f} 떨어짐 (목표 {np.round(target, 2)})")
+    return best[2]
 
+
+def swing_forward(ref, f):
+    """손목 각을 ref 에서 앞으로(위→앞→아래) 돌아가는 값으로 맞춤: 무기가 등 뒤로 한 바퀴 돌지 않게"""
+    f = pose(f)
+    f["wrist"] = ref["wrist"] + (f["wrist"] - ref["wrist"]) % 360
+    return f
+
+
+# 내려친 순간 무기 방향: 앞아래로 비스듬히
+DOWN_FWD = (0, -0.8, 0.6)
 
 # 휘두르기 풀이: 팔 앞뒤 + 팔 비틀기(무기를 머리 가운데로) + 손목
 SWING = ("x", "y", "wrist")
@@ -196,23 +245,31 @@ def anims():
     # 2. 둔기: 올라탄 채 무기를 높이 들고 머리를 내려침 (왼클릭 3번)
     raised = pose(STRADDLE, pitch=-4, head=[20, 0, 0], arm_r=[-172, 0, 14], arm_l=[-172, 0, -14], wrist=-25)
     wind = pose(raised, pitch=-10, arm_r=[-180, 0, 14], arm_l=[-180, 0, -14], wrist=-40)
-    hit = solve(pose(STRADDLE, pitch=10, head=[40, 0, 0]), HEAD + [0, 0.05, 0], STRIKE_ALONG["blunt"], free=SWING, xr=(-150, -60))
+    # 긴 무기는 머리에서 조금 떨어진 허벅지 위에 올라탐 (무기가 앞아래로 비스듬히 머리에 닿도록)
+    LONG = 0.4
+    hit = solve(pose(STRADDLE, pitch=8, head=[40, 0, 0]), head_at(LONG) + [0, 0.05, 0], STRIKE_ALONG["blunt"],
+                free=SWING, xr=(-150, -60), aim=DOWN_FWD)
+    hit = swing_forward(wind, hit)
     v_r = pose(LYING, head=[6, 0, 0])
     v_h = pose(LYING, head=[-12, 0, 0], arm_r=[-30, 0, -20], arm_l=[-30, 0, 20])
     blunt_strike = {"exec": rnd(track([(0, raised), (2, wind), (4, hit), (5, hit), (8, raised)])),
                     "victim": rnd(track([(0, v_r), (3, v_r), (4, v_h), (5, v_h), (8, v_r)])), "impact": 4}
-    A["blunt"] = {"anchor": 0.85, "weapon": "both", "style": "hits",
+    A["blunt"] = {"anchor": LONG, "weapon": "both", "style": "hits",
                   "ready": {"exec": rnd([raised])[0], "victim": rnd([v_r])[0]}, "strike": blunt_strike}
     # 3. 무거운 무기: 높이 들고 크게 한 번 내려쳐(자동) 박힌 무기를 뽑아 올림
     hraise = pose(raised, pitch=-8, wrist=-30)
     hwind = pose(raised, pitch=-14, arm_r=[-182, 0, 14], arm_l=[-182, 0, -14], wrist=-12, head=[10, 0, 0])
-    hhit = solve(pose(STRADDLE, pitch=12, head=[40, 0, 0]), HEAD + [0, -0.04, 0], STRIKE_ALONG["heavy"], free=SWING, xr=(-150, -60))
-    tug1 = solve(pose(STRADDLE, pitch=4, head=[35, 0, 0]), HEAD + [0, -0.02, 0], STRIKE_ALONG["heavy"], free=SWING, xr=(-150, -60))
+    hhit = solve(pose(STRADDLE, pitch=10, head=[40, 0, 0]), head_at(LONG) + [0, -0.04, 0], STRIKE_ALONG["heavy"],
+                 free=SWING, xr=(-150, -60), aim=DOWN_FWD)
+    hhit = swing_forward(hwind, hhit)
+    tug1 = solve(pose(STRADDLE, pitch=4, head=[35, 0, 0]), head_at(LONG) + [0, -0.02, 0], STRIKE_ALONG["heavy"],
+                 free=SWING, xr=(-150, -60), aim=(0, -0.9, 0.45))
+    tug1 = swing_forward(hwind, tug1)
     tug2 = pose(hhit)
     pull = pose(STRADDLE, pitch=0, arm_r=[-120, 0, 14], arm_l=[-120, 0, -14], wrist=-60, head=[25, 0, 0])
     v_big = pose(LYING, pitch=-92, head=[-18, 0, 0], arm_r=[-45, 0, -35], arm_l=[-45, 0, 35], leg_r=[-14, 0, 0], leg_l=[-10, 0, 0])
     v_jerk = pose(LYING, head=[-10, 0, 0], arm_r=[-20, 0, -15], arm_l=[-20, 0, 15])
-    A["heavy"] = {"anchor": 0.85, "weapon": "both", "style": "auto",
+    A["heavy"] = {"anchor": LONG, "weapon": "both", "style": "auto",
                   "full": {"exec": rnd(track([(0, hraise), (5, hwind), (9, hwind), (11, hhit), (14, hhit), (16, tug1), (18, tug2),
                                               (20, tug1), (22, tug2), (24, tug1), (28, pull), (33, hraise)])),
                            "victim": rnd(track([(0, v_r), (10, v_r), (11, v_big), (14, v_big), (16, v_jerk), (18, v_big), (20, v_jerk),
@@ -222,8 +279,10 @@ def anims():
     # 4. 가벼운 무기: 둔기와 같지만 오른손으로만 (왼손은 가슴을 누름)
     lraised = pose(STRADDLE, pitch=0, head=[24, 0, 0], arm_r=[-165, 0, 4], arm_l=[-55, 0, -8], wrist=-20)
     lwind = pose(lraised, pitch=-6, arm_r=[-176, 0, 4], wrist=-35)
-    lhit = solve(pose(STRADDLE, pitch=15, head=[40, 0, 0], arm_l=[-48, 0, -8]), HEAD + [0, 0.06, 0], STRIKE_ALONG["light"],
-                 hands=("arm_r",), inward=4, free=SWING, xr=(-130, -30))
+    # 팔을 안쪽으로 모아 머리 가운데를 침, 칼날(앞면)이 아래를 봄
+    lhit = solve(pose(STRADDLE, pitch=10, head=[40, 0, 0], arm_l=[-48, 0, -8]), HEAD + [0, 0.06, 0], STRIKE_ALONG["light"],
+                 hands=("arm_r",), free=("x", "z", "wrist"), xr=(-130, -10), zr=(-10, 40), aim=(0.4, -0.85, 0.4), k=0.6)
+    lhit = swing_forward(lwind, lhit)
     A["light"] = {"anchor": 0.85, "weapon": "right", "style": "hits",
                   "ready": {"exec": rnd([lraised])[0], "victim": rnd([v_r])[0]},
                   "strike": {"exec": rnd(track([(0, lraised), (2, lwind), (4, lhit), (5, lhit), (8, lraised)])),
@@ -231,9 +290,14 @@ def anims():
     # 5. 날붙이: 왼손으로 머리를 누르고 날을 목에 댄 채 시작해 목을 그음 (자동)
     # 왼손은 머리를 누르고, 오른손 칼날을 목 왼쪽에 댐 → 오른쪽으로 그음 (칼날을 눕혀 목을 가로지름)
     lhead = solve(pose(STRADDLE, pitch=26, head=[40, 0, 0]), HEAD + [0.05, 0.3, 0.05], hands=("arm_l",), free=("x", "z"))
-    at_throat = solve(pose(lhead, twist=90), NECK + [0.16, 0.06, 0], STRIKE_ALONG["blade"], hands=("arm_r",), free=("x", "z", "wrist"))
-    cut = solve(pose(lhead, twist=90), NECK + [-0.26, 0.06, 0], STRIKE_ALONG["blade"], hands=("arm_r",), free=("x", "z", "wrist"))
-    after = pose(STRADDLE, pitch=14, head=[30, 0, 0], arm_r=[-50, 10, -40], arm_l=[-60, 0, -6], wrist=-70, twist=90)
+    # 칼끝은 왼쪽(목을 가로질러), 날은 아래(목) — 오른쪽으로 당겨 그음
+    blade_fit = dict(hands=("arm_r",), free=("x", "y", "z", "wrist"), xr=(-100, -20), yr=(-60, 60), zr=(-40, 40), step=6.0,
+                     aim=(1, -0.15, 0), side=(0, -1, 0))
+    at_throat = solve(pose(lhead, twist=90), NECK + [0.16, 0.06, 0], STRIKE_ALONG["blade"], **blade_fit)
+    cut = solve(pose(lhead, twist=90), NECK + [-0.26, 0.06, 0], STRIKE_ALONG["blade"], **blade_fit)
+    # 그은 뒤: 칼을 쥔 채 오른쪽 위로 빼 올림
+    after = pose(cut, pitch=14, head=[30, 0, 0], arm_r=[cut["arm_r"][0] - 25, cut["arm_r"][1], cut["arm_r"][2] - 10],
+                 arm_l=[-60, 0, -6], wrist=cut["wrist"] + 15)
     v_neck = pose(LYING, head=[-24, 0, 0], arm_r=[-10, 0, -10], arm_l=[-10, 0, 10])
     v_cut = pose(LYING, head=[-30, 0, 0], arm_r=[-50, 0, -30], arm_l=[-55, 0, 20], leg_r=[-12, 0, 0])
     v_twitch = pose(LYING, head=[-20, 0, 0], arm_r=[-30, 0, -15], arm_l=[-20, 0, 10])

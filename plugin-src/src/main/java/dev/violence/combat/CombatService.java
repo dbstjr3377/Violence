@@ -795,10 +795,17 @@ public final class CombatService {
             exAt = Fx.loc(arena().world, (anim != null ? chest : chest.add(face.mul(-0.1))).add(0, anim != null ? 0 : 0.05, 0));
             exAt.setYaw((float) face.yaw());
             exAt.setPitch(55);
-            // 카메라: 처형자의 뒤 오른쪽 위에서 머리를 봄 (처형자 몸에 머리가 가리지 않게)
             Vec3 right = face.cross(Vec3.UP).normalize();
-            camPos = chest.sub(face.mul(1.5)).add(right.mul(1.1)).add(0, 2.7, 0);
-            camLook = head != null ? head : vf.add(0, 0.4, 0);
+            if (anim != null && head != null) {
+                // 처형 동작: 오른쪽 옆 위에서 처형자와 머리 사이를 봄 (오른손 무기가 머리에 닿는 순간이 몸에 가리지 않게)
+                Vec3 mid = chest.add(head).mul(0.5);
+                camPos = mid.add(right.mul(2.4)).sub(face.mul(0.5)).add(0, 1.9, 0);
+                camLook = mid.add(0, 0.45, 0);
+            } else {
+                // 카메라: 처형자의 뒤 오른쪽 위에서 머리를 봄 (처형자 몸에 머리가 가리지 않게)
+                camPos = chest.sub(face.mul(1.5)).add(right.mul(1.1)).add(0, 2.7, 0);
+                camLook = head != null ? head : vf.add(0, 0.4, 0);
+            }
         }
         ex.teleport(exAt);
         ex.history.clear();   // 순간 이동한 앞쪽 위치로 판정되지 않게

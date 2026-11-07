@@ -105,4 +105,38 @@ class ExecutionAnimsTest {
             if (a.hits()) assertTrue(weaponPoint(a, a.readyExec(), 0, anims.grip(sample[i]), cases[i][0]).y > 1.6, names[i] + " 대기 높이");
         }
     }
+
+    @Test
+    void weaponNeverSpinsBetweenFrames() {
+        // 손목·무기 회전이 한 틱에 90° 넘게 바뀌면 무기가 손 안에서 휙 도는 것처럼 보임
+        for (ExecutionAnims.Anim a : anims.all().values()) {
+            for (ExecutionAnims.Track t : new ExecutionAnims.Track[] {a.strikeExec(), a.fullExec()}) {
+                if (t == null) continue;
+                for (int i = 1; i < t.length(); i++) {
+                    assertTrue(Math.abs(t.wrist()[i] - t.wrist()[i - 1]) < 90, a.name() + " 손목 " + i);
+                    assertTrue(Math.abs(t.twist()[i] - t.twist()[i - 1]) < 90, a.name() + " 무기 회전 " + i);
+                    if (!"none".equals(a.weapon())) {
+                        var r0 = ExecutionAnims.weapon(t, i - 1, 1.0, new double[] {8, 3.5, 8}).rotation();
+                        var r1 = ExecutionAnims.weapon(t, i, 1.0, new double[] {8, 3.5, 8}).rotation();
+                        double ang = Math.toDegrees(r0.difference(r1, new org.joml.Quaterniond()).angle());
+                        if (ang > 180) ang = 360 - ang;
+                        assertTrue(ang < 100, a.name() + " 무기가 " + i + "틱에 " + ang + "° 돎");
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    void strikeFaceLeadsAtImpact() {
+        // 내려치는 순간 무기의 앞면(모델 +Z: 갈고리·도끼날·식칼 날)이 아래(머리 쪽)를 봄
+        for (String n : new String[] {"blunt", "heavy", "light"}) {
+            ExecutionAnims.Anim a = anims.get(n);
+            ExecutionAnims.Track t = a.hits() ? a.strikeExec() : a.fullExec();
+            int f = a.hits() ? a.impact() : a.impacts()[0];
+            var r = ExecutionAnims.weapon(t, f, 1.0, new double[] {8, 3.5, 8}).rotation();
+            Vector3d front = r.transform(new Vector3d(0, 0, 1));
+            assertTrue(front.y < -0.3, n + " 앞면이 아래를 보지 않음 " + front);
+        }
+    }
 }

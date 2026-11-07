@@ -386,7 +386,17 @@ public final class FallService {
         ExecAct act = execs.get(ex.id);
         if (act == null) return;
         act.ending = true;
-        if (act.mode == 0) endExec(act);
+        if (act.mode == 0) {
+            endExec(act);
+            return;
+        }
+        // 처형 카메라가 끝나 1인칭으로 돌아온 처형자 눈에는 자기 인형이 바로 아래에 보이므로 숨김 (다른 사람은 마저 봄)
+        if (ex instanceof PlayerCombatant pc && pc.player().isOnline()) {
+            Player p = pc.player();
+            for (ItemDisplay d : act.exPuppet.parts.values()) if (d != null && d.isValid()) p.hideEntity(plugin, d);
+            if (act.exPuppet.mask != null && act.exPuppet.mask.isValid()) p.hideEntity(plugin, act.exPuppet.mask);
+            if (act.weapon != null && act.weapon.isValid()) p.hideEntity(plugin, act.weapon);
+        }
     }
 
     /** 처형 취소: 바로 실제 몸으로, 피처형자 대역도 다시 보임 */

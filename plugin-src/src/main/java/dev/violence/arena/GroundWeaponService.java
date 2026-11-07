@@ -3,19 +3,28 @@ package dev.violence.arena;
 import dev.violence.ViolencePlugin;
 import dev.violence.combat.Combatant;
 import dev.violence.fx.Fx;
+import dev.violence.fx.Glyphs;
 import dev.violence.math.Vec3;
 import dev.violence.player.PlayerCombatant;
 import dev.violence.weapon.WeaponInstance;
 import dev.violence.weapon.WeaponItems;
+import dev.violence.weapon.WeaponLabels;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.TextColor;
+import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.Color;
 import org.bukkit.FluidCollisionMode;
 import org.bukkit.Location;
+import org.bukkit.entity.Display;
 import org.bukkit.entity.ItemDisplay;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.TextDisplay;
 import org.bukkit.util.RayTraceResult;
 import org.bukkit.util.Transformation;
 import org.bukkit.util.Vector;
@@ -24,7 +33,8 @@ import org.joml.Vector3f;
 
 /**
  * 바닥에 떨어진 무기 관리.
- * - 조준선에 있는 무기는 하얀 테두리로 빛남 (그 플레이어에게만)
+ * - 조준선에 있는 무기는 하얀 테두리로 빛남 (그 플레이어에게만). 탄이 없는 총은 빨간 테두리
+ * - 테두리가 생긴 무기 오른쪽에 정보 카드: 왼쪽 위 무기 종류, 이름, 오른쪽 아래 현재/최대 탄수 (단색)
  * - 겹친 경우 가장 최근에 떨어진 무기를 우선
  * - 탄이 없는 총은 5초 동안 줍지 않으면 사라짐
  */
@@ -32,10 +42,25 @@ public final class GroundWeaponService {
     public static final double PICK_RANGE = 3.2;
     public static final int EMPTY_GUN_LIFETIME = 100;
 
+    /** 정보 카드 크기: 글자 폭(px) 기준 가로, 표시 배율 */
+    static final int CARD_WIDTH = 104;
+    static final float CARD_SCALE = 0.3f;
+    private static final int CARD_BG = 0xE0141416;   // 거의 불투명한 검정 (단색)
+    private static final int EMPTY_RED = 0xFF3030;
+
     private final ViolencePlugin plugin;
+    /** 플레이어별 정보 카드 */
+    private final Map<UUID, Card> cards = new HashMap<>();
+
+    private record Card(TextDisplay display, GroundWeapon weapon) {}
 
     public GroundWeaponService(ViolencePlugin plugin) {
         this.plugin = plugin;
+    }
+
+    /** 탄이 없는 총: 빨간 테두리·빨간 탄수 */
+    static boolean emptyGun(WeaponInstance w) {
+        return w.type().isGun() && !w.hasAmmo();
     }
 
     private static Transformation lyingTransform(float yaw, float scale) {
@@ -111,6 +136,11 @@ public final class GroundWeaponService {
             h.remove();
         }
         g.highlights.clear();
+        cards.entrySet().removeIf(e -> {
+            if (e.getValue().weapon() != g) return false;
+            removeCard(a, e.getValue());
+            return true;
+        });
     }
 
     /** 조준선이 가리키는 무기 (여러 개가 겹치면 가장 최근 것). */
@@ -172,7 +202,7 @@ public final class GroundWeaponService {
                         d.setPersistent(false);
                         d.setVisibleByDefault(false);
                         d.setGlowing(true);
-                        d.setGlowColorOverride(Color.WHITE);
+                        d.setGlowColorOverride(emptyGun(g.weapon) ? Color.RED : Color.WHITE);
                     }));
                     p.showEntity(plugin, hd);
                     g.highlights.put(p.getUniqueId(), hd);
@@ -182,6 +212,7 @@ public final class GroundWeaponService {
                     g.highlights.remove(p.getUniqueId());
                 }
             }
+            updateCard(a, pc, t);
         }
     }
 
@@ -193,6 +224,79 @@ public final class GroundWeaponService {
                 h.remove();
             }
         }
+        Card c = cards.remove(player);
+        if (c != null) removeCard(a, c);
+    }
+
+    // ───────── 정보 카드 ─────────
+
+    /** 카드 글자: 무기 종류(회색) / 이름(흰색) / 빈 줄 / 오른쪽 끝에 맞춘 현재·최대 탄수 */
+    Component cardText(WeaponInstance w) {
+        String group = plugin.falls() != null && plugin.falls().execAnims() != null ? plugin.falls().execAnims().groupOf(w.type().id()) : null;
+        Component kind = Component.text(WeaponLabels.kind(w.type(), group)).font(Glyphs.HUD).color(TextColor.color(Glyphs.GRAY));
+        Component name = Component.text(w.type().displayName()).font(Glyphs.POPUP).color(TextColor.color(Glyphs.WHITE));
+        String ammo = WeaponLabels.ammo(w);
+        Component bottom;
+        if (ammo == null) {
+            bottom = Glyphs.space(CARD_WIDTH);
+        } else {
+            bottom = Component.text()
+                    .append(Glyphs.space(Math.max(0, CARD_WIDTH - WeaponLabels.defaultFontWidth(ammo))))
+                    .append(Component.text(ammo).color(TextColor.color(emptyGun(w) ? EMPTY_RED : Glyphs.WHITE))
+                            .decoration(TextDecoration.BOLD, false))
+                    .build();
+        }
+        return Component.text().append(kind).append(Component.newline()).append(name).append(Component.newline())
+                .append(Component.newline()).append(bottom).build();
+    }
+
+    /** 카드 위치: 무기 오른쪽(보는 사람 기준)으로 카드 반 폭 + 여유만큼, 무기보다 조금 위 */
+    static Vec3 cardPos(Vec3 item, Vec3 look) {
+        Vec3 f = look.horizontal();
+        f = f.lengthSq() < 1e-6 ? new Vec3(0, 0, 1) : f.normalize();
+        Vec3 right = new Vec3(-f.z(), 0, f.x());
+        double half = (CARD_WIDTH + 4) * 0.025 * CARD_SCALE / 2;
+        return item.add(right.mul(0.28 + half)).add(0, 0.08, 0);
+    }
+
+    private void updateCard(Arena a, PlayerCombatant pc, GroundWeapon t) {
+        Player p = pc.player();
+        Card c = cards.get(p.getUniqueId());
+        if (c != null && (t == null || c.weapon() != t || !c.display().isValid())) {
+            cards.remove(p.getUniqueId());
+            removeCard(a, c);
+            c = null;
+        }
+        if (t == null) return;
+        Vec3 at = cardPos(t.pos, pc.look());
+        Location loc = new Location(a.world, at.x(), at.y(), at.z());
+        if (c == null) {
+            TextDisplay d = a.track(a.world.spawn(loc, TextDisplay.class, td -> {
+                td.text(cardText(t.weapon));
+                td.setBillboard(Display.Billboard.CENTER);
+                td.setAlignment(TextDisplay.TextAlignment.LEFT);
+                td.setLineWidth(400);
+                td.setBackgroundColor(Color.fromARGB(CARD_BG));
+                td.setShadowed(false);
+                td.setSeeThrough(false);
+                td.setBrightness(new Display.Brightness(15, 15));
+                td.setTransformation(new Transformation(new Vector3f(), new Quaternionf(),
+                        new Vector3f(CARD_SCALE, CARD_SCALE, CARD_SCALE), new Quaternionf()));
+                td.setTeleportDuration(2);
+                td.setViewRange(1.5f);
+                td.setPersistent(false);
+                td.setVisibleByDefault(false);
+            }));
+            p.showEntity(plugin, d);
+            cards.put(p.getUniqueId(), new Card(d, t));
+        } else if (c.display().getLocation().distanceSquared(loc) > 1e-4) {
+            c.display().teleport(loc);
+        }
+    }
+
+    private void removeCard(Arena a, Card c) {
+        a.tracked.remove(c.display());
+        c.display().remove();
     }
 
     public void pickUp(Arena a, Combatant c, GroundWeapon g) {
