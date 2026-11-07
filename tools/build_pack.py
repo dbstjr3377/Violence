@@ -375,85 +375,125 @@ def splat(path, color, size=32, blobs=9, spread=0.38, seed=0, holes=False):
 BLOOD_FADE = [1.0, 0.8, 0.6, 0.42, 0.26, 0.12]
 
 
-def blood_base(kind, seed, size=64):
-    """혈흔 그림 (RGBA). splat: 왼쪽에 뭉친 머리 + 오른쪽(+x)으로 가늘어지는 꼬리와 튄 방울, flow: 흐르는 줄기, pool: 웅덩이"""
-    r = random.Random(seed)
-    S = size * 4
-    img = Image.new("L", (S, S), 0)
-    d = ImageDraw.Draw(img)
-    if kind == "splat":
-        cx, cy = S * 0.32, S * 0.5
-        d.ellipse([cx - S * 0.17, cy - S * 0.16, cx + S * 0.17, cy + S * 0.16], fill=255)
-        for i in range(7):
+# 피 (핫라인 마이애미 / 카타나 제로 풍): 두 가지 색만 쓰는 선명한 픽셀 그림
+BLOOD_MAIN = (184, 14, 24)
+BLOOD_DARK = (106, 4, 14)
+# 상황별 모양: 이름 → (종류, 개수). 그림의 +x 가 늘어나는 방향(진행 방향 / 벽에서는 아래)
+BLOOD_SHAPES = {"splat": 3, "streak": 3, "drip": 3, "drops": 2, "spray": 2}
+
+
+def _disc(d, x, y, r, fill=1):
+    d.ellipse([x - r, y - r, x + r, y + r], fill=fill)
+
+
+def blood_mask(kind, seed, size=64):
+    """1비트 모양 (0/1). 안티앨리어싱 없이 그려 가장자리가 또렷한 픽셀"""
+    r = random.Random(seed * 7919 + len(kind))
+    m = Image.new("1", (size, size), 0)
+    d = ImageDraw.Draw(m)
+    c = size / 2
+    if kind == "splat":            # 바닥에 곧게 떨어짐: 둥근 몸통 + 왕관처럼 튄 가시와 방울
+        _disc(d, c, c, size * 0.2)
+        for k in range(5):
             a = r.uniform(0, math.tau)
-            rad = r.uniform(0.05, 0.1) * S
-            ox, oy = cx + math.cos(a) * S * 0.13, cy + math.sin(a) * S * 0.12
-            d.ellipse([ox - rad, oy - rad, ox + rad, oy + rad], fill=255)
-        # 꼬리: 진행 방향으로 가늘어짐
-        x, w = cx + S * 0.12, S * 0.09
-        while x < S * 0.9 and w > S * 0.008:
-            d.ellipse([x - w, cy + r.gauss(0, S * 0.01) - w, x + w, cy + w], fill=255)
-            x += w * 0.8
-            w *= r.uniform(0.86, 0.93)
-        # 튄 방울 (주로 앞쪽)
-        for i in range(14 + seed % 5):
-            ang = r.gauss(0, 0.5) if r.random() < 0.7 else r.uniform(0, math.tau)
-            dist = r.uniform(0.2, 0.45) * S
-            rad = r.uniform(0.008, 0.028) * S
-            x, y = cx + math.cos(ang) * dist, cy + math.sin(ang) * dist * 0.7
-            if 0 < x < S and 0 < y < S:
-                d.ellipse([x - rad, y - rad, x + rad, y + rad], fill=255)
-    elif kind == "flow":
-        cx, cy = S * 0.1, S * 0.5
-        d.ellipse([cx - S * 0.09, cy - S * 0.2, cx + S * 0.12, cy + S * 0.2], fill=255)
-        x, w = cx, S * 0.16
-        while x < S * 0.88:
-            y = cy + math.sin(x / S * 9 + seed) * S * 0.05
-            d.ellipse([x - w * 0.6, y - w, x + w * 0.6, y + w], fill=255)
-            x += S * 0.02
-            w = max(S * 0.07, w * 0.985)
-        d.ellipse([S * 0.72, cy - S * 0.19, S * 0.97, cy + S * 0.17], fill=255)   # 끝에 고인 피
-    else:
-        c = S / 2
-        for i in range(16):
-            rad = r.uniform(0.14, 0.3) * S * (1.0 if i == 0 else 0.7)
-            ox, oy = (r.gauss(0, 0.11 * S), r.gauss(0, 0.11 * S)) if i else (0, 0)
-            d.ellipse([c + ox - rad, c + oy - rad, c + ox + rad, c + oy + rad], fill=255)
-    img = img.filter(ImageFilter.GaussianBlur(S * 0.006))
-    mask = img.point(lambda v: 255 if v > 120 else 0).resize((size, size), Image.LANCZOS).point(lambda v: 255 if v > 110 else 0)
-    # 색: 가운데 어둡고 진하게, 가장자리 살짝 밝게, 젖은 하이라이트 몇 점
-    dist = mask.filter(ImageFilter.MinFilter(3)).filter(ImageFilter.MinFilter(3))
+            _disc(d, c + math.cos(a) * size * 0.1, c + math.sin(a) * size * 0.1, size * r.uniform(0.09, 0.14))
+        for k in range(r.randint(7, 10)):
+            a = k / 9 * math.tau + r.uniform(-0.25, 0.25)
+            ln = size * r.uniform(0.26, 0.4)
+            w = size * 0.035
+            ex, ey = c + math.cos(a) * ln, c + math.sin(a) * ln
+            d.polygon([(c + math.cos(a + 1.57) * w, c + math.sin(a + 1.57) * w), (ex, ey), (c + math.cos(a - 1.57) * w, c + math.sin(a - 1.57) * w)], fill=1)
+            _disc(d, c + math.cos(a) * (ln + size * 0.06), c + math.sin(a) * (ln + size * 0.06), size * r.uniform(0.015, 0.03))
+    elif kind == "streak":         # 비스듬히 닿음: 뭉친 머리 → 진행 방향(+x)으로 가늘어지는 꼬리, 꼬리 끝에 방울
+        hx, hy = size * 0.24, c
+        _disc(d, hx, hy, size * 0.15)
+        x, w = hx, size * 0.13
+        while x < size * 0.84 and w > 0.8:
+            _disc(d, x, hy + r.uniform(-0.4, 0.4), w)
+            x += max(1.0, w * 0.6)
+            w *= 0.94
+        for k in range(r.randint(3, 5)):
+            _disc(d, size * r.uniform(0.55, 0.95), hy + r.gauss(0, size * 0.07), size * r.uniform(0.012, 0.03))
+        for k in range(3):
+            _disc(d, hx - size * r.uniform(0.12, 0.2), hy + r.gauss(0, size * 0.1), size * 0.02)
+    elif kind == "drip":           # 벽에 맞음: 위쪽(-x) 얼룩에서 아래(+x)로 흘러내리는 줄기 2~4개, 끝은 둥근 방울
+        _disc(d, size * 0.24, c, size * 0.17)
+        _disc(d, size * 0.2, c + size * 0.12, size * 0.1)
+        _disc(d, size * 0.2, c - size * 0.13, size * 0.09)
+        for k in range(r.randint(2, 4)):
+            y = c + r.uniform(-0.15, 0.15) * size
+            x1 = size * r.uniform(0.55, 0.92)
+            w = max(1, int(size * r.uniform(0.025, 0.04)))
+            d.rectangle([size * 0.3, y - w, x1, y + w], fill=1)
+            _disc(d, x1, y, w * 1.6)
+        for k in range(4):
+            _disc(d, size * r.uniform(0.05, 0.4), c + r.gauss(0, size * 0.2), size * 0.018)
+    elif kind == "drops":          # 작은 방울 몇 개
+        for k in range(r.randint(4, 7)):
+            _disc(d, c + r.gauss(0, size * 0.18), c + r.gauss(0, size * 0.18), size * r.uniform(0.03, 0.09))
+    elif kind == "spray":          # 강한 공격: 부채꼴로 흩뿌린 잔 점들 (+x 방향으로 퍼짐)
+        for k in range(42):
+            a = r.gauss(0, 0.5)
+            dist = size * r.uniform(0.05, 0.45)
+            _disc(d, size * 0.1 + math.cos(a) * dist, c + math.sin(a) * dist, size * r.uniform(0.01, 0.035))
+        _disc(d, size * 0.12, c, size * 0.07)
+    elif kind == "pool":           # 시체 밑 웅덩이: 매끈한 덩어리
+        _disc(d, c, c, size * 0.3)
+        for k in range(8):
+            a = k / 8 * math.tau + r.uniform(-0.3, 0.3)
+            _disc(d, c + math.cos(a) * size * 0.2, c + math.sin(a) * size * 0.2, size * r.uniform(0.13, 0.19))
+    elif kind == "flow":           # 머리에서 흐르는 피: 고인 머리 쪽 → 구불구불한 줄기 → 끝에 고임
+        _disc(d, size * 0.1, c, size * 0.1)
+        x = size * 0.1
+        while x < size * 0.86:
+            y = c + math.sin(x / size * 8 + seed) * size * 0.05
+            _disc(d, x, y, size * 0.075)
+            x += 1
+        _disc(d, size * 0.85, c, size * 0.12)
+    elif kind == "mist":           # 맞은 자리 핏덩이 (화면을 보는 판): 별 모양으로 터짐
+        _disc(d, c, c, size * 0.16)
+        for k in range(9):
+            a = k / 9 * math.tau + r.uniform(-0.2, 0.2)
+            ln = size * r.uniform(0.3, 0.46)
+            w = size * 0.05
+            d.polygon([(c + math.cos(a + 1.57) * w, c + math.sin(a + 1.57) * w), (c + math.cos(a) * ln, c + math.sin(a) * ln),
+                       (c + math.cos(a - 1.57) * w, c + math.sin(a - 1.57) * w)], fill=1)
+    return m
+
+
+def blood_base(kind, seed, size=64):
+    """두 가지 색: 밝은 피(가장자리, 튄 방울) + 어두운 피(굵은 덩어리 안쪽, 빛 반대쪽으로 치우침)"""
+    m = blood_mask(kind, seed, size)
+    core = m.filter(ImageFilter.MinFilter(5 if size >= 48 else 3))
     out = Image.new("RGBA", (size, size), (0, 0, 0, 0))
-    px, mp, dp = out.load(), mask.load(), dist.load()
+    mp, cp, px = m.load(), core.load(), out.load()
     for y in range(size):
         for x in range(size):
             if not mp[x, y]:
                 continue
-            inner = dp[x, y] > 0
-            n = r.uniform(0.9, 1.06)
-            base = (112, 4, 10) if inner else (150, 12, 18)
-            col = tuple(min(255, int(v * n)) for v in base)
-            if inner and r.random() < 0.012:
-                col = (196, 46, 52)
-            px[x, y] = col + (255,)
+            # 어두운 쪽은 안쪽 + 오른쪽 아래로 1픽셀 밀어서 평면 그림자처럼
+            dark = cp[max(0, x - 1), max(0, y - 1)]
+            px[x, y] = (BLOOD_DARK if dark else BLOOD_MAIN) + (255,)
     return out
 
 
 def blood_assets(T):
-    shapes = [("blood_splat_%d" % i, "splat", 40 + i) for i in range(4)] + [("blood_flow", "flow", 90), ("blood_pool", "pool", 77)]
+    shapes = [(f"blood_{k}_{i}", k, 40 + i * 13) for k, n in BLOOD_SHAPES.items() for i in range(n)]
+    shapes += [("blood_flow", "flow", 90), ("blood_pool", "pool", 77)]
     for name, kind, seed in shapes:
         base = blood_base(kind, seed)
         entries = []
         for k, a in enumerate(BLOOD_FADE):
             img = base.copy()
-            al = img.getchannel("A").point(lambda v, a=a: int(v * a))
-            img.putalpha(al)
+            img.putalpha(img.getchannel("A").point(lambda v, a=a: int(v * a)))
             save_png(img, os.path.join(T, f"{name}_a{k}.png"))
             write(os.path.join(NS, "models", "fx", f"{name}_a{k}.json"), plane_model(f"violence:fx/{name}_a{k}"))
             entries.append({"threshold": k, "model": {"type": "minecraft:model", "model": f"violence:fx/{name}_a{k}"}})
         write(os.path.join(NS, "items", "fx", name + ".json"), {"model": {
             "type": "minecraft:range_dispatch", "property": "minecraft:custom_model_data", "index": 0,
             "entries": entries, "fallback": entries[0]["model"]}})
+    # 맞은 자리 핏덩이 (빌보드)
+    save_png(blood_base("mist", 5, 32), os.path.join(T, "blood_mist.png"))
 
 
 def plane_model(tex, axis="y", double=True):
@@ -508,7 +548,6 @@ def fx():
     for i in range(4):
         splat(os.path.join(T, f"blood_decal_{i}.png"), blood, 32, blobs=5 + i * 2, spread=0.3 + i * 0.05, seed=10 + i)
         write(os.path.join(NS, "models", "fx", f"blood_decal_{i}.json"), plane_model(f"violence:fx/blood_decal_{i}"))
-    splat(os.path.join(T, "blood_mist.png"), (170, 12, 20, 255), 32, blobs=7, spread=0.35, seed=5)
     write(os.path.join(NS, "models", "fx", "blood_mist.json"), plane_model("violence:fx/blood_mist", axis="z"))
     solid(os.path.join(T, "blood_drop.png"), (150, 8, 14, 255))
     write(os.path.join(NS, "models", "fx", "blood_drop.json"), cube_model("violence:fx/blood_drop"))
@@ -705,17 +744,18 @@ def fonts():
     # 아이콘
     black = Image.new("RGBA", (32, 16), (0, 0, 0, 255))
     save_png(black, os.path.join(T, "black.png"))
-    # 히트마커 (총으로 맞히면 조준점에 잠깐): 흰색 / 처치하면 빨간색
-    for name, col in (("hitmarker", (255, 255, 255, 255)), ("hitmarker_kill", (255, 60, 60, 255))):
+    # 히트마커 (총으로 맞히면 조준점에 잠깐): 흰색 단색 4획. 처치는 같은 흰색에 획이 조금 더 굵고 김
+    for name, width, reach in (("hitmarker", 0.26, 1.6), ("hitmarker_kill", 0.36, 1.8)):
         S = 48
         hm = Image.new("RGBA", (S * 4, S * 4), (0, 0, 0, 0))
         d = ImageDraw.Draw(hm)
         c = S * 2
         for sx, sy in ((1, 1), (1, -1), (-1, 1), (-1, -1)):
-            a, b = (c + sx * S * 0.55, c + sy * S * 0.55), (c + sx * S * 1.7, c + sy * S * 1.7)
-            d.line([a, b], fill=(0, 0, 0, 200), width=int(S * 0.5))
-            d.line([a, b], fill=col, width=int(S * 0.28))
-        save_png(hm.resize((S, S), Image.LANCZOS), os.path.join(T, name + ".png"))
+            d.line([(c + sx * S * 0.6, c + sy * S * 0.6), (c + sx * S * reach, c + sy * S * reach)],
+                   fill=(255, 255, 255, 255), width=int(S * width))
+        hm = hm.resize((S, S), Image.LANCZOS)
+        hm.putalpha(hm.getchannel("A").point(lambda v: 255 if v > 100 else 0))
+        save_png(hm, os.path.join(T, name + ".png"))
     bullet = Image.new("RGBA", (5, 8), (0, 0, 0, 0))
     d = ImageDraw.Draw(bullet)
     d.rectangle([1, 3, 3, 7], fill=(230, 185, 70, 255))
@@ -957,11 +997,22 @@ def puppet():
                       {"type": "minecraft:custom_model_data", "index": 1, "default": c1}]}})
 
 
+def crosshair():
+    """기본 조준점(+)을 작은 점으로 (바닐라 HUD 스프라이트 덮어쓰기, 15×15 칸에 2배 밀도)"""
+    img = Image.new("RGBA", (30, 30), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    d.rectangle([13, 13, 16, 16], fill=(255, 255, 255, 255))
+    for x, y in ((13, 13), (16, 13), (13, 16), (16, 16)):
+        img.putpixel((x, y), (0, 0, 0, 0))
+    save_png(img, os.path.join(PACK, "assets", "minecraft", "textures", "gui", "sprites", "hud", "crosshair.png"))
+
+
 def main():
     clean()
     mcmeta()
     n = weapons()
     puppet()
+    crosshair()
     fx()
     misc()
     equipment()

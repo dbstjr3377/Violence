@@ -14,6 +14,12 @@ game:
   allow-late-join: true
 
 # 점수 (Skript 가 없을 때 사용. Skript 가 있으면 violence/score.sk 가 계산)
+combat:
+  # 총: 쓰러뜨리지 않고 몸통 한 발마다 피해, HP 가 gun-death-hp 이하가 되면 바로 즉사 (머리는 한 발에 즉사)
+  # 기본값: 100 → 60 → 20(사망) = 몸통 두 발. 살아남으면 3초 뒤 1초에 걸쳐 회복
+  gun-body-damage: 40
+  gun-death-hp: 30
+
 score:
   kill:
     gun: 100

@@ -70,5 +70,6 @@ void main() {
     executeAlphaOnlyPhase(gl_FragCoord.z, color.a);
     #else
     fragColor = calculateFinalColor(color);
+    if (violenceFlash > 0.5) fragColor.rgb = vec3(dot(fragColor.rgb, vec3(0.299, 0.587, 0.114)));  // VIOLENCE: 안개까지 흑백
     #endif
 }

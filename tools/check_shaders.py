@@ -24,6 +24,11 @@ OIT_PASSES = [_OIT + ["OIT_ACCUMULATE"], _OIT + ["OIT_ACCUMULATE", "OIT_ADDITIVE
               _OIT + ["OIT_ALPHA_ONLY", "OIT_TRANSMITTANCE"], _OIT + ["OIT_ALPHA_ONLY", "OIT_DEPTH_BOUNDS"]]
 VARIANTS = {
     "terrain": [[["MULTIDRAW_TERRAIN"]], [["ALPHA_CUTOUT 0.5"]], OIT_PASSES],
+    "entity": [[["ALPHA_CUTOUT 0.1"]], [["PER_FACE_LIGHTING"], ["NO_CARDINAL_LIGHTING"]], [["EMISSIVE"]], [["NO_OVERLAY"]],
+               [["GLINT"], ["DISSOLVE"]], [["APPLY_TEXTURE_MATRIX"]], OIT_PASSES],
+    "item": [[["ALPHA_CUTOUT 0.1"]], [["GLINT"], ["GLINT", "GLINT_SPECIAL"]], OIT_PASSES],
+    "particle": [OIT_PASSES],
+    "block": [[["ALPHA_CUTOUT 0.5"]], OIT_PASSES],
 }
 
 
@@ -78,7 +83,13 @@ def main():
     bad, n = 0, 0
     stems = sorted({f.rsplit(".", 1)[0] for f in files})
     for stem in stems:
-        paths = [os.path.join(core, stem + ext) for ext in (".vsh", ".fsh") if os.path.isfile(os.path.join(core, stem + ext))]
+        # 한쪽만 바꾼 쉐이더는 바닐라 원본(tools/shader_ref/core)과 함께 링크
+        paths = []
+        for ext in (".vsh", ".fsh"):
+            for base in (core, os.path.join(REF, "core")):
+                if os.path.isfile(os.path.join(base, stem + ext)):
+                    paths.append(os.path.join(base, stem + ext))
+                    break
         for defs in variants(stem):
             ok, log = compile_one(paths, defs)
             n += 1

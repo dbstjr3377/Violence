@@ -3,11 +3,12 @@
 세 명을 처치하는 인게임 시뮬레이션 (왼쪽: 플레이어 화면, 오른쪽: 관찰 카메라, 20fps, 게임 캡처 아님).
 
 교도소 홀에서
- 1) 매그넘으로 NPC A 를 쏨: 몸통 → 뒤로 넘어짐(공격 방향으로 밀림), 쓰러진 적을 한 발 더 → 처치
+ 1) 매그넘으로 NPC A 를 쏨: 몸통 첫 발은 휘청, 두 번째 발에 즉사 → 공격 방향으로 밀려나며 뒤로 넘어짐
  2) 매그넘을 NPC B 에게 던짐 → 뒤로 넘어짐 → 다가가 Space 로 올라타 맨손 처형(왼클릭 4번) → 머리에서 피가 흐름
  3) NPC C 를 주먹으로 침 → 뒤쪽 벽에 부딪혀 벽에 기대 기절 → Space 로 머리 발차기 처형 → 벽 아래로 미끄러져 누움(전용 사망 모션)
 게임과 같은 계산: 넘어짐/벽 기절/발차기(fall.json, FallService), 핏방울 탄도와 표면 혈흔·5초 뒤 사라짐(BloodService),
-히트마커(총으로 맞히면 조준점), 처치 흑백 깜빡임(terrain 쉐이더: 블록만 흑백, 인물은 그대로), 처형 카메라(CombatService).
+히트마커(총으로 맞히면 조준점, 흰색), 점 조준점, 처치 흑백 깜빡임(UI 를 뺀 화면 전체), 처형 카메라(CombatService).
+총은 쓰러뜨리지 않음: 몸통 첫 발은 휘청, 두 번째 발에 HP 가 30 이하 → 바로 즉사.
 결과: build-out/kill_combo/kill_combo.mp4, kill_combo.gif, still_*.png
 """
 import json
@@ -175,14 +176,15 @@ class Blood:
 
     def spray(self, point, d, intensity):
         bias = d / max(1e-6, np.linalg.norm(d))
-        for _ in range(5 + intensity * 4):
+        for i in range(5 + intensity * 4):
             r = np.array([rng.gauss(0, 1), rng.gauss(0, 0.6), rng.gauss(0, 1)])
             r /= np.linalg.norm(r)
             v = bias * (1.4 + intensity * 0.2) + r + [0, 0.25, 0]
             v /= np.linalg.norm(v)
             speed = 0.18 + rng.random() * (0.18 + intensity * 0.06)
             size = 0.22 + rng.random() * (0.22 + intensity * 0.07)
-            self.drops.append([point + r * 0.05, v * speed, size, 0])
+            burst = intensity >= 3 and i < 2
+            self.drops.append([point + r * 0.05, v * (speed * 1.4 if burst else speed), max(size, 0.4) if burst else size, 0, burst])
 
     def decal(self, point, normal, along, name, sx, sz, tk, life, grow=None):
         n = normal / np.linalg.norm(normal)
@@ -209,7 +211,7 @@ class Blood:
     def tick(self, tk):
         keep = []
         for d in self.drops:
-            pos, vel, size, age = d
+            pos, vel, size, age, burst = d
             age += 1
             if age > 50:
                 continue
@@ -220,14 +222,29 @@ class Blood:
                 hit = (pos + vel * t, np.array([0, 1.0, 0]), t)
             if hit is not None:
                 p, n, _ = hit
+                # BloodService.splat 과 같은 모양 고르기
                 tang = vel - n * (vel @ n)
                 glance = min(1.0, float(np.linalg.norm(tang)) / max(1e-4, ln))
-                stretch = 1.0 + glance * glance * 2.4
                 along = tang / np.linalg.norm(tang) if np.linalg.norm(tang) > 1e-6 else None
-                c = p + (along * size * stretch * 0.28 if along is not None else 0)
-                self.decal(c, n, along, f"blood_splat_{rng.randrange(4)}", size * stretch, size, tk, 100)
+                wall = abs(n[1]) < 0.7
+                if burst:
+                    shape, sx, sz, head = "spray", size * 2.2, size * 1.7, 0.36
+                elif size < 0.27:
+                    shape, sx, sz, head, along = "drops", size * 1.4, size * 1.4, 0, None
+                elif wall and glance < 0.6:
+                    down = np.array([0, -1.0, 0])
+                    along = down - n * (down @ n)
+                    along /= np.linalg.norm(along)
+                    shape, sx, sz, head = "drip", size * 1.7, size * 1.1, 0.24
+                elif glance >= 0.45 and along is not None:
+                    shape, sx, sz, head = "streak", size * 1.6 * (1 + glance * 1.2), size * 0.8, 0.26
+                else:
+                    shape, sx, sz, head, along = "splat", size * 1.25, size * 1.25, 0, None
+                count = {"splat": 3, "streak": 3, "drip": 3, "drops": 2, "spray": 2}[shape]
+                c = p + (along * sx * head if along is not None and head else 0)
+                self.decal(c, n, along, f"blood_{shape}_{rng.randrange(count)}", sx, sz, tk, 100)
                 continue
-            keep.append([pos + vel, vel * 0.98 + [0, -0.045, 0], size, age])
+            keep.append([pos + vel, vel * 0.98 + [0, -0.045, 0], size, age, burst])
         self.drops = keep
 
     def visible(self, tk):
@@ -263,7 +280,7 @@ def perspective_coeffs(dst, src):
     return np.linalg.solve(np.array(A, float), np.array(B, float))
 
 
-def draw_decals(img, decals, eye, b, depth_fn, tint=0.78):
+def draw_decals(img, decals, eye, b, depth_fn, tint=0.9):
     for center, along, normal, sx, sz, name, step in decals:
         z = np.cross(along, normal)
         corners = [center + along * (u - 0.5) * sx + z * (v - 0.5) * sz for u, v in ((0, 0), (1, 0), (1, 1), (0, 1))]
@@ -293,7 +310,7 @@ def draw_decals(img, decals, eye, b, depth_fn, tint=0.78):
 
 def draw_drops(img, drops, eye, b, depth_fn):
     d = ImageDraw.Draw(img)
-    for pos, vel, size, age in drops:
+    for pos, vel, size, age, *_ in drops:
         for p in (pos, pos + vel * 0.5):
             v = G.to_view(p, eye, b)
             if v[2] > -0.05:
@@ -398,9 +415,17 @@ class Scene:
             n["feet"] = slide_to
             n["state"] = "downed"
 
-    def kill(self, key, tk, execution=False):
+    def kill(self, key, tk, execution=False, push=None):
         n = self.npc[key]
         l = n["lying"]
+        if l is None and push is not None:
+            # 서 있다가 바로 죽음 (총: HP 가 일정 이하) → 넘어지는 동작부터, 시체가 밀려남
+            push = np.array([push[0], 0, push[2]])
+            push /= np.linalg.norm(push)
+            start = n["feet"].copy()
+            end = start + push * DATA["kinds"]["back"]["slide"]
+            l = n["lying"] = Lying("back", start, end, n["yaw"], yaw_of(-push), tk)
+            n["feet"] = end
         if l and l.kind == "wall":
             d = Lying("wall_death", l.end, l.end, l.yaw, l.yaw, tk)
             n["lying"] = d
@@ -447,7 +472,7 @@ def main():
         # 플레이어 움직임
         A, B, C = (sc.npc[k] for k in "ABC")
         if tk < T_TURN1[0]:
-            tgt = A["feet"] + ([0, 1.1, 0] if tk < T_SHOT1 + 2 else [0, 0.35, 0])
+            tgt = A["feet"] + [0, 1.1, 0]
             sc.me_yaw, sc.me_pitch = G.look_angles(sc.me + [0, 1.62, 0], tgt)
         elif tk < T_THROW + 1:
             t = (tk - T_TURN1[0]) / (T_TURN1[1] - T_TURN1[0])
@@ -486,20 +511,19 @@ def main():
         for ts in (T_SHOT1, T_SHOT2):
             if tk == ts:
                 f, r, u = G.basis(sc.me_yaw, sc.me_pitch)
-                hit = A["feet"] + ([0, 1.1, 0] if A["state"] == "alive" else [0, 0.3, 0])
-                if A["state"] != "alive" and A["lying"]:
-                    hit = A["lying"].anchor(5, tk) + fwd(A["lying"].yaw) * -0.8 + [0, 0.3, 0]
+                hit = A["feet"] + [0, 1.1, 0]
                 d = hit - eye
                 d /= np.linalg.norm(d)
                 sc.tracers.append((tk, eye + f * 0.6 + r * 0.15 - u * 0.13, hit + d * 0.6))
                 sc.blood.spray(hit, d, 2)
                 sc.fp_anim = (magnum_frames, tk, 4)
                 sc.ammo -= 1
-                if A["state"] == "alive":
-                    sc.knockdown("A", d, tk)
+                # 총: 쓰러뜨리지 않음. 첫 발은 휘청(HP 60), 두 번째 발에 HP 20 → 바로 즉사
+                if ts == T_SHOT1:
+                    A["feet"] = A["feet"] + np.array([d[0], 0, d[2]]) * 0.12
                     sc.hitmarks.append((tk, False))
                 else:
-                    sc.kill("A", tk)
+                    sc.kill("A", tk, push=d)
                     sc.hitmarks.append((tk, True))
         # 2) 던지기 → 처형
         if tk == T_THROW:
@@ -635,14 +659,8 @@ def main():
             img_arr, dep = bg[cam]
             eye = np.array(cam[0])
             b = G.basis(cam[1], cam[2])
-            base = img_arr
             flash = which == "main" and 0 <= tk - st["flash"] < 6
-            if flash:
-                # 처치 흑백 깜빡임: 블록(배경)만 흑백 — 인물은 엔티티라 색 그대로
-                g = base.astype(np.float32) @ np.array([0.299, 0.587, 0.114])
-                g = np.clip((g - 70) * 1.35 + 110, 0, 255)
-                base = np.repeat(g[..., None], 3, axis=2).astype(np.uint8)
-            img = Image.fromarray(base).resize((OW, OH), Image.BILINEAR).convert("RGBA")
+            img = Image.fromarray(img_arr).resize((OW, OH), Image.BILINEAR).convert("RGBA")
 
             def depth_fn(x, y, dep=dep):
                 xi = int(min(GP.W - 1, max(0, x * GP.W / OW)))
@@ -669,6 +687,12 @@ def main():
                     if fa and fa[0] is frames_list:
                         prog = max(0.0, (fa[1] + fa[2] - tk) / fa[2])
                     img.alpha_composite(G.fp_layer(G.frame_for(frames_list, prog)))
+                if flash:
+                    # 처치 흑백 깜빡임: UI 를 빼고 화면 안의 모든 것 (맵·인물·피·손·무기·하늘)
+                    arr = np.asarray(img.convert("RGB")).astype(np.float32) @ np.array([0.299, 0.587, 0.114])
+                    arr = np.clip((arr - 70) * 1.35 + 110, 0, 255).astype(np.uint8)
+                    img = Image.fromarray(np.repeat(arr[..., None], 3, axis=2)).convert("RGBA")
+                    d = ImageDraw.Draw(img)
                 label = "매그넘" if st["holding"] == "magnum" else "맨손"
                 ammo = st["ammo"] if st["holding"] == "magnum" else None
                 if st["exec"] and st["exec"][0] == "mount":

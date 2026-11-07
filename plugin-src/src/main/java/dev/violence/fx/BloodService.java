@@ -30,12 +30,18 @@ import org.joml.Vector3f;
  *
  * 핏방울은 공격 방향으로 튀어 중력을 받으며 날아가고(날아가는 동안은 붉은 입자),
  * 바닥이나 벽에 닿으면 그 면에 붙는 혈흔(아이템 디스플레이)이 된다.
- * 혈흔은 면의 방향에 맞춰 눕거나 서고, 비스듬히 부딪힐수록 날아가던 쪽으로 길게 늘어진다(꼬리).
- * 5초 뒤 6단계 투명도 모델로 바꿔 가며 서서히 사라진다 (리소스팩 "fx/blood_splat_N", custom_model_data 0 = 투명도 단계).
+ * 혈흔은 면의 방향에 맞춰 눕거나 서고, 상황에 따라 모양이 다르다 (핫라인 마이애미 풍 두 가지 색 픽셀 그림):
+ *  - 바닥에 곧게 떨어짐: 둥근 얼룩 + 왕관처럼 튄 방울 (splat)
+ *  - 비스듬히 닿음: 날아가던 쪽으로 늘어나는 꼬리 (streak)
+ *  - 벽: 아래로 흘러내리는 줄기 (drip)
+ *  - 작은 방울: 점 몇 개 (drops)
+ *  - 강한 공격(헤드샷·처형·샷건)의 첫 방울: 부채꼴로 흩뿌림 (spray)
+ * 5초 뒤 6단계 투명도 모델로 바꿔 가며 서서히 사라진다 (custom_model_data 0 = 투명도 단계).
  * 처형당한 시체는 머리에서 바닥으로 피가 천천히 흘러 퍼진다 (fx/blood_flow).
  */
 public final class BloodService {
-    public static final int SHAPES = 4;
+    /** 상황별 혈흔 모양과 개수 (리소스팩 fx/blood_<모양>_<번호>) */
+    private static final java.util.Map<String, Integer> SHAPES = java.util.Map.of("splat", 3, "streak", 3, "drip", 3, "drops", 2, "spray", 2);
     public static final int FADE_STEPS = 6;
     private static final Color DROP = Color.fromRGB(150, 8, 14);
     private static final double GRAVITY = 0.045;
@@ -53,13 +59,15 @@ public final class BloodService {
         Vec3 pos;
         Vec3 vel;
         final float size;
+        final boolean burst;
         int age;
 
-        Drop(Arena arena, Vec3 pos, Vec3 vel, float size) {
+        Drop(Arena arena, Vec3 pos, Vec3 vel, float size, boolean burst) {
             this.arena = arena;
             this.pos = pos;
             this.vel = vel;
             this.size = size;
+            this.burst = burst;
         }
     }
 
@@ -95,7 +103,8 @@ public final class BloodService {
             Vec3 d = bias.mul(1.4 + intensity * 0.2).add(r).add(0, 0.25, 0).normalize();
             double speed = 0.18 + rnd.nextDouble() * (0.18 + intensity * 0.06);
             float size = 0.22f + rnd.nextFloat() * (0.22f + intensity * 0.07f);
-            drops.add(new Drop(a, point.add(r.mul(0.05)), d.mul(speed), size));
+            boolean burst = intensity >= 3 && i < 2;
+            drops.add(new Drop(a, point.add(r.mul(0.05)), d.mul(burst ? speed * 1.4 : speed), burst ? Math.max(size, 0.4f) : size, burst));
         }
     }
 
@@ -151,7 +160,7 @@ public final class BloodService {
                     if (r != null && r.getHitBlockFace() != null) {
                         Vector hp = r.getHitPosition();
                         Vector fn = r.getHitBlockFace().getDirection();
-                        splat(d.arena, new Vec3(hp.getX(), hp.getY(), hp.getZ()), new Vec3(fn.getX(), fn.getY(), fn.getZ()), d.vel, d.size);
+                        splat(d.arena, new Vec3(hp.getX(), hp.getY(), hp.getZ()), new Vec3(fn.getX(), fn.getY(), fn.getZ()), d.vel, d.size, d.burst);
                         it.remove();
                         continue;
                     }
@@ -185,20 +194,53 @@ public final class BloodService {
         }
     }
 
-    /** 표면에 닿은 핏방울 → 혈흔. 비스듬히 닿을수록 날아가던 쪽으로 길게 늘어짐 */
-    private void splat(Arena a, Vec3 point, Vec3 normal, Vec3 vel, float size) {
+    /** 표면에 닿은 핏방울 → 상황에 맞는 모양의 혈흔 */
+    private void splat(Arena a, Vec3 point, Vec3 normal, Vec3 vel, float size, boolean burst) {
         Vec3 n = normal.normalize();
         Vec3 tang = vel.sub(n.mul(vel.dot(n)));
         double speed = Math.max(1e-4, vel.length());
         double glance = Math.min(1.0, tang.length() / speed);
-        float stretch = (float) (1.0 + glance * glance * 2.4);
-        String model = "violence:fx/blood_splat_" + rnd.nextInt(SHAPES);
+        boolean wall = Math.abs(n.y()) < 0.7;
         Vec3 along = tang.lengthSq() < 1e-6 ? null : tang.normalize();
-        ItemDisplay d = decal(a, point, n, along, model, size * stretch, size, SPLAT_LIFE);
-        if (d == null || along == null) return;
-        // 부딪힌 점이 혈흔의 머리(뭉친 쪽)에 오도록 진행 방향으로 조금 밀어 놓음
+        String shape;
+        float sx;
+        float sz;
+        double head;      // 부딪힌 점을 그림의 어느 쪽에 둘지 (+x 방향으로 밀기, 판 길이 비율)
+        if (burst) {
+            shape = "spray";
+            sx = size * 2.2f;
+            sz = size * 1.7f;
+            head = 0.36;
+        } else if (size < 0.27f) {
+            shape = "drops";
+            along = null;
+            sx = sz = size * 1.4f;
+            head = 0;
+        } else if (wall && glance < 0.6) {
+            // 벽: 판의 +x 를 아래로 → 줄기가 흘러내림
+            Vec3 down = new Vec3(0, -1, 0);
+            along = down.sub(n.mul(down.dot(n))).normalize();
+            shape = "drip";
+            sx = size * 1.7f;
+            sz = size * 1.1f;
+            head = 0.24;
+        } else if (glance >= 0.45 && along != null) {
+            shape = "streak";
+            float stretch = (float) (1.0 + glance * 1.2);
+            sx = size * 1.6f * stretch;
+            sz = size * 0.8f;
+            head = 0.26;
+        } else {
+            shape = "splat";
+            along = null;
+            sx = sz = size * 1.25f;
+            head = 0;
+        }
+        String model = "violence:fx/blood_" + shape + "_" + rnd.nextInt(SHAPES.get(shape));
+        ItemDisplay d = decal(a, point, n, along, model, sx, sz, SPLAT_LIFE);
+        if (d == null || along == null || head == 0) return;
         Transformation t = d.getTransformation();
-        Vector3f shift = new Vector3f((float) along.x(), (float) along.y(), (float) along.z()).mul(size * stretch * 0.28f);
+        Vector3f shift = new Vector3f((float) along.x(), (float) along.y(), (float) along.z()).mul((float) (sx * head));
         d.setTransformation(new Transformation(shift, t.getLeftRotation(), t.getScale(), t.getRightRotation()));
     }
 
@@ -262,8 +304,4 @@ public final class BloodService {
         decals.clear();
     }
 
-    /** 테스트/미리보기용: 늘어남 비율 (비스듬함 0~1) */
-    public static double stretchFor(double glance) {
-        return 1.0 + glance * glance * 2.4;
-    }
 }

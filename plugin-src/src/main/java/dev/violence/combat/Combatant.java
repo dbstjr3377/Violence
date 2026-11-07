@@ -22,6 +22,8 @@ public abstract class Combatant {
     public CombatState state = CombatState.ALIVE;
     public long stateSince;
     public double hp = MAX_HP;
+    /** 마지막으로 총에 맞은 틱 (HP 회복 기준) */
+    public long lastHurtTick = -1000;
 
     /** 들고 있는 무기 (null = 맨손) */
     public WeaponInstance weapon;

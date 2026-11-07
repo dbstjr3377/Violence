@@ -202,6 +202,15 @@ def main():
         for suffix in ("_world", "_world_l", "_world_swing", "_world_swing_b"):
             if f"violence:weapon/{wid}{suffix}" not in item_ids:
                 err(f"3인칭 근접 아이템 없음: {wid}{suffix}")
+    # 상황별 혈흔 모양: BloodService.SHAPES 의 모양·개수마다 리소스팩 아이템이 있어야 함
+    shapes = re.search(r"SHAPES = java\.util\.Map\.of\(([^)]*)\)", java)
+    if not shapes:
+        err("BloodService.SHAPES 를 찾지 못함")
+    else:
+        for name, count in re.findall(r'"([a-z]+)", (\d+)', shapes.group(1)):
+            for i in range(int(count)):
+                if f"violence:fx/blood_{name}_{i}" not in item_ids:
+                    err(f"혈흔 모양 없음: blood_{name}_{i}")
     # 가면
     for m in re.findall(r'^\s+([A-Z_]+)\("[^"]+", "[^"]+", "[^"]+"\)', open(os.path.join(src, "java", "dev", "violence", "mask", "Mask.java"), encoding="utf-8").read(), re.M):
         if "violence:mask/" + m.lower() not in item_ids:

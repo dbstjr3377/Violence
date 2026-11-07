@@ -250,11 +250,19 @@ public final class CombatService {
             if (shooter instanceof PlayerCombatant ps) plugin.hud().hitmarker(ps.player(), true);
             return;
         }
-        // 몸통: 쓰러뜨리는 정도의 피해
-        v.hp -= 40;
+        // 몸통: 총은 쓰러뜨리지 않음. 피해를 입히고 HP 가 일정 이하로 떨어지면 바로 즉사
+        v.hp -= plugin.getConfig().getDouble("combat.gun-body-damage", 40);
+        v.lastHurtTick = now;
         plugin.fx().blood(arena(), point, dir, 2);
-        if (v.hp <= 0) kill(v, shooter, KillType.GUN, dir, false);
-        else knockdown(v, dir, shooter, false);
+        if (v.hp <= plugin.getConfig().getDouble("combat.gun-death-hp", 30)) {
+            kill(v, shooter, KillType.GUN, dir, false);
+        } else {
+            // 살아남으면 맞은 쪽으로 잠깐 휘청 (움직임만 멈칫, 행동은 가능)
+            v.moveLockUntil = Math.max(v.moveLockUntil, now + 3);
+            if (!(v instanceof PlayerCombatant)) v.knockback(dir.horizontal().normalize(), 0.18);
+            v.feelImpact(0.35);
+            plugin.fx().sound(v.world(), point, "violence:hit.knockdown", 0.7f, 1.4f);
+        }
         if (shooter instanceof PlayerCombatant ps) plugin.hud().hitmarker(ps.player(), v.state == CombatState.DEAD);
     }
 
@@ -942,6 +950,10 @@ public final class CombatService {
                     if (c.respawnAt >= 0 && now >= c.respawnAt) respawn(c, now);
                 }
                 default -> {
+                    // 총에 맞고 살아남은 HP: 3초 동안 안 맞으면 1초에 걸쳐 회복
+                    if (c.state == CombatState.ALIVE && c.hp < Combatant.MAX_HP && now - c.lastHurtTick > 60) {
+                        c.hp = Math.min(Combatant.MAX_HP, c.hp + Combatant.MAX_HP / 20);
+                    }
                 }
             }
             // 임시 무기가 처형/빼앗기 등으로 사라졌으면 숨겨 둔 원래 무기를 돌려줌

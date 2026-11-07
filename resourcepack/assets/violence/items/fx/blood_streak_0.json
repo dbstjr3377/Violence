@@ -1,0 +1,55 @@
+{
+ "model": {
+  "type": "minecraft:range_dispatch",
+  "property": "minecraft:custom_model_data",
+  "index": 0,
+  "entries": [
+   {
+    "threshold": 0,
+    "model": {
+     "type": "minecraft:model",
+     "model": "violence:fx/blood_streak_0_a0"
+    }
+   },
+   {
+    "threshold": 1,
+    "model": {
+     "type": "minecraft:model",
+     "model": "violence:fx/blood_streak_0_a1"
+    }
+   },
+   {
+    "threshold": 2,
+    "model": {
+     "type": "minecraft:model",
+     "model": "violence:fx/blood_streak_0_a2"
+    }
+   },
+   {
+    "threshold": 3,
+    "model": {
+     "type": "minecraft:model",
+     "model": "violence:fx/blood_streak_0_a3"
+    }
+   },
+   {
+    "threshold": 4,
+    "model": {
+     "type": "minecraft:model",
+     "model": "violence:fx/blood_streak_0_a4"
+    }
+   },
+   {
+    "threshold": 5,
+    "model": {
+     "type": "minecraft:model",
+     "model": "violence:fx/blood_streak_0_a5"
+    }
+   }
+  ],
+  "fallback": {
+   "type": "minecraft:model",
+   "model": "violence:fx/blood_streak_0_a0"
+  }
+ }
+}
