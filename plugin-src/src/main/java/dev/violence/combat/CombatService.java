@@ -208,7 +208,8 @@ public final class CombatService {
             Boolean wasDowned = rewind > 0 ? c.history.downed(rewind) : null;
             boolean downedBox = wasDowned != null ? wasDowned : c.state.isDownedLike();
             Hitbox.Result hr = downedBox
-                    ? Hitbox.raycastDowned(feet, c.scale(), origin, dir, endDist)
+                    ? (plugin.falls().wallStunned(c) ? Hitbox.raycastSitting(feet, c.scale(), origin, dir, endDist)
+                            : Hitbox.raycastDowned(feet, c.scale(), origin, dir, endDist))
                     : Hitbox.raycastStanding(feet, c.scale(), origin, dir, endDist);
             if (hr.hit()) hits.add(new TraceResult.EntityHit(c, hr.part(), hr.distance(), origin.add(dir.mul(hr.distance()))));
         }
@@ -236,6 +237,7 @@ public final class CombatService {
             plugin.fx().sound(v.world(), point, "violence:hit.shield", 1.2f, 1.0f);
             plugin.fx().blood(arena(), point, dir, 1);
             v.feelImpact(0.4);
+            if (shooter instanceof PlayerCombatant ps) plugin.hud().hitmarker(ps.player(), false);
             return;
         }
         v.lastAttacker = shooter;
@@ -245,6 +247,7 @@ public final class CombatService {
         if (headshot || v.state.isDownedLike()) {
             plugin.fx().blood(arena(), point, dir, headshot ? 4 : 2);
             kill(v, shooter, KillType.GUN, dir, headshot);
+            if (shooter instanceof PlayerCombatant ps) plugin.hud().hitmarker(ps.player(), true);
             return;
         }
         // 몸통: 쓰러뜨리는 정도의 피해
@@ -252,6 +255,7 @@ public final class CombatService {
         plugin.fx().blood(arena(), point, dir, 2);
         if (v.hp <= 0) kill(v, shooter, KillType.GUN, dir, false);
         else knockdown(v, dir, shooter, false);
+        if (shooter instanceof PlayerCombatant ps) plugin.hud().hitmarker(ps.player(), v.state == CombatState.DEAD);
     }
 
     // ───────────────────────────── 근접 ─────────────────────────────
@@ -308,7 +312,7 @@ public final class CombatService {
         double bestScore = Double.MAX_VALUE;
         for (Combatant c : a.combatants.values()) {
             if (c == attacker || !c.state.canBeHit()) continue;
-            Vec3 center = c.state.isDownedLike() ? c.feet().add(0, 0.3, 0) : c.feet().add(0, 1.0 * c.scale(), 0);
+            Vec3 center = c.state.isDownedLike() ? c.feet().add(0, plugin.falls().wallStunned(c) ? 0.6 : 0.3, 0) : c.feet().add(0, 1.0 * c.scale(), 0);
             Vec3 to = center.sub(eye);
             double dist = to.length();
             if (dist > range + 0.5) continue;
@@ -349,7 +353,7 @@ public final class CombatService {
     }
 
     private void meleeHit(Combatant attacker, Combatant v, WeaponType t, Vec3 dir) {
-        Vec3 point = v.state.isDownedLike() ? v.feet().add(0, 0.3, 0) : v.feet().add(0, 1.3 * v.scale(), 0);
+        Vec3 point = v.state.isDownedLike() ? v.feet().add(0, plugin.falls().wallStunned(v) ? 0.7 : 0.3, 0) : v.feet().add(0, 1.3 * v.scale(), 0);
         v.lastAttacker = attacker;
         if (t.isFist()) {
             plugin.fx().sound(v.world(), point, "violence:melee.punch_hit", 1.2f, 1f);
@@ -644,12 +648,13 @@ public final class CombatService {
         dropWeapons(v, dir);
         v.downedUntil = now + DOWNED_TICKS;
         v.setState(CombatState.DOWNED, now);
-        v.knockback(dir.horizontal().normalize(), byFist ? 0.55 : 0.8);
         v.feelImpact(0.5);
         plugin.fx().sound(v.world(), v.eye(), "violence:hit.knockdown", 1.2f, 1f);
         v.refreshEquipment();
-        // 넘어지는 동작: 앞에서 맞으면 뒤로, 등 뒤에서 맞으면 앞으로, 샷건이면 팔을 벌리고 뒤로
-        plugin.falls().knockdown(v, dir, now - v.strongHitTick <= 1);
+        // 넘어지는 동작: 언제나 뒤로 넘어지며 공격 방향으로 밀려남 (샷건이면 팔을 벌리고 날아감).
+        // 뒤쪽 벽에 부딪히면 벽에 기대 앉아 기절 (밀려나지 않음)
+        boolean wall = plugin.falls().knockdown(v, dir, now - v.strongHitTick <= 1);
+        if (!wall) v.knockback(dir.horizontal().normalize(), byFist ? 0.55 : 0.8);
     }
 
     private void standUp(Combatant v, long now) {
@@ -699,6 +704,9 @@ public final class CombatService {
             e.style = t.execution();
         }
         if (t.isFist() && ex.mask == Mask.TONY) e.style = ExecutionStyle.AUTO;
+        // 벽에 기대 기절한 적: 무기와 상관없이 머리를 발로 차서 처형
+        boolean wallKick = plugin.falls().wallStunned(victim);
+        if (wallKick) e.style = ExecutionStyle.WALL_KICK;
         e.bikerStyle = ex.mask == Mask.BIKER && t.id().equals("cleaver");
         e.hitsLeft = t.isFist() ? fist().executionHits() : t.executionHits();
         if (e.fast) e.hitsLeft = Math.max(1, e.hitsLeft / 2);
@@ -706,27 +714,53 @@ public final class CombatService {
         int autoTicks = e.bikerStyle ? 22 : 16;
         e.finishTick = now + (e.fast ? autoTicks / 2 : autoTicks);
         if (e.style == ExecutionStyle.GUN_SHOT) e.finishTick = now + (e.fast ? 6 : 12);
+        int contact = plugin.falls().pose(dev.violence.fx.FallPose.Kind.KICK) == null ? 3
+                : Math.max(1, plugin.falls().pose(dev.violence.fx.FallPose.Kind.KICK).contact());
+        if (e.style == ExecutionStyle.WALL_KICK) e.finishTick = now + contact + 1;
         e.nextHitReady = now + 3;
         e.victimDownedRemaining = Math.max(20, victim.downedUntil - now);
         ex.execution = e;
         victim.execution = e;
         ex.setState(CombatState.EXECUTING, now);
         victim.setState(CombatState.BEING_EXECUTED, now);
-        // 처형자를 피처형자 위로 이동
         Vec3 vf = victim.feet();
         Vec3 face = vf.sub(ex.feet()).horizontal().normalize();
         if (face.lengthSq() < 0.01) face = ex.look().horizontal().normalize();
-        Location onTop = Fx.loc(arena().world, vf.add(face.mul(-0.25)).add(0, 0.05, 0));
-        onTop.setYaw((float) face.yaw());
-        onTop.setPitch(55);
-        ex.teleport(onTop);
-        ex.history.clear();   // 올라타며 순간 이동한 앞쪽 위치로 판정되지 않게
+        Vec3 camPos;
+        Vec3 camLook;
+        if (wallKick) {
+            // 처형자를 기절한 적 앞(벽 반대쪽)에 세우고 발차기 인형
+            Vec3 out = plugin.falls().wallFacing(victim);
+            if (out == null) out = face.mul(-1);
+            face = out.mul(-1);
+            Location front = Fx.loc(arena().world, vf.add(out.mul(0.6 * victim.scale())));   // 뻗은 다리 위에 서서
+            front.setYaw((float) face.yaw());
+            front.setPitch(25);
+            ex.teleport(front);
+            ex.actionLockUntil = now + 12;
+            ex.moveLockUntil = now + 12;
+            // 카메라: 옆에서 (발차기와 벽이 함께 보이게)
+            Vec3 side = out.cross(Vec3.UP).normalize();
+            Vec3 mid = vf.add(out.mul(0.5));
+            camPos = mid.add(side.mul(2.4)).add(out.mul(0.9)).add(0, 1.3, 0);
+            camLook = mid.add(0, 0.8, 0);
+        } else {
+            // 처형자를 피처형자 위로 이동
+            Location onTop = Fx.loc(arena().world, vf.add(face.mul(-0.25)).add(0, 0.05, 0));
+            onTop.setYaw((float) face.yaw());
+            onTop.setPitch(55);
+            ex.teleport(onTop);
+            // 카메라: 처형자의 살짝 뒤, 위
+            camPos = vf.sub(face.mul(1.9)).add(0, 2.5, 0);
+            camLook = vf.add(0, 0.4, 0);
+        }
+        ex.history.clear();   // 순간 이동한 앞쪽 위치로 판정되지 않게
         ex.refreshEquipment();
-        // 카메라: 처형자의 살짝 뒤, 위
+        // 발차기 인형은 장비를 다시 보낸 뒤에 시작 (실제 몸과 손 아이템을 숨김)
+        if (wallKick) plugin.falls().kick(ex, (float) face.yaw());
         ItemDisplay cam = null;
         if (ex.isPlayer() || victim.isPlayer()) {
-            Vec3 camPos = vf.sub(face.mul(1.9)).add(0, 2.5, 0);
-            Vec3 lookDir = vf.add(0, 0.4, 0).sub(camPos).normalize();
+            Vec3 lookDir = camLook.sub(camPos).normalize();
             Location cl = Fx.loc(arena().world, camPos);
             cl.setYaw((float) lookDir.yaw());
             cl.setPitch((float) lookDir.pitch());
@@ -736,6 +770,11 @@ public final class CombatService {
         victim.onExecutionStart(e, cam);
         plugin.fx().sound(ex.world(), vf, "violence:melee.mount", 1f, 1f);
         executions.add(e);
+        if (wallKick) {
+            plugin.laterIn(arena(), contact, () -> {
+                if (ex.execution == e) wallKickStrike(e);
+            });
+        }
         if (e.style == ExecutionStyle.AUTO) {
             // 자동 처형 중간 타격 연출
             int strikes = e.bikerStyle ? 3 : 1;
@@ -774,6 +813,21 @@ public final class CombatService {
         v.feelImpact(finalBlow ? 0.8 : 0.5);
     }
 
+    /** 발이 머리에 닿음: 머리가 벽에 부딪히고 벽과 바닥에 피 */
+    private void wallKickStrike(Execution e) {
+        Combatant ex = e.executor;
+        Combatant v = e.victim;
+        Vec3 head = plugin.falls().wallHead(v);
+        Vec3 out = plugin.falls().wallFacing(v);
+        if (head == null || out == null) return;
+        plugin.falls().snapHead(v);
+        plugin.fx().sound(ex.world(), head, "violence:melee.kick", 1.4f, 0.8f);
+        plugin.fx().sound(ex.world(), head, "violence:melee.blunt_hit", 1.4f, 0.7f);
+        plugin.fx().blood(arena(), head, out.mul(-1).add(0, 0.15, 0), 4);
+        ex.feelImpact(0.6);
+        v.feelImpact(0.9);
+    }
+
     private void finishExecution(Execution e) {
         long now = plugin.now();
         executions.remove(e);
@@ -784,7 +838,7 @@ public final class CombatService {
             plugin.fx().sound(ex.world(), v.eye(), ex.weapon.type().sound(), 2.5f, 0.9f);
             plugin.fx().muzzle(arena(), ex.eye(), v.feet().sub(ex.eye()).normalize(), false);
         }
-        if (e.style != ExecutionStyle.HITS) executionStrike(e, true);
+        if (e.style != ExecutionStyle.HITS && e.style != ExecutionStyle.WALL_KICK) executionStrike(e, true);
         ex.execution = null;
         v.execution = null;
         ex.actionLockUntil = now + 4;
@@ -849,7 +903,7 @@ public final class CombatService {
         v.setState(CombatState.DEAD, now);
         plugin.fx().bloodPool(a, deathPos, type == KillType.EXECUTION || headshot ? 1.6f : 1.1f);
         plugin.fx().sound(v.world(), deathPos, "violence:hit.death", 1.2f, 0.9f + plugin.random().nextFloat() * 0.2f);
-        plugin.corpses().spawn(a, v, dir);
+        plugin.corpses().spawn(a, v, dir, type == KillType.EXECUTION);
         v.onDeath(killer, dir, now);
         v.refreshEquipment();
         if (killer != null && killer != v) plugin.game().onKill(killer, v, type, headshot, deathPos);
@@ -909,7 +963,8 @@ public final class CombatService {
                 executions.remove(e);
                 continue;
             }
-            if ((e.style == ExecutionStyle.AUTO || e.style == ExecutionStyle.GUN_SHOT) && now >= e.finishTick) finishExecution(e);
+            if ((e.style == ExecutionStyle.AUTO || e.style == ExecutionStyle.GUN_SHOT || e.style == ExecutionStyle.WALL_KICK)
+                    && now >= e.finishTick) finishExecution(e);
             else if (e.style == ExecutionStyle.HITS && now - e.startTick > EXECUTION_TIMEOUT) cancelExecution(e);
         }
         tickProjectiles(a, now);

@@ -8,5 +8,7 @@ public enum ExecutionStyle {
     /** 총기: 무기를 바닥에 버리고 맨손으로 교체 후 맨손 처형 */
     GUN_DROP,
     /** 형사 가면: 총으로 쏴서 처형 */
-    GUN_SHOT
+    GUN_SHOT,
+    /** 벽에 기대 기절한 적: 무기와 상관없이 머리를 발로 참 */
+    WALL_KICK
 }

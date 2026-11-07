@@ -372,6 +372,90 @@ def splat(path, color, size=32, blobs=9, spread=0.38, seed=0, holes=False):
     save_png(img, path)
 
 
+BLOOD_FADE = [1.0, 0.8, 0.6, 0.42, 0.26, 0.12]
+
+
+def blood_base(kind, seed, size=64):
+    """혈흔 그림 (RGBA). splat: 왼쪽에 뭉친 머리 + 오른쪽(+x)으로 가늘어지는 꼬리와 튄 방울, flow: 흐르는 줄기, pool: 웅덩이"""
+    r = random.Random(seed)
+    S = size * 4
+    img = Image.new("L", (S, S), 0)
+    d = ImageDraw.Draw(img)
+    if kind == "splat":
+        cx, cy = S * 0.32, S * 0.5
+        d.ellipse([cx - S * 0.17, cy - S * 0.16, cx + S * 0.17, cy + S * 0.16], fill=255)
+        for i in range(7):
+            a = r.uniform(0, math.tau)
+            rad = r.uniform(0.05, 0.1) * S
+            ox, oy = cx + math.cos(a) * S * 0.13, cy + math.sin(a) * S * 0.12
+            d.ellipse([ox - rad, oy - rad, ox + rad, oy + rad], fill=255)
+        # 꼬리: 진행 방향으로 가늘어짐
+        x, w = cx + S * 0.12, S * 0.09
+        while x < S * 0.9 and w > S * 0.008:
+            d.ellipse([x - w, cy + r.gauss(0, S * 0.01) - w, x + w, cy + w], fill=255)
+            x += w * 0.8
+            w *= r.uniform(0.86, 0.93)
+        # 튄 방울 (주로 앞쪽)
+        for i in range(14 + seed % 5):
+            ang = r.gauss(0, 0.5) if r.random() < 0.7 else r.uniform(0, math.tau)
+            dist = r.uniform(0.2, 0.45) * S
+            rad = r.uniform(0.008, 0.028) * S
+            x, y = cx + math.cos(ang) * dist, cy + math.sin(ang) * dist * 0.7
+            if 0 < x < S and 0 < y < S:
+                d.ellipse([x - rad, y - rad, x + rad, y + rad], fill=255)
+    elif kind == "flow":
+        cx, cy = S * 0.1, S * 0.5
+        d.ellipse([cx - S * 0.09, cy - S * 0.2, cx + S * 0.12, cy + S * 0.2], fill=255)
+        x, w = cx, S * 0.16
+        while x < S * 0.88:
+            y = cy + math.sin(x / S * 9 + seed) * S * 0.05
+            d.ellipse([x - w * 0.6, y - w, x + w * 0.6, y + w], fill=255)
+            x += S * 0.02
+            w = max(S * 0.07, w * 0.985)
+        d.ellipse([S * 0.72, cy - S * 0.19, S * 0.97, cy + S * 0.17], fill=255)   # 끝에 고인 피
+    else:
+        c = S / 2
+        for i in range(16):
+            rad = r.uniform(0.14, 0.3) * S * (1.0 if i == 0 else 0.7)
+            ox, oy = (r.gauss(0, 0.11 * S), r.gauss(0, 0.11 * S)) if i else (0, 0)
+            d.ellipse([c + ox - rad, c + oy - rad, c + ox + rad, c + oy + rad], fill=255)
+    img = img.filter(ImageFilter.GaussianBlur(S * 0.006))
+    mask = img.point(lambda v: 255 if v > 120 else 0).resize((size, size), Image.LANCZOS).point(lambda v: 255 if v > 110 else 0)
+    # 색: 가운데 어둡고 진하게, 가장자리 살짝 밝게, 젖은 하이라이트 몇 점
+    dist = mask.filter(ImageFilter.MinFilter(3)).filter(ImageFilter.MinFilter(3))
+    out = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    px, mp, dp = out.load(), mask.load(), dist.load()
+    for y in range(size):
+        for x in range(size):
+            if not mp[x, y]:
+                continue
+            inner = dp[x, y] > 0
+            n = r.uniform(0.9, 1.06)
+            base = (112, 4, 10) if inner else (150, 12, 18)
+            col = tuple(min(255, int(v * n)) for v in base)
+            if inner and r.random() < 0.012:
+                col = (196, 46, 52)
+            px[x, y] = col + (255,)
+    return out
+
+
+def blood_assets(T):
+    shapes = [("blood_splat_%d" % i, "splat", 40 + i) for i in range(4)] + [("blood_flow", "flow", 90), ("blood_pool", "pool", 77)]
+    for name, kind, seed in shapes:
+        base = blood_base(kind, seed)
+        entries = []
+        for k, a in enumerate(BLOOD_FADE):
+            img = base.copy()
+            al = img.getchannel("A").point(lambda v, a=a: int(v * a))
+            img.putalpha(al)
+            save_png(img, os.path.join(T, f"{name}_a{k}.png"))
+            write(os.path.join(NS, "models", "fx", f"{name}_a{k}.json"), plane_model(f"violence:fx/{name}_a{k}"))
+            entries.append({"threshold": k, "model": {"type": "minecraft:model", "model": f"violence:fx/{name}_a{k}"}})
+        write(os.path.join(NS, "items", "fx", name + ".json"), {"model": {
+            "type": "minecraft:range_dispatch", "property": "minecraft:custom_model_data", "index": 0,
+            "entries": entries, "fallback": entries[0]["model"]}})
+
+
 def plane_model(tex, axis="y", double=True):
     """0..16 영역의 얇은 판 (axis 방향이 법선)."""
     uv = [0, 0, 16, 16]
@@ -418,13 +502,12 @@ def fx():
         d.ellipse([13, 13, 19, 19], fill=(255, 255, 240, 255))
         save_png(img, os.path.join(T, name + ".png"))
         write(os.path.join(NS, "models", "fx", name + ".json"), plane_model("violence:fx/" + name, axis="z"))
-    # 피
+    # 피 (BloodService): 날아온 방향으로 늘어나는 혈흔 4종, 머리에서 흐르는 피, 웅덩이 — 64px, 투명도 6단계
+    blood_assets(T)
     blood = (128, 6, 12, 255)
     for i in range(4):
         splat(os.path.join(T, f"blood_decal_{i}.png"), blood, 32, blobs=5 + i * 2, spread=0.3 + i * 0.05, seed=10 + i)
         write(os.path.join(NS, "models", "fx", f"blood_decal_{i}.json"), plane_model(f"violence:fx/blood_decal_{i}"))
-    splat(os.path.join(T, "blood_pool.png"), (100, 4, 10, 255), 32, blobs=14, spread=0.22, seed=77)
-    write(os.path.join(NS, "models", "fx", "blood_pool.json"), plane_model("violence:fx/blood_pool"))
     splat(os.path.join(T, "blood_mist.png"), (170, 12, 20, 255), 32, blobs=7, spread=0.35, seed=5)
     write(os.path.join(NS, "models", "fx", "blood_mist.json"), plane_model("violence:fx/blood_mist", axis="z"))
     solid(os.path.join(T, "blood_drop.png"), (150, 8, 14, 255))
@@ -559,7 +642,7 @@ def misc():
     write(os.path.join(NS, "items", "misc", "blank.json"), item_def("violence:misc/blank"))
     # FX 아이템 정의
     for name in ["tracer", "tracer_orange", "muzzle", "muzzle_small", "blood_decal_0", "blood_decal_1", "blood_decal_2",
-                 "blood_decal_3", "blood_pool", "blood_mist", "blood_drop", "bullet_hole", "impact", "glass_shard", "slash", "disco_ball", "laser_green", "laser_red"] + [f"beam_{c}" for c in CLUB_COLORS]:
+                 "blood_decal_3", "blood_mist", "blood_drop", "bullet_hole", "impact", "glass_shard", "slash", "disco_ball", "laser_green", "laser_red"] + [f"beam_{c}" for c in CLUB_COLORS]:
         write(os.path.join(NS, "items", "fx", name + ".json"), item_def("violence:fx/" + name))
     _ = uvf
 
@@ -622,6 +705,17 @@ def fonts():
     # 아이콘
     black = Image.new("RGBA", (32, 16), (0, 0, 0, 255))
     save_png(black, os.path.join(T, "black.png"))
+    # 히트마커 (총으로 맞히면 조준점에 잠깐): 흰색 / 처치하면 빨간색
+    for name, col in (("hitmarker", (255, 255, 255, 255)), ("hitmarker_kill", (255, 60, 60, 255))):
+        S = 48
+        hm = Image.new("RGBA", (S * 4, S * 4), (0, 0, 0, 0))
+        d = ImageDraw.Draw(hm)
+        c = S * 2
+        for sx, sy in ((1, 1), (1, -1), (-1, 1), (-1, -1)):
+            a, b = (c + sx * S * 0.55, c + sy * S * 0.55), (c + sx * S * 1.7, c + sy * S * 1.7)
+            d.line([a, b], fill=(0, 0, 0, 200), width=int(S * 0.5))
+            d.line([a, b], fill=col, width=int(S * 0.28))
+        save_png(hm.resize((S, S), Image.LANCZOS), os.path.join(T, name + ".png"))
     bullet = Image.new("RGBA", (5, 8), (0, 0, 0, 0))
     d = ImageDraw.Draw(bullet)
     d.rectangle([1, 3, 3, 7], fill=(230, 185, 70, 255))
@@ -672,6 +766,9 @@ def fonts():
     ] + ttf_pair(11)})
     write(os.path.join(F, "overlay.json"), {"providers": [
         {"type": "bitmap", "file": "violence:font/black.png", "ascent": 128, "height": 256, "chars": [""]},
+        # 제목(4배) 글자 기준 중앙: 위 = -10 + 7 - ascent, 높이 6 → ascent 0 이면 화면 정중앙
+        {"type": "bitmap", "file": "violence:font/hitmarker.png", "ascent": 0, "height": 6, "chars": ["\ue201"]},
+        {"type": "bitmap", "file": "violence:font/hitmarker_kill.png", "ascent": 0, "height": 6, "chars": ["\ue202"]},
     ]})
     adv = {}
     for i in range(9):

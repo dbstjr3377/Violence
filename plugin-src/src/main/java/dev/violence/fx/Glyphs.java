@@ -18,6 +18,9 @@ public final class Glyphs {
 
     /** 화면 전체를 덮는 검은 글리프 (페이드용) */
     public static final String BLACK_SCREEN = "";
+    /** 히트마커 (overlay 글꼴, 제목에 넣으면 조준점 위치) / 처치 히트마커 (빨강) */
+    public static final String HITMARKER = "\uE201";
+    public static final String HITMARKER_KILL = "\uE202";
     /** 총알 아이콘 */
     public static final String BULLET = "";
     /** 해골 아이콘 */

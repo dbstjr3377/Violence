@@ -77,6 +77,20 @@ def vanilla_back_polys(polys, lift, arms_out=0.0):
     T.cuboid(root @ T.part(1.9, 12, 0), -2, 0, -2, 4, 12, 4, PANTS, polys)
 
 
+def vanilla_sit_polys(polys, seat_y, head_pitch, head_snap=None):
+    """바닐라 앉은 자세 (보이지 않는 디스플레이에 탄 마네킹): 다리 xRot -1.4137, yRot ±π/10, zRot ±0.0785, 팔 xRot -π/5"""
+    root = T.tr(0, seat_y, 0) @ T.ry(math.pi) @ T.sc(-1, -1, 1) @ T.sc(0.9375, 0.9375, 0.9375) @ T.tr(0, -1.501, 0)
+    hp = math.radians(head_pitch if head_snap is None else head_snap)
+    head = root @ T.part(0, 0, 0, hp, 0, 0)
+    T.cuboid(head, -4, -8, -4, 8, 8, 8, SKIN, polys)
+    T.cuboid(head, -4, -8.01, -4.01, 8, 2.5, 8.02, HAIR, polys)
+    T.cuboid(root @ T.part(0, 0, 0), -4, 0, -2, 8, 12, 4, SHIRT, polys)
+    T.cuboid(root @ T.part(-5, 2, 0, -math.pi / 5, 0, 0), -3, -2, -2, 4, 12, 4, SHIRT, polys)
+    T.cuboid(root @ T.part(5, 2, 0, -math.pi / 5, 0, 0), -1, -2, -2, 4, 12, 4, SHIRT, polys)
+    T.cuboid(root @ T.part(-1.9, 12, 0, -1.4137167, math.pi / 10, 0.07853982), -2, 0, -2, 4, 12, 4, PANTS, polys)
+    T.cuboid(root @ T.part(1.9, 12, 0, -1.4137167, -math.pi / 10, -0.07853982), -2, 0, -2, 4, 12, 4, PANTS, polys)
+
+
 def vanilla_lying_polys(polys, color=None):
     """바닐라 엎드린 자세 (실제 몸) — 개체가 +Z 를 봄, 정지 상태"""
     root = T.ry(math.pi) @ T.rx(math.radians(-90)) @ T.tr(0, -1, 0.3) @ T.sc(-1, -1, 1) @ T.sc(0.9375, 0.9375, 0.9375) @ T.tr(0, -1.501, 0)
@@ -128,44 +142,69 @@ def draw(polys, cam, size, label="", look=(0, 0.6, 0.2), wire=None):
     return img
 
 
-def scene(frame=None, end=None, lift=0.14, standing=False):
-    polys = []
-    floor_polys(polys)
-    if standing:
-        puppet_polys({"pitch": 0, "feet": [0, 0]}, polys)
-    elif end == "face_down":
-        vanilla_lying_polys(polys)
-    elif end == "face_up":
-        vanilla_back_polys(polys, lift)
+def wall_polys(polys, gap):
+    """벽 (앉은 자리 뒤 gap)"""
+    T.cuboid(np.eye(4), -24, 0, -gap * 16 - 8, 48, 40, 8, (90, 86, 80), polys)
+
+
+def end_polys(polys, kind, data):
+    fall = data["kinds"][kind]
+    last = fall["frames"][-1]
+    if fall["end"] == "face_up":
+        tmp = []
+        vanilla_back_polys(tmp, data["back_lift"])
+        M = T.tr(0, 0, last["feet"][1])
+        polys += [([(M @ np.array([*p, 1.0]))[:3] for p in pts], c) for pts, c in tmp]
+    elif fall["end"] == "sit":
+        vanilla_sit_polys(polys, data["seat_y"], data["sit_head_pitch"])
     else:
-        puppet_polys(frame, polys)
-    return polys
+        puppet_polys({"pitch": 0, "feet": [0, 0]}, polys)
 
 
-LABELS = {"forward": "뒤에서 맞음: 앞으로", "back": "앞에서 맞음: 뒤로", "blast": "샷건: 팔 벌리고 뒤로"}
+LABELS = {"back": "맞으면 뒤로 (공격 방향으로 밀림)", "blast": "샷건: 팔 벌리고 날아감", "wall": "벽에 부딪혀 기대 기절",
+          "wall_death": "벽 기절 상태에서 죽음", "kick": "처형 발차기 (처형자)"}
 
 
 if __name__ == "__main__":
     data = load()
-    lift = data["back_lift"]
-    side, quarter = (3.6, 1.2, 0.2), (2.6, 2.2, 2.8)
-    S = 240
+    S = 230
     rows = []
     for name, kind in data["kinds"].items():
         frames = kind["frames"]
-        # 뒤로 넘어지는 동작은 팔 벌림이 보이도록 비스듬히 앞에서
-        cam = side if name == "forward" else (2.6, 2.3, 1.9)
-        row = [draw(scene(standing=True), cam, S, LABELS[name])]
-        for k, fr in enumerate(frames[:6]):
-            row.append(draw(scene(fr), cam, S, f"{k + 1}프레임"))
-        # 마지막 프레임 위에 바닐라 자세(마네킹 대역) 윤곽을 겹쳐서 확인
+        wall = name in ("wall", "wall_death")
+        cam = (2.6, 2.3, 1.9) if not wall else (3.0, 1.9, 2.4)
+        look = (0, 0.6, 0.2) if not wall else (0, 0.6, 0.4)
+
+        def scene_of(polys_fn):
+            polys = []
+            floor_polys(polys)
+            if wall:
+                wall_polys(polys, data["wall_gap"])
+            polys_fn(polys)
+            return polys
+
+        def placed(fr):
+            def f(polys):
+                tmp = []
+                puppet_polys(fr, tmp)
+                # 벽: travel 로 맞은 자리(앞 1.4) → 앉을 자리
+                dz = (1 - fr.get("travel", 1.0)) * 1.4 if name == "wall" else 0.0
+                M = T.tr(0, 0, dz)
+                polys += [([(M @ np.array([*p, 1.0]))[:3] for p in pts], c) for pts, c in tmp]
+            return f
+
+        idx = list(range(len(frames)))
+        if len(idx) > 7:
+            idx = [round(i * (len(frames) - 1) / 6) for i in range(7)]
+        row = [draw(scene_of(placed(frames[0])), cam, S, LABELS[name], look=look)]
+        for k in idx[1:]:
+            row.append(draw(scene_of(placed(frames[k])), cam, S, f"{k + 1}프레임", look=look))
+        while len(row) < 7:
+            row.append(Image.new("RGB", (S, S), (34, 30, 40)))
         wire = []
-        (vanilla_lying_polys if kind["end"] == "face_down" else lambda p: vanilla_back_polys(p, lift))(wire)
-        over = []
-        floor_polys(over)
-        puppet_polys(frames[-1], over)
-        row.append(draw(over, cam, S, "끝 + 대역(빨간 선)", wire=wire))
-        row.append(draw(scene(end=kind["end"], lift=lift), quarter, S, "대역 (바닐라 자세)"))
+        end_polys(wire, name, data)
+        row.append(draw(scene_of(placed(frames[-1])), cam, S, "끝 + 대역(빨간 선)", look=look, wire=wire))
+        row.append(draw(scene_of(lambda p: end_polys(p, name, data)), cam, S, "대역/실제 몸", look=look))
         rows.append(row)
     sheet = Image.new("RGB", (len(rows[0]) * S, len(rows) * S))
     for j, r in enumerate(rows):
@@ -174,21 +213,3 @@ if __name__ == "__main__":
     out = sys.argv[1] if len(sys.argv) > 1 else os.path.join(ROOT, "docs", "images", "fall.png")
     sheet.save(out)
     print(out)
-    # GIF (20fps): 세 가지를 차례로. 3/4 시점과 옆 시점을 나란히
-    gif_frames = []
-    for name, kind in data["kinds"].items():
-        frames = kind["frames"]
-        seq = [("stand", None)] * 8 + [("f", fr) for fr in frames] + [("f", frames[-1])] * (kind["hold_ticks"] - len(frames)) + [("end", None)] * 14
-        for what, fr in seq:
-            sc = scene(fr, end=kind["end"] if what == "end" else None, lift=lift, standing=what == "stand")
-            im = Image.new("RGB", (640, 320))
-            im.paste(draw(sc, quarter, 320), (0, 0))
-            im.paste(draw(sc, side, 320), (320, 0))
-            ImageDraw.Draw(im).text((8, 6), LABELS[name] + ("  (인형)" if what == "f" else "  (대역)" if what == "end" else ""),
-                                   font=ImageFont.truetype(FONT, 16), fill=(255, 220, 90))
-            gif_frames.append(im)
-    gdir = os.path.join(ROOT, "build-out", "fall")
-    os.makedirs(gdir, exist_ok=True)
-    gif = os.path.join(gdir, "fall.gif")
-    gif_frames[0].save(gif, save_all=True, append_images=gif_frames[1:], duration=50, loop=0)
-    print(gif)

@@ -139,7 +139,8 @@ public final class NpcCombatant extends Combatant {
                 body.setInvisible(true);
             }
             default -> {
-                body.setInvisible(false);
+                dev.violence.fx.FallService falls = ViolencePlugin.get().falls();
+                body.setInvisible(falls != null && falls.hiding(this));
                 dev.violence.fx.Poses.standing(body);
             }
         }

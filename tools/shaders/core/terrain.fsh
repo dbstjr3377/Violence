@@ -23,6 +23,7 @@ layout(location = 4) in float chunkVisibility;
 layout(location = 5) in vec3 clubWorldPos;    // VIOLENCE
 layout(location = 6) in vec3 clubBlockColor;  // VIOLENCE
 layout(location = 7) in vec2 clubLightLevel;  // VIOLENCE
+layout(location = 8) flat in float violenceFlash;  // VIOLENCE
 
 #ifndef OIT_ALPHA_ONLY
 layout(location = 0) out vec4 fragColor;
@@ -48,6 +49,12 @@ void main() {
     } else if (grim_active(CameraBlockPos)) {
         color.rgb = grim_grade(color.rgb, texColor.rgb * clubBlockColor, clubLightLevel, sphericalVertexDistance,
                 gl_FragCoord.xy, ScreenSize, GameTime * 1200.0);
+    }
+    // VIOLENCE: 처치 흑백 깜빡임 (GTA 처치 연출). 야간 투시로 밝아진 라이트맵 대신 블록·하늘 밝기로 다시 비추고 흑백으로
+    if (violenceFlash > 0.5) {
+        vec3 lit = texColor.rgb * clubBlockColor * (0.22 + 0.78 * max(clubLightLevel.x, clubLightLevel.y * 0.6));
+        float g = dot(lit, vec3(0.299, 0.587, 0.114));
+        color.rgb = vec3(clamp((g - 0.45) * 1.35 + 0.5, 0.0, 1.0));
     }
     #endif
     #ifndef OIT_ALPHA_ONLY

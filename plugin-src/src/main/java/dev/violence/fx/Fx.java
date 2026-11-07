@@ -172,35 +172,11 @@ public final class Fx {
     }
 
     /**
-     * 피 튀김. 공격 방향으로 핏방울이 날아가 바닥과 벽에 혈흔을 남긴다.
+     * 피 튀김: 핏방울이 공격 방향으로 날아가 바닥과 벽에 혈흔을 남긴다 (BloodService).
      * @param intensity 1(약) ~ 4(처형/헤드샷)
      */
     public void blood(Arena a, Vec3 point, Vec3 dir, int intensity) {
-        World w = a.world;
-        int drops = 3 + intensity * 3;
-        Vec3 bias = dir.normalize();
-        for (int i = 0; i < drops; i++) {
-            Vec3 d = randomDir(bias.add(0, -0.35, 0), 1.2 + intensity * 0.2);
-            double range = 1.5 + rnd.nextDouble() * (1.5 + intensity);
-            RayTraceResult r = w.rayTraceBlocks(loc(w, point), new Vector(d.x(), d.y(), d.z()), range, FluidCollisionMode.NEVER, true);
-            Vec3 end;
-            Vec3 normal;
-            if (r != null && r.getHitBlockFace() != null) {
-                Vector hp = r.getHitPosition();
-                end = new Vec3(hp.getX(), hp.getY(), hp.getZ());
-                Vector fn = r.getHitBlockFace().getDirection();
-                normal = new Vec3(fn.getX(), fn.getY(), fn.getZ());
-            } else {
-                // 허공 → 바로 아래 바닥으로
-                Vec3 mid = point.add(d.mul(range));
-                RayTraceResult down = w.rayTraceBlocks(loc(w, mid), new Vector(0, -1, 0), 4, FluidCollisionMode.NEVER, true);
-                if (down == null) continue;
-                Vector hp = down.getHitPosition();
-                end = new Vec3(hp.getX(), hp.getY(), hp.getZ());
-                normal = Vec3.UP;
-            }
-            flyDrop(a, point, end, normal, intensity);
-        }
+        plugin.blood().spray(a, point, dir, intensity);
         // 맞은 지점의 핏덩이 (짧게 퍼지며 사라짐)
         ItemDisplay mist = spawnDisplay(a, point, "violence:fx/blood_mist", false);
         mist.setBillboard(Display.Billboard.CENTER);
@@ -216,30 +192,14 @@ public final class Fx {
         removeLater(a, mist, 7);
     }
 
-    private void flyDrop(Arena a, Vec3 from, Vec3 to, Vec3 normal, int intensity) {
-        ItemDisplay drop = spawnDisplay(a, from, "violence:fx/blood_drop", false);
-        float s = 0.08f + rnd.nextFloat() * 0.08f;
-        drop.setTransformation(new Transformation(new Vector3f(), new Quaternionf(), new Vector3f(s, s, s), new Quaternionf()));
-        int travel = 2 + (int) Math.min(5, from.distance(to) / 1.2);
-        drop.setTeleportDuration(travel);
-        plugin.later(1, () -> {
-            if (drop.isValid()) drop.teleport(loc(a.world, to));
-        });
-        plugin.laterIn(a, travel + 1, () -> {
-            a.tracked.remove(drop);
-            if (drop.isValid()) drop.remove();
-            String m = "violence:fx/blood_decal_" + rnd.nextInt(4);
-            decal(a, to, normal, m, 0.35f + rnd.nextFloat() * (0.35f + intensity * 0.18f));
-        });
-    }
-
     /** 시체 밑 피 웅덩이 */
     public void bloodPool(Arena a, Vec3 feet, float size) {
-        RayTraceResult down = a.world.rayTraceBlocks(loc(a.world, feet.add(0, 0.5, 0)), new Vector(0, -1, 0), 3, FluidCollisionMode.NEVER, true);
-        if (down == null) return;
-        Vector hp = down.getHitPosition();
-        Vec3 p = new Vec3(hp.getX(), hp.getY(), hp.getZ());
-        decal(a, p, Vec3.UP, "violence:fx/blood_pool", size);
+        plugin.blood().pool(a, feet, size);
+    }
+
+    /** 처형당한 시체의 머리에서 흐르는 피 */
+    public void headFlow(Arena a, Vec3 head, Vec3 dir) {
+        plugin.blood().headFlow(a, head, dir);
     }
 
     /** 벽 탄흔 */

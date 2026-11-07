@@ -4,7 +4,7 @@
 
 교도소 홀에서 몽둥이를 든 플레이어가 NPC 에게 다가가
  1) 마주 보는 NPC A 를 오른쪽→왼쪽으로 휘둘러 처치 → 앞에서 맞았으므로 뒤로 넘어짐 (인형 6프레임 → 누운 대역)
- 2) 이어서(연속 공격) 등을 돌린 NPC B 를 왼쪽→오른쪽으로 휘둘러 처치 → 등 뒤에서 맞았으므로 앞으로 고꾸라짐
+ 2) 이어서(연속 공격) 등을 돌린 NPC B 를 왼쪽→오른쪽으로 휘둘러 처치 → 맞은 쪽으로 돌아서며 뒤로 넘어짐
 게임과 같은 계산을 씀:
  - 배경: 실제 생성된 교도소 맵 복셀 광선 추적 + 벅샷 룰렛 쉐이더 (grim_preview, gameplay_preview)
  - 1인칭: 리소스팩 모델과 쿨다운 프레임 (몽둥이 휘두르기 10틱, 연속 공격은 "<id>_b" 왼→오 프레임)
@@ -180,13 +180,18 @@ def fallen(npc, tk, kind, data):
     frames, hold = fall["frames"], fall["hold_ticks"]
     polys = []
     set_fall_colors(NPC_COL)
+    yaw = npc["fall_yaw"]
     if k < hold:
         FPV.puppet_polys(frames[min(k, len(frames) - 1)], polys)
+        # 처음 3프레임에 걸쳐 맞은 쪽으로 돌아섬 (FallPose.spinYaw)
+        t = min(1.0, k / 3.0)
+        d = ((npc["fall_yaw"] - npc["yaw"]) % 360 + 540) % 360 - 180
+        yaw = npc["yaw"] + d * t * t * (3 - 2 * t)
     elif fall["end"] == "face_up":
         FPV.vanilla_back_polys(polys, data["back_lift"])
     else:
         FPV.vanilla_lying_polys(polys)
-    return world_of(polys, npc["feet"], npc["fall_yaw"])
+    return world_of(polys, npc["feet"], yaw)
 
 
 def char_layer(img, polys, eye, b, depth_fn, tint=(0.82, 0.86, 0.8)):
@@ -302,14 +307,14 @@ def main():
             push[1] = 0
             push /= np.linalg.norm(push)
             face = np.array([-math.sin(math.radians(npc["yaw"])), 0, math.cos(math.radians(npc["yaw"]))])
-            fk = "forward" if float(push @ face) > 0.25 else "back"         # FallPose.kindFor
+            fk = "back"                                                      # FallPose.kindFor: 언제나 뒤로 넘어짐
             fwd_yaw = math.degrees(math.atan2(-push[0], push[2]))
-            npc.update(dead=tk, kind=fk, fall_yaw=fwd_yaw if fk == "forward" else fwd_yaw + 180)
+            npc.update(dead=tk, kind=fk, fall_yaw=fwd_yaw + 180)
             kills += 1
             score += 1000
             hit = npc["feet"] + [0, 1.3, 0]
             bursts.append((tk, hit, push, 7 + tk))
-            torso = npc["feet"] + push * (0.85 if fk == "back" else -0.15) + [0, 0.01, 0]
+            torso = npc["feet"] + push * 0.85 + [0, 0.01, 0]
             decals.append((tk + 4, torso, 0.55, 30 + tk))
         # ── 3인칭 무기 상태 (GameService.tpSwing) ──
         item_disp, attack, charge = stance[stance_left], 0.0, 1.0

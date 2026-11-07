@@ -131,6 +131,34 @@ public final class Hud {
         p.showTitle(t);
     }
 
+    /** 총으로 맞힘: 조준점에 짧은 히트마커 (처치면 빨강) */
+    public void hitmarker(Player p, boolean kill) {
+        Title t = Title.title(Glyphs.text(kill ? Glyphs.HITMARKER_KILL : Glyphs.HITMARKER, Glyphs.OVERLAY, 0xFFFFFF), Component.empty(),
+                Title.Times.times(Duration.ZERO, Duration.ofMillis(kill ? 200 : 100), Duration.ofMillis(150)));
+        p.showTitle(t);
+    }
+
+    private final java.util.Map<java.util.UUID, Long> flashUntil = new java.util.HashMap<>();
+
+    /**
+     * 처치: GTA 처럼 화면이 잠깐 흑백으로 깜빡임 (0.3초).
+     * 보이지 않는 야간 투시를 잠깐 주면 리소스팩 terrain 쉐이더가 라이트맵으로 알아채고 흑백으로 그린다.
+     */
+    public void killFlash(Player p) {
+        org.bukkit.potion.PotionEffectType nv = org.bukkit.potion.PotionEffectType.NIGHT_VISION;
+        // 지속 시간을 길게 줘야 끝날 때 깜빡이지 않음 → 직접 지움
+        p.addPotionEffect(new org.bukkit.potion.PotionEffect(nv, 20 * 60, 0, true, false, false));
+        long until = plugin.now() + 6;
+        flashUntil.put(p.getUniqueId(), until);
+        plugin.later(6, () -> {
+            Long u = flashUntil.get(p.getUniqueId());
+            if (u != null && u == until) {
+                flashUntil.remove(p.getUniqueId());
+                if (p.isOnline()) p.removePotionEffect(nv);
+            }
+        });
+    }
+
     /** 검은 단색 화면 페이드 */
     public void fadeBlack(Player p, int inTicks, int stayTicks, int outTicks) {
         Title t = Title.title(Glyphs.text(Glyphs.BLACK_SCREEN, Glyphs.OVERLAY, 0xFFFFFF), Component.empty(),

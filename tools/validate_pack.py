@@ -107,7 +107,7 @@ def main():
             if "fallback" in node:
                 walk(node["fallback"], where)
         elif t == "minecraft:range_dispatch":
-            if node.get("property") not in ("minecraft:cooldown", "minecraft:damage", "minecraft:count", "minecraft:use_duration"):
+            if node.get("property") not in ("minecraft:cooldown", "minecraft:damage", "minecraft:count", "minecraft:use_duration", "minecraft:custom_model_data"):
                 err(f"{where} range_dispatch 속성 확인 필요: {node.get('property')}")
             for e in node.get("entries", []):
                 if not isinstance(e.get("threshold"), (int, float)):

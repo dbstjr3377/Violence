@@ -33,6 +33,7 @@ layout(location = 4) out float chunkVisibility;
 layout(location = 5) out vec3 clubWorldPos;    // VIOLENCE: 월드 좌표
 layout(location = 6) out vec3 clubBlockColor;  // VIOLENCE: 조명 빼고 블록 색(AO·바이옴)
 layout(location = 7) out vec2 clubLightLevel;  // VIOLENCE: (블록 밝기, 하늘 밝기) 0..1
+layout(location = 8) flat out float violenceFlash;  // VIOLENCE: 처치 흑백 깜빡임 (플러그인이 잠깐 야간 투시를 줌)
 
 void main() {
     vec3 pos = Position + (ChunkPosition - CameraBlockPos) + CameraOffset;
@@ -49,6 +50,13 @@ void main() {
     clubWorldPos = Position + vec3(ChunkPosition);  // VIOLENCE
     clubBlockColor = Color.rgb;                     // VIOLENCE
     clubLightLevel = clamp(vec2(UV2) / 240.0, 0.0, 1.0);  // VIOLENCE
+    // VIOLENCE: 빛이 없는 칸(0,0)의 라이트맵이 밝으면 야간 투시 중 = 처치 깜빡임 신호 (평소에는 최대 밝기 설정에서도 0.4 아래)
+    #ifndef OIT_ALPHA_ONLY
+    vec3 darkest = texture(Sampler2, vec2(0.5 / 16.0)).rgb;
+    violenceFlash = max(max(darkest.r, darkest.g), darkest.b) > 0.72 ? 1.0 : 0.0;
+    #else
+    violenceFlash = 0.0;
+    #endif
 
     const float chunkFullyVisibleRange = 16.0;
     float dist = length(pos);

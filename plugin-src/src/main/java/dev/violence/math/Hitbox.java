@@ -32,6 +32,16 @@ public final class Hitbox {
         return Aabb.ofCenterBottom(feet, 1.6 * scale, 0.6 * scale);
     }
 
+    /** 벽에 기대 앉은(기절) 상태: 폭 0.9, 높이 1.15 상자 (어디를 맞아도 치명) */
+    public static Aabb sitting(Vec3 feet, double scale) {
+        return Aabb.ofCenterBottom(feet, 0.9 * scale, 1.15 * scale);
+    }
+
+    public static Result raycastSitting(Vec3 feet, double scale, Vec3 origin, Vec3 dir, double maxDist) {
+        double t = sitting(feet, scale).rayIntersect(origin, dir, maxDist);
+        return t >= 0 ? new Result(Part.BODY, t) : Result.MISS;
+    }
+
     /** 서있는 대상에 대한 레이 판정. 머리를 먼저 검사한다. */
     public static Result raycastStanding(Vec3 feet, double scale, Vec3 origin, Vec3 dir, double maxDist) {
         double th = head(feet, scale).rayIntersect(origin, dir, maxDist);

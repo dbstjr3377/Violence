@@ -141,7 +141,8 @@ public final class PlayerCombatant extends Combatant {
             default -> {
                 clearCrawl();
                 dev.violence.fx.Poses.standing(player);
-                player.setInvisible(false);
+                // 처형 발차기 인형 중에는 실제 몸을 숨김
+                player.setInvisible(plugin().falls() != null && plugin().falls().hiding(this));
             }
         }
     }

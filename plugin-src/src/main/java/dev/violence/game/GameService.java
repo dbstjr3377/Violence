@@ -290,6 +290,7 @@ public final class GameService {
             plugin.doors().tick(a, now);
             plugin.ground().tick(a, now);
             plugin.falls().tick();
+            plugin.blood().tick();
             // 새로 시야에 들어온 사람에게도 3인칭 손 아이템이 보이도록 주기적으로 다시 보냄
             if (now % 10 == 0) {
                 for (PlayerCombatant pc : a.players.values()) syncHeld(pc);
@@ -392,6 +393,8 @@ public final class GameService {
         WeaponType held = pc.weaponType(plugin.weapons().fist());
         // 3인칭 휘두르기 프레임 재생 중에는 손 아이템을 다시 보내지 않음 (프레임이 처음으로 튐)
         if (swingShowing(pc, held)) return;
+        // 넘어짐/발차기 인형으로 실제 몸을 숨긴 동안에는 손 아이템도 숨김
+        if (plugin.falls().hiding(pc)) return;
         java.util.Map<org.bukkit.inventory.EquipmentSlot, org.bukkit.inventory.ItemStack> eq = new java.util.EnumMap<>(org.bukkit.inventory.EquipmentSlot.class);
         boolean melee = dev.violence.weapon.WeaponItems.swings(held);
         if (!melee) pc.tpStanceLeft = false;
@@ -507,6 +510,7 @@ public final class GameService {
             plugin.shake().setBaseline(vp.player(), 0);
         }
         if (killer instanceof PlayerCombatant pc) {
+            plugin.hud().killFlash(pc.player());   // 처치 흑백 깜빡임
             scores.onPlayerKill(pc, type, headshot, at, victim.name());
             pc.refreshEquipment();
             // 연속킬 화면 효과
@@ -612,6 +616,7 @@ public final class GameService {
                     });
                 }
                 safe("넘어지는 인형 정리", () -> plugin.falls().clear());
+                safe("피 정리", () -> plugin.blood().clear());
                 safe("문 정리", () -> plugin.doors().clear(a));
                 safe("엔티티 정리", () -> {
                     for (Entity e : new ArrayList<>(a.tracked)) if (e.isValid()) e.remove();

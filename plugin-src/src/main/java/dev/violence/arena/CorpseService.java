@@ -23,9 +23,9 @@ public final class CorpseService {
         this.plugin = plugin;
     }
 
-    public void spawn(Arena a, Combatant v, Vec3 dir) {
-        // 맞은 방향으로 넘어지는 동작 → 같은 자세의 마네킹이 시체가 됨 (쓰러져 누워 있던 대역이면 그대로)
-        Mannequin fallen = plugin.falls().corpse(a, v, dir, plugin.now() - v.strongHitTick <= 1);
+    public void spawn(Arena a, Combatant v, Vec3 dir, boolean execution) {
+        // 맞은 방향으로 밀려나며 뒤로 넘어지는 동작 → 같은 자세의 마네킹이 시체가 됨 (쓰러져 있던 대역이면 그대로)
+        Mannequin fallen = plugin.falls().corpse(a, v, dir, plugin.now() - v.strongHitTick <= 1, execution);
         if (fallen != null) {
             keep(a, fallen);
             return;
@@ -66,17 +66,24 @@ public final class CorpseService {
         int max = plugin.getConfig().getInt("fx.max-corpses", 30);
         while (corpses.size() > max) {
             Mannequin old = corpses.pollFirst();
-            if (old != null) {
-                a.tracked.remove(old);
-                old.remove();
-            }
+            if (old != null) discard(a, old);
         }
         int life = plugin.getConfig().getInt("fx.corpse-seconds", 20) * 20;
         plugin.later(life, () -> {
             corpses.remove(m);
-            a.tracked.remove(m);
-            if (m.isValid()) m.remove();
+            discard(a, m);
         });
+    }
+
+    /** 시체와 (벽에 기대 앉은 시체면) 앉힌 디스플레이까지 치움 */
+    private static void discard(Arena a, Mannequin m) {
+        org.bukkit.entity.Entity seat = m.getVehicle();
+        a.tracked.remove(m);
+        if (m.isValid()) m.remove();
+        if (seat != null) {
+            a.tracked.remove(seat);
+            if (seat.isValid()) seat.remove();
+        }
     }
 
     public void clear() {
