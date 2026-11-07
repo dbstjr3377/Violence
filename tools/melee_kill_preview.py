@@ -169,8 +169,7 @@ def humanoid(col, arms=None, attack=0.0, charge=1.0, item=None, head_extra=True,
 
 
 def set_fall_colors(col):
-    FPV.SKIN, FPV.HAIR, FPV.SHIRT, FPV.PANTS, FPV.SHOES = col["skin"], col["hair"], col["shirt"], col["pants"], col["shoes"]
-    FPV.COLORS = {"head": (FPV.SKIN, FPV.HAIR), "body": (FPV.SHIRT, FPV.SHIRT), "arm": (FPV.SHIRT, FPV.SKIN), "leg": (FPV.PANTS, FPV.SHOES)}
+    FPV.set_colors(col["skin"], col["hair"], col["shirt"], col["pants"], col["shoes"])
 
 
 def fallen(npc, tk, kind, data):

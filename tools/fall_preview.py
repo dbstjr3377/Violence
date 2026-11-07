@@ -22,24 +22,30 @@ FALL = os.path.join(ROOT, "plugin-src", "src", "main", "resources", "fall.json")
 FONT = os.path.join(ROOT, "tools", "fonts", "blackhansans_BlackHanSans-Regular.ttf")
 PX = 0.9375 / 16
 
-# FallPose.Part: 관절(px), 관절→중심(px), 크기(px)
-PARTS = {
-    "head": ((0, 24, 0), (0, 4, 0)),
-    "body": ((0, 12, 0), (0, 6, 0)),
-    "arm_r": ((-5, 22, 0), (-1, -4, 0)),
-    "arm_l": ((5, 22, 0), (1, -4, 0)),
-    "leg_r": ((-1.9, 12, 0), (0, -6, 0)),
-    "leg_l": ((1.9, 12, 0), (0, -6, 0)),
-}
+import puppet_rig as RIG  # noqa: E402
+
+# FallPose.Part: 관절(px), 관절→중심(px) — 팔다리는 두 마디 (puppet_rig.PARTS)
+PARTS = {k: (v[1], v[2]) for k, v in RIG.PARTS.items()}
 # build_pack.PUPPET_PARTS 와 같은 상자 (16 단위, 중심 8) — 색 번호 0/1
 BOXES = {
     "head": [([4, 4, 4], [12, 12, 12], 0), ([3.9, 10, 3.9], [12.1, 12.1, 12.1], 1), ([3.9, 7.5, 11.9], [12.1, 10, 12.1], 1)],
     "body": [([4, 2, 6], [12, 14, 10], 0)],
-    "arm": [([6, 10, 6], [10, 14, 10], 0), ([6, 2, 6], [10, 10, 10], 1)],
-    "leg": [([6, 4, 6], [10, 14, 10], 0), ([6, 2, 6], [10, 4, 10], 1)],
+    "arm_upper": [([6, 7, 6], [10, 11, 10], 0), ([6, 5, 6], [10, 7, 10], 1)],
+    "forearm": [([6, 5, 6], [10, 11, 10], 1)],
+    "leg_upper": [([6, 5, 6], [10, 11, 10], 0)],
+    "shin": [([6, 7, 6], [10, 11, 10], 0), ([6, 5, 6], [10, 7, 10], 1)],
 }
 SKIN, HAIR, SHIRT, PANTS, SHOES = (200, 154, 122), (59, 42, 30), (60, 140, 150), (50, 50, 120), (34, 34, 34)
-COLORS = {"head": (SKIN, HAIR), "body": (SHIRT, SHIRT), "arm": (SHIRT, SKIN), "leg": (PANTS, SHOES)}
+
+
+def set_colors(skin, hair, shirt, pants, shoes):
+    global SKIN, HAIR, SHIRT, PANTS, SHOES, COLORS
+    SKIN, HAIR, SHIRT, PANTS, SHOES = skin, hair, shirt, pants, shoes
+    COLORS = {"head": (SKIN, HAIR), "body": (SHIRT, SHIRT), "arm_upper": (SHIRT, SKIN), "forearm": (SHIRT, SKIN),
+              "leg_upper": (PANTS, SHOES), "shin": (PANTS, SHOES)}
+
+
+set_colors(SKIN, HAIR, SHIRT, PANTS, SHOES)
 
 
 def rot_xyz(a):
@@ -51,14 +57,13 @@ def load():
 
 
 def puppet_polys(frame, polys):
-    """FallPose.place 와 같은 계산 + 아이템 디스플레이의 Y180° (모델 +z 가 뒤쪽)"""
-    body = T.rx(math.radians(frame["pitch"]))
-    for name, (joint, off) in PARTS.items():
-        local = rot_xyz(frame.get(name, [0, 0, 0]))
-        c = (local @ np.array([*off, 1.0]))[:3] + np.array(joint)
-        c = (body @ np.array([*(c * PX), 1.0]))[:3] + np.array([0, frame["feet"][0], frame["feet"][1]])
-        M = T.tr(*c) @ body @ local @ T.ry(math.pi) @ T.sc(0.9375, 0.9375, 0.9375)
-        kind = name.split("_")[0]
+    """FallPose.place 와 같은 계산 (puppet_rig) + 아이템 디스플레이의 Y180° (모델 +z 가 뒤쪽)"""
+    for name in RIG.PARTS:
+        c, r = RIG.place(frame, name)
+        M = np.eye(4)
+        M[:3, :3] = r
+        M = T.tr(*c) @ M @ T.ry(math.pi) @ T.sc(0.9375, 0.9375, 0.9375)
+        kind = RIG.PARTS[name][4]
         for a, b, tint in BOXES[kind]:
             T.cuboid(M, a[0] - 8, a[1] - 8, a[2] - 8, b[0] - a[0], b[1] - a[1], b[2] - a[2], COLORS[kind][tint], polys)
 

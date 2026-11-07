@@ -106,24 +106,78 @@ class ExecutionAnimsTest {
         }
     }
 
+    private static java.util.List<ExecutionAnims.Track> execTracks(ExecutionAnims.Anim a) {
+        java.util.List<ExecutionAnims.Track> out = new java.util.ArrayList<>();
+        for (ExecutionAnims.Track t : new ExecutionAnims.Track[] {a.readyExec(), a.strikeExec(), a.fullExec()}) if (t != null) out.add(t);
+        return out;
+    }
+
     @Test
-    void weaponNeverSpinsBetweenFrames() {
-        // 손목·무기 회전이 한 틱에 90° 넘게 바뀌면 무기가 손 안에서 휙 도는 것처럼 보임
+    void handsStayOnTheWeapon() {
+        // 두 마디 팔: 오른손은 쥐는 곳, 두 손 무기는 왼손이 그 아래 손잡이에 (플러그인 팔 계산 = 만든 도구의 IK)
         for (ExecutionAnims.Anim a : anims.all().values()) {
-            for (ExecutionAnims.Track t : new ExecutionAnims.Track[] {a.strikeExec(), a.fullExec()}) {
-                if (t == null) continue;
-                for (int i = 1; i < t.length(); i++) {
-                    assertTrue(Math.abs(t.wrist()[i] - t.wrist()[i - 1]) < 90, a.name() + " 손목 " + i);
-                    assertTrue(Math.abs(t.twist()[i] - t.twist()[i - 1]) < 90, a.name() + " 무기 회전 " + i);
-                    if (!"none".equals(a.weapon())) {
-                        var r0 = ExecutionAnims.weapon(t, i - 1, 1.0, new double[] {8, 3.5, 8}).rotation();
-                        var r1 = ExecutionAnims.weapon(t, i, 1.0, new double[] {8, 3.5, 8}).rotation();
-                        double ang = Math.toDegrees(r0.difference(r1, new org.joml.Quaterniond()).angle());
-                        if (ang > 180) ang = 360 - ang;
-                        assertTrue(ang < 100, a.name() + " 무기가 " + i + "틱에 " + ang + "° 돎");
+            if ("none".equals(a.weapon())) continue;
+            for (ExecutionAnims.Track t : execTracks(a)) {
+                for (int i = 0; i < t.length(); i++) {
+                    Vector3d g = ExecutionAnims.grip(t, i, 1);
+                    assertNotNull(g, a.name() + " 무기 없음 " + i);
+                    double dr = t.pose().hand(i, FallPose.Part.FOREARM_R, 1).distance(g);
+                    assertTrue(dr < 0.07, a.name() + " " + i + "틱 오른손이 손잡이에서 " + dr);
+                    if ("both".equals(a.weapon())) {
+                        Vector3d d = ExecutionAnims.weaponRotation(t, i).transform(new Vector3d(0, 1, 0));
+                        Vector3d left = new Vector3d(g).sub(d.mul(3.4 / 16 * ExecutionAnims.WEAPON_SCALE));
+                        double dl = t.pose().hand(i, FallPose.Part.FOREARM_L, 1).distance(left);
+                        assertTrue(dl < 0.07, a.name() + " " + i + "틱 왼손이 손잡이에서 " + dl);
                     }
                 }
             }
+        }
+    }
+
+    @Test
+    void weaponNeverSpinsBetweenFrames() {
+        // 무기 회전이 한 틱에 100° 넘게 바뀌면 손 안에서 휙 도는 것처럼 보임
+        for (ExecutionAnims.Anim a : anims.all().values()) {
+            if ("none".equals(a.weapon())) continue;
+            for (ExecutionAnims.Track t : execTracks(a)) {
+                for (int i = 1; i < t.length(); i++) {
+                    double ang = Math.toDegrees(FallPose.angleBetween(ExecutionAnims.weaponRotation(t, i - 1), ExecutionAnims.weaponRotation(t, i)));
+                    assertTrue(ang < 100, a.name() + " 무기가 " + i + "틱에 " + ang + "° 돎");
+                }
+            }
+        }
+    }
+
+    @Test
+    void executorStaysAboveTheFloor() {
+        for (ExecutionAnims.Anim a : anims.all().values()) {
+            for (ExecutionAnims.Track t : execTracks(a)) {
+                for (int f = 0; f < t.length(); f++) {
+                    for (FallPose.Part p : FallPose.Part.values()) {
+                        FallPose.Placement pl = t.pose().place(f, p, 1);
+                        Vector3d h = new Vector3d(p.size).mul(FallPose.PX / 2);
+                        double low = Double.MAX_VALUE;
+                        for (int i = 0; i < 8; i++) {
+                            Vector3d c = new Vector3d((i & 1) == 0 ? -h.x : h.x, (i & 2) == 0 ? -h.y : h.y, (i & 4) == 0 ? -h.z : h.z);
+                            low = Math.min(low, pl.rotation().transform(c).add(pl.center()).y);
+                        }
+                        assertTrue(low > -0.1, a.name() + " " + f + "틱 " + p + " 바닥 아래 " + low);
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    void kneelingLegsBendAtTheKnee() {
+        // 올라탄 자세는 무릎을 꿇음: 정강이가 허벅지와 크게 꺾이고 발은 바닥 가까이
+        for (String n : new String[] {"fist", "blunt", "heavy", "light", "blade"}) {
+            ExecutionAnims.Anim a = anims.get(n);
+            ExecutionAnims.Track t = a.hits() ? a.readyExec() : a.fullExec();
+            double ang = Math.toDegrees(FallPose.angleBetween(t.pose().place(0, FallPose.Part.LEG_R, 1).rotation(),
+                    t.pose().place(0, FallPose.Part.SHIN_R, 1).rotation()));
+            assertTrue(ang > 50, n + " 무릎 " + ang);
+            assertTrue(t.pose().foot(0, FallPose.Part.SHIN_R, 1).y < 0.25, n + " 발 높이");
         }
     }
 

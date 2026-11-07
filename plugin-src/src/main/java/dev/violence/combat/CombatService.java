@@ -799,8 +799,8 @@ public final class CombatService {
             if (anim != null && head != null) {
                 // 처형 동작: 오른쪽 옆 위에서 처형자와 머리 사이를 봄 (오른손 무기가 머리에 닿는 순간이 몸에 가리지 않게)
                 Vec3 mid = chest.add(head).mul(0.5);
-                camPos = mid.add(right.mul(2.4)).sub(face.mul(0.5)).add(0, 1.9, 0);
-                camLook = mid.add(0, 0.45, 0);
+                camPos = mid.add(right.mul(2.6)).sub(face.mul(0.5)).add(0, 2.1, 0);
+                camLook = mid.add(0, 0.7, 0);   // 머리 위로 높이 든 무기까지 보이게
             } else {
                 // 카메라: 처형자의 뒤 오른쪽 위에서 머리를 봄 (처형자 몸에 머리가 가리지 않게)
                 camPos = chest.sub(face.mul(1.5)).add(right.mul(1.1)).add(0, 2.7, 0);

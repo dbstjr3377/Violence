@@ -38,7 +38,6 @@ OW, OH = G.OW, G.OH
 FLOOR = G.FLOOR
 EXEC = json.load(open(os.path.join(ROOT, "plugin-src", "src", "main", "resources", "execution.json"), encoding="utf-8"))
 ANIM = EXEC["anims"]["blunt"]
-GRIP = EXEC["grips"]["crowbar"]
 ease, yaw_of, fwd = KC.ease, KC.yaw_of, KC.fwd
 
 P_START = np.array([-24.0, FLOOR, 1.0])
@@ -92,19 +91,9 @@ def card_pos(item, look):
 
 
 def weapon_polys(fr):
-    """exec_anims.preview 와 같음: 오른손 무기 (ExecutionAnims.weapon)"""
-    m = json.load(open(os.path.join(NS, "models", "item", "weapon", "crowbar.json"), encoding="utf-8"))
-    tex = Image.open(os.path.join(NS, "textures", m["textures"]["t"].split(":")[1] + ".png")).convert("RGBA")
-    rx = lambda a: T.rx(math.radians(a[0])) @ T.ry(math.radians(a[1])) @ T.rz(math.radians(a[2]))
-    body = T.rx(math.radians(fr["pitch"]))
-    joint, _ = FPV.PARTS["arm_r"]
-    local = np.array(joint) * FPV.PX + (rx(fr["arm_r"]) @ np.array([-FPV.PX, -10 * FPV.PX, 0, 1.0]))[:3]
-    fist = (body @ np.array([*local, 1.0]))[:3] + np.array([0, fr["feet"][0], fr["feet"][1]])
-    Rw = body @ rx(fr["arm_r"]) @ T.rx(math.pi) @ T.rx(math.radians(fr["wrist"])) @ T.ry(math.radians(fr["twist"]))
-    s = 0.85 * 0.9375
-    g = np.array(GRIP) / 16 - 0.5
-    M = T.tr(*(fist - (Rw[:3, :3] @ (g * s)))) @ Rw @ T.sc(s, s, s)
-    return T.item_polys(M, m, tex, {"rotation": [0, 0, 0], "translation": [0, 0, 0], "scale": [1, 1, 1]})
+    """exec_anims.weapon_polys 와 같음: 프레임의 w(쥐는 곳 + 회전) 그대로 무기를 놓음 (ExecutionAnims.weapon)"""
+    import exec_anims
+    return exec_anims.weapon_polys(fr, "crowbar", EXEC["grips"]) if "w" in fr else []
 
 
 def puppet(fr, col, weapon=False):
@@ -266,8 +255,8 @@ def main():
             # CombatService: 처형 동작은 오른쪽 옆 위에서 처형자와 머리 사이를 봄
             mid = (at + head) / 2
             mid[1] = at[1]
-            cam = mid + right * 2.4 - face * 0.5 + [0, 1.9, 0]
-            ly, lp = G.look_angles(cam, mid + [0, 0.45, 0])
+            cam = mid + right * 2.6 - face * 0.5 + [0, 2.1, 0]
+            ly, lp = G.look_angles(cam, mid + [0, 0.7, 0])
             ex = dict(at=at, yaw=yaw_of(face), face=face, vf=vf, vyaw=l.yaw, head=head, mode="ready", t0=tk, hits=3,
                       cam=(tuple(round(float(x), 4) for x in cam), round(ly, 3), round(lp, 3)), done=None)
             me = at.copy()

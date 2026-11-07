@@ -466,8 +466,9 @@ public final class FallService {
         act.exPuppet.pose = et.pose();
         int f = Math.min(frame, et.length() - 1);
         place(act.exPuppet, f, animate);
-        if (act.weapon != null && act.weapon.isValid() && act.grip != null) {
-            FallPose.Placement w = ExecutionAnims.weapon(et, f, act.exPuppet.scale, act.grip);
+        FallPose.Placement w = act.weapon != null && act.weapon.isValid() && act.grip != null
+                ? ExecutionAnims.weapon(et, f, act.exPuppet.scale, act.grip) : null;
+        if (w != null) {
             Vector3d c = FallPose.toWorld(w.center(), act.exPuppet.yaw);
             // 디스플레이가 아이템을 Y180° 돌려 그리므로 미리 되돌림
             Quaternionf r = new Quaternionf(FallPose.toWorld(w.rotation(), act.exPuppet.yaw)).rotateY((float) Math.PI);
@@ -834,8 +835,10 @@ public final class FallService {
         switch (part) {
             case HEAD -> { model = "head"; c0 = col[0]; c1 = col[1]; }
             case BODY -> { model = "body"; c0 = col[2]; c1 = col[2]; }
-            case ARM_R, ARM_L -> { model = "arm"; c0 = col[2]; c1 = col[0]; }
-            default -> { model = "leg"; c0 = col[3]; c1 = col[4]; }
+            case ARM_R, ARM_L -> { model = "arm_upper"; c0 = col[2]; c1 = col[0]; }
+            case FOREARM_R, FOREARM_L -> { model = "forearm"; c0 = col[2]; c1 = col[0]; }
+            case LEG_R, LEG_L -> { model = "leg_upper"; c0 = col[3]; c1 = col[4]; }
+            default -> { model = "shin"; c0 = col[3]; c1 = col[4]; }
         }
         ItemStack it = new ItemStack(Material.PAPER);
         it.setData(DataComponentTypes.ITEM_MODEL, Key.key("violence", "puppet/" + model));

@@ -20,8 +20,10 @@ import org.joml.Vector3d;
  * 언제나 뒤로 넘어진다: 뒤로 넘어짐(BACK), 두 팔을 벌리고 날아감(BLAST, 샷건처럼 강한 공격),
  * 뒤쪽 벽에 부딪혀 기대 앉음(WALL, 기절). 벽에 기댄 채 죽으면 WALL_DEATH, 기절한 적을 처형하는 발차기는 KICK.
  *
- * 바닐라 플레이어 모델과 같은 크기의 6부위(머리·몸통·두 팔·두 다리)를 몸 기준 좌표(x=왼쪽, y=위, z=앞, 블록)에 놓는다.
- * 몸 전체는 발을 기준으로 pitch 만큼 앞으로 기울고 발은 feet 위치로 옮겨지며, 팔다리·머리는 관절에서 따로 돈다.
+ * 바닐라 플레이어 모델과 같은 크기의 10부위(머리·몸통, 팔 = 위팔+아래팔, 다리 = 허벅지+정강이)를
+ * 몸 기준 좌표(x=왼쪽, y=위, z=앞, 블록)에 놓는다. 몸 전체는 발을 기준으로 pitch 만큼 앞으로 기울고 발은 feet 위치로 옮겨지며,
+ * 머리·위팔·허벅지는 어깨/엉덩이 관절에서, 아래팔·정강이는 팔꿈치/무릎 관절에서 따로 돈다 (부모 회전을 이어받음).
+ * 프레임 키: arm_r [x,y,z] + elbow_r (숫자 = x축 굽힘, 음수가 앞으로 굽힘), leg_r + knee_r (양수가 뒤로 굽힘). 없으면 0 (곧게 폄).
  * 마지막 프레임은 바닐라 엎드린(SWIMMING) 자세와 같아서, 끝나고 실제 몸으로 바꿔도 튀지 않는다.
  */
 public final class FallPose {
@@ -29,13 +31,25 @@ public final class FallPose {
     public static final double PX = 0.9375 / 16.0;
 
     public enum Part {
-        HEAD(0, 24, 0, 0, 4, 0, 8, 8, 8),
-        BODY(0, 12, 0, 0, 6, 0, 8, 12, 4),
-        ARM_R(-5, 22, 0, -1, -4, 0, 4, 12, 4),
-        ARM_L(5, 22, 0, 1, -4, 0, 4, 12, 4),
-        LEG_R(-1.9, 12, 0, 0, -6, 0, 4, 12, 4),
-        LEG_L(1.9, 12, 0, 0, -6, 0, 4, 12, 4);
+        HEAD("head", null, 0, 24, 0, 0, 4, 0, 8, 8, 8),
+        BODY("body", null, 0, 12, 0, 0, 6, 0, 8, 12, 4),
+        /** 위팔: 어깨 관절(바닐라 팔 회전축)에서 팔꿈치까지 */
+        ARM_R("arm_r", null, -5, 22, 0, -1, -1, 0, 4, 6, 4),
+        ARM_L("arm_l", null, 5, 22, 0, 1, -1, 0, 4, 6, 4),
+        /** 아래팔: 팔꿈치에서 주먹까지 */
+        FOREARM_R("elbow_r", ARM_R, -6, 18, 0, 0, -3, 0, 4, 6, 4),
+        FOREARM_L("elbow_l", ARM_L, 6, 18, 0, 0, -3, 0, 4, 6, 4),
+        /** 허벅지: 엉덩이 관절에서 무릎까지 */
+        LEG_R("leg_r", null, -1.9, 12, 0, 0, -3, 0, 4, 6, 4),
+        LEG_L("leg_l", null, 1.9, 12, 0, 0, -3, 0, 4, 6, 4),
+        /** 정강이: 무릎에서 발까지 */
+        SHIN_R("knee_r", LEG_R, -1.9, 6, 0, 0, -3, 0, 4, 6, 4),
+        SHIN_L("knee_l", LEG_L, 1.9, 6, 0, 0, -3, 0, 4, 6, 4);
 
+        /** fall.json / execution.json 프레임 키 */
+        public final String key;
+        /** 부모 부위 (아래팔·정강이), 없으면 null */
+        public final Part parent;
         /** 관절 위치 (서 있을 때, 픽셀) */
         public final Vector3d joint;
         /** 관절에서 부위 중심까지 (픽셀) */
@@ -43,12 +57,22 @@ public final class FallPose {
         /** 크기 (픽셀) */
         public final Vector3d size;
 
-        Part(double jx, double jy, double jz, double ox, double oy, double oz, double sx, double sy, double sz) {
+        Part(String key, Part parent, double jx, double jy, double jz, double ox, double oy, double oz, double sx, double sy, double sz) {
+            this.key = key;
+            this.parent = parent;
             joint = new Vector3d(jx, jy, jz);
             offset = new Vector3d(ox, oy, oz);
             size = new Vector3d(sx, sy, sz);
         }
+
+        /** 몸통에 붙은 부위 (머리·몸통·위팔·허벅지) */
+        public Part root() { return parent == null ? this : parent; }
     }
+
+    /** 주먹(무기를 쥐는 곳): 아래팔 관절(팔꿈치)에서 아래로 (픽셀) */
+    public static final double HAND_PX = 5;
+    /** 발바닥: 정강이 관절(무릎)에서 아래로 (픽셀) */
+    public static final double FOOT_PX = 6;
 
     /** 한 부위의 놓임: 중심(블록, 발 기준 몸 좌표)과 회전 */
     public record Placement(Vector3d center, Quaterniond rotation) {}
@@ -181,10 +205,14 @@ public final class FallPose {
             JsonArray feet = o.getAsJsonArray("feet");
             Map<Part, double[]> joints = new EnumMap<>(Part.class);
             for (Part p : Part.values()) {
-                String key = p.name().toLowerCase(java.util.Locale.ROOT);
-                if (!o.has(key)) continue;
-                JsonArray a = o.getAsJsonArray(key);
-                joints.put(p, new double[] {a.get(0).getAsDouble(), a.get(1).getAsDouble(), a.get(2).getAsDouble()});
+                if (!o.has(p.key)) continue;
+                JsonElement v = o.get(p.key);
+                if (v.isJsonArray()) {
+                    JsonArray a = v.getAsJsonArray();
+                    joints.put(p, new double[] {a.get(0).getAsDouble(), a.get(1).getAsDouble(), a.get(2).getAsDouble()});
+                } else {
+                    joints.put(p, new double[] {v.getAsDouble(), 0, 0});   // 팔꿈치·무릎: x축 굽힘
+                }
             }
             list.add(new Frame(o.get("pitch").getAsDouble(), feet.get(0).getAsDouble(), feet.get(1).getAsDouble(),
                     num(o, "travel", 1.0), joints));
@@ -205,16 +233,46 @@ public final class FallPose {
 
     public Frame frame(int i) { return frames.get(i); }
 
+    private static Quaterniond euler(double[] j) {
+        return new Quaterniond().rotationXYZ(Math.toRadians(j[0]), Math.toRadians(j[1]), Math.toRadians(j[2]));
+    }
+
+    /**
+     * 몸통 기준(기울이기 전) 관절 위치(px)와 회전: 아래팔·정강이는 부모 회전 뒤에 자기 굽힘.
+     * rootLocal = 머리·위팔·허벅지 회전, childLocal = 팔꿈치·무릎 굽힘 (부모 기준)
+     */
+    static Placement chain(Part part, Quaterniond rootLocal, Quaterniond childLocal) {
+        if (part.parent == null) {
+            return new Placement(rootLocal.transform(new Vector3d(part.offset)).add(part.joint), new Quaterniond(rootLocal));
+        }
+        Vector3d joint = rootLocal.transform(new Vector3d(part.joint).sub(part.parent.joint)).add(part.parent.joint);
+        Quaterniond rot = new Quaterniond(rootLocal).mul(childLocal);
+        return new Placement(rot.transform(new Vector3d(part.offset)).add(joint), rot);
+    }
+
     /** 몸 기준 좌표에서 부위 놓임 (scale = 개체 크기 배율) */
     public Placement place(int frame, Part part, double scale) {
         Frame f = frames.get(frame);
         Quaterniond body = new Quaterniond().rotationX(Math.toRadians(f.pitch()));
-        double[] j = f.joints().getOrDefault(part, new double[3]);
-        Quaterniond local = new Quaterniond().rotationXYZ(Math.toRadians(j[0]), Math.toRadians(j[1]), Math.toRadians(j[2]));
-        Vector3d c = local.transform(new Vector3d(part.offset)).add(part.joint).mul(PX);
+        Quaterniond root = euler(f.joints().getOrDefault(part.root(), new double[3]));
+        Quaterniond child = part.parent == null ? new Quaterniond() : euler(f.joints().getOrDefault(part, new double[3]));
+        Placement local = chain(part, root, child);
+        Vector3d c = local.center().mul(PX);
         body.transform(c).add(0, f.feetY(), f.feetZ()).mul(scale);
-        return new Placement(c, new Quaterniond(body).mul(local));
+        return new Placement(c, new Quaterniond(body).mul(local.rotation()));
     }
+
+    /** 아래팔·정강이 관절에서 down 픽셀 아래 점 (몸 기준, 블록) */
+    private Vector3d tip(int frame, Part lower, double down, double scale) {
+        Placement p = place(frame, lower, scale);
+        return p.rotation().transform(new Vector3d(0, (-down - lower.offset.y) * PX * scale, 0)).add(p.center());
+    }
+
+    /** 주먹 위치 (FOREARM_R / FOREARM_L) */
+    public Vector3d hand(int frame, Part forearm, double scale) { return tip(frame, forearm, HAND_PX, scale); }
+
+    /** 발바닥 위치 (SHIN_R / SHIN_L) */
+    public Vector3d foot(int frame, Part shin, double scale) { return tip(frame, shin, FOOT_PX, scale); }
 
     /**
      * 바닐라 엎드린 자세 (AvatarRenderer: X축 -90° 회전 후 (0,-1,0.3) 이동, 몸 기준 좌표로 바꾸면 x 그대로, 높이 0.3-z, 앞 y-1).
@@ -225,12 +283,12 @@ public final class FallPose {
         Vector3d c = new Vector3d(stand.x, 0.3 - stand.z, stand.y - 1).mul(scale);
         Quaterniond body = new Quaterniond().rotationX(Math.PI / 2);
         Quaterniond local = new Quaterniond();
-        if (part == Part.HEAD) local.rotationX(Math.toRadians(-45));
-        if (part == Part.ARM_R || part == Part.ARM_L) local.rotationX(Math.PI);
+        Part root = part.root();
+        if (root == Part.HEAD) local.rotationX(Math.toRadians(-45));
+        if (root == Part.ARM_R || root == Part.ARM_L) local.rotationX(Math.PI);
         if (part != Part.BODY) {
-            Vector3d j = new Vector3d(part.joint).mul(PX);
-            Vector3d off = local.transform(new Vector3d(part.offset).mul(PX));
-            Vector3d p = new Vector3d(j).add(off);
+            Placement ch = chain(part, local, new Quaterniond());
+            Vector3d p = ch.center().mul(PX);
             c = new Vector3d(p.x, 0.3 - p.z, p.y - 1).mul(scale);
         }
         return new Placement(c, body.mul(local));
@@ -257,14 +315,14 @@ public final class FallPose {
      */
     public static Placement vanillaSit(Part part, double scale, double seatY, double headPitch) {
         Quaterniond local = new Quaterniond();
-        switch (part) {
+        switch (part.root()) {
             case LEG_R -> local.rotationZ(-0.07853982).rotateY(-Math.PI / 10).rotateX(-1.4137167);
             case LEG_L -> local.rotationZ(0.07853982).rotateY(Math.PI / 10).rotateX(-1.4137167);
             case ARM_R, ARM_L -> local.rotationX(-Math.PI / 5);
             case HEAD -> local.rotationX(Math.toRadians(headPitch));
             default -> { }
         }
-        Vector3d c = local.transform(new Vector3d(part.offset)).add(part.joint).mul(PX).add(0, seatY, 0).mul(scale);
+        Vector3d c = chain(part, local, new Quaterniond()).center().mul(PX).add(0, seatY, 0).mul(scale);
         return new Placement(c, local);
     }
 

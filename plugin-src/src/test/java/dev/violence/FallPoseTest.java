@@ -63,8 +63,7 @@ class FallPoseTest {
         int last = kick.frameCount() - 1;
         FallPose stand = new FallPose(java.util.List.of(new FallPose.Frame(0, 0, 0, 1, Map.of())), 1);
         for (FallPose.Part part : FallPose.Part.values()) same(kick.place(last, part, 1), stand.place(0, part, 1), "발차기 끝 " + part);
-        FallPose.Placement leg = kick.place(kick.contact(), FallPose.Part.LEG_R, 1);
-        Vector3d foot = leg.rotation().transform(new Vector3d(0, -6 * FallPose.PX, 0)).add(leg.center());
+        Vector3d foot = kick.foot(kick.contact(), FallPose.Part.SHIN_R, 1);
         assertTrue(foot.z > 0.4 && foot.y > 0.95, "발이 앞 위로 " + foot);
     }
 
@@ -121,5 +120,29 @@ class FallPoseTest {
         assertEquals(0, fwd.z, 1e-9);
         Vector3d left = FallPose.toWorld(new Vector3d(1, 0, 0), 0);
         assertEquals(1, left.x, 1e-9);
+    }
+
+    @Test
+    void limbsHaveTwoJointsThatStayConnected() {
+        // 팔꿈치·무릎을 굽혀도 위 마디 끝과 아래 마디 시작이 붙어 있음
+        com.google.gson.JsonObject o = com.google.gson.JsonParser.parseString(
+                "{\"frames\":[{\"pitch\":20,\"feet\":[-0.3,0.1],\"arm_r\":[-120,30,10],\"elbow_r\":-90,"
+                        + "\"leg_l\":[-70,0,20],\"knee_l\":110}]}").getAsJsonObject();
+        FallPose p = FallPose.parse(o);
+        for (FallPose.Part[] pair : new FallPose.Part[][] {{FallPose.Part.ARM_R, FallPose.Part.FOREARM_R}, {FallPose.Part.LEG_L, FallPose.Part.SHIN_L}}) {
+            FallPose.Placement up = p.place(0, pair[0], 1);
+            FallPose.Placement low = p.place(0, pair[1], 1);
+            Vector3d upEnd = up.rotation().transform(new Vector3d(0, -3 * FallPose.PX, 0)).add(up.center());
+            Vector3d lowStart = low.rotation().transform(new Vector3d(0, 3 * FallPose.PX, 0)).add(low.center());
+            assertTrue(upEnd.distance(lowStart) < 1e-9, pair[1] + " 떨어짐 " + upEnd.distance(lowStart));
+        }
+        // 굽힌 아래팔은 위팔과 90° 
+        double ang = Math.toDegrees(FallPose.angleBetween(p.place(0, FallPose.Part.ARM_R, 1).rotation(), p.place(0, FallPose.Part.FOREARM_R, 1).rotation()));
+        assertEquals(90, ang, 1e-6);
+        // 곧게 펴면 바닐라 팔 하나(12px)와 같은 자리: 쥐는 곳 = 팔 끝(어깨 관절 10px 아래)에서 1px 안쪽
+        FallPose straight = new FallPose(java.util.List.of(new FallPose.Frame(0, 0, 0, 1, Map.of())), 1);
+        Vector3d hand = straight.hand(0, FallPose.Part.FOREARM_R, 1);
+        assertEquals(22 - 9, hand.y / FallPose.PX, 1e-9);
+        assertEquals(-6, hand.x / FallPose.PX, 1e-9);
     }
 }

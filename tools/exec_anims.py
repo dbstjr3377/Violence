@@ -3,10 +3,14 @@
 처형 애니메이션 만들기 → plugin-src/src/main/resources/execution.json (플러그인 ExecutionAnims 가 읽음)
 미리보기: python3 tools/exec_anims.py --preview → docs/images/executions.png, build-out/executions/<이름>.gif
 
-처형자와 피처형자 모두 6부위 인형으로 그린다 (FallPose 와 같은 좌표: x=왼쪽, y=위, z=앞, 발 기준, 각도는 도).
- - 처형자: 누운 적의 머리 쪽을 본다. 기준점 = 적의 발에서 머리 쪽으로 anchor 블록 (가슴 0.85 = 올라탐)
+처형자와 피처형자 모두 10부위 인형(팔·다리가 두 마디: 팔꿈치·무릎)으로 그린다 (puppet_rig = FallPose 와 같은 좌표).
+ - 처형자: 누운 적의 머리 쪽을 본다. 기준점 = 적의 발에서 머리 쪽으로 anchor 블록
  - 피처형자: 등으로 누운 자세 (fall.json back 의 마지막 프레임과 같음) + 머리·팔 움직임
- - 무기: 처형자 손(오른손)에 붙은 아이템. weapon = none / right / both(두 손). wrist = 손목 꺾기(팔 x축), twist = 무기 자체 회전
+ - 무기: 키프레임마다 무기 자체를 놓음 (쥐는 곳 위치 + 각도). 팔은 틱마다 두 마디 IK 로 손을 손잡이에 붙임
+   (두 손 무기는 왼손이 오른손 아래 손잡이에). 무기는 위→앞→아래로 돌며 앞면(모델 +Z: 갈고리·도끼날·식칼 날)이 앞장섬.
+ - 무릎을 꿇은 다리도 IK: 발끝은 바닥 뒤쪽, 무릎은 앞으로
+ - 맨손: 두 손이 피처형자 머리 양옆을 따라감 (머리를 들었다 바닥에 박음)
+ - 프레임 w = [x, y, z, qx, qy, qz, qw]: 오른손이 쥐는 곳(몸 기준, 블록)과 무기 회전 — 플러그인이 그대로 무기를 놓음
  - hits(왼클릭): ready(대기 1프레임) + strike(한 번 칠 때 프레임, impact = 머리에 닿는 프레임)
  - auto(자동): full(전체 프레임) + impacts(닿는 프레임들) + kill(죽는 프레임) + events(추가 피)
 """
@@ -19,27 +23,31 @@ import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import models_melee  # noqa: E402
+import puppet_rig as R  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, "plugin-src", "src", "main", "resources", "execution.json")
 FALL = os.path.join(ROOT, "plugin-src", "src", "main", "resources", "fall.json")
-JOINTS = ("head", "arm_r", "arm_l", "leg_r", "leg_l")
+
+PX = R.PX
+W_SCALE = 0.85 * 0.9375
+# 두 손 무기: 왼손은 오른손보다 손잡이 끝 쪽으로 (블록)
+LEFT_GAP = 3.4 / 16 * W_SCALE
+# 무기 묶음별 대표 길이 (쥔 곳 → 치는 부분, 모델 픽셀)
+STRIKE_ALONG = {"blunt": 22.0, "heavy": 23.5, "light": 8.5, "blade": 8.0}
+# 팔꿈치가 향할 쪽 (몸 기준): 바깥·아래·조금 뒤
+POLE_R, POLE_L = (-1.0, -0.6, -0.2), (1.0, -0.6, -0.2)
 
 # ───────────────────────── 자세 ─────────────────────────
 
 
 def pose(base=None, **kw):
     p = {"pitch": 0.0, "feet": [0.0, 0.0], "head": [0, 0, 0], "arm_r": [0, 0, 0], "arm_l": [0, 0, 0],
-         "leg_r": [0, 0, 0], "leg_l": [0, 0, 0], "wrist": 0.0, "twist": 0.0}
+         "elbow_r": 0.0, "elbow_l": 0.0, "leg_r": [0, 0, 0], "leg_l": [0, 0, 0], "knee_r": 0.0, "knee_l": 0.0}
     if base:
         p.update(json.loads(json.dumps(base)))
     p.update(json.loads(json.dumps(kw)))
     return p
-
-
-# 올라탐: 가슴 위에 무릎을 꿇고 다리를 뒤로 벌림
-STRADDLE = pose(pitch=8, feet=[-0.3, 0.0], head=[25, 0, 0], arm_r=[-30, 0, 0], arm_l=[-30, 0, 0], leg_r=[82, 0, -22], leg_l=[82, 0, 22])
-STAND = pose()
 
 
 def _lying():
@@ -49,26 +57,22 @@ def _lying():
 
 
 LYING = _lying()
+HIP_PX = 12.0
 
 
 def lerp(a, b, t):
+    if isinstance(a, dict):
+        return {k: lerp(a[k], b[k], t) if k in b else a[k] for k in a}
     if isinstance(a, list):
         return [lerp(x, y, t) for x, y in zip(a, b)]
-    return a + (b - a) * t
+    if isinstance(a, (int, float)) and not isinstance(a, bool) and isinstance(b, (int, float)):
+        return a + (b - a) * t
+    return a if t < 0.5 else b
 
 
 def track(keys, length=None):
-    """[(틱, 자세)] → 틱마다 프레임 (부드럽게 이어 붙임)"""
+    """[(틱, 키)] → 틱마다 키 (부드럽게 이어 붙임). 키는 숫자·목록·사전 (같은 모양)"""
     keys = sorted(keys, key=lambda k: k[0])
-    # 손목·무기 회전은 앞 키에서 가까운 쪽으로 돌림 (같은 각도를 360° 다르게 적어 무기가 한 바퀴 도는 일 없게)
-    fixed = [keys[0]]
-    for t, f in keys[1:]:
-        f = pose(f)
-        prev = fixed[-1][1]
-        for key in ("wrist", "twist"):
-            f[key] = prev[key] + ((f[key] - prev[key] + 180) % 360 - 180)
-        fixed.append((t, f))
-    keys = fixed
     length = length or keys[-1][0] + 1
     out = []
     for t in range(length):
@@ -79,233 +83,267 @@ def track(keys, length=None):
             continue
         u = (t - k0[0]) / (k1[0] - k0[0])
         u = u * u * (3 - 2 * u)
-        f = {key: lerp(k0[1][key], k1[1][key], u) for key in k0[1]}
-        out.append(f)
+        out.append(lerp(k0[1], k1[1], u))
     return out
 
 
 def rnd(frames):
     def r(v):
-        return [r(x) for x in v] if isinstance(v, list) else round(float(v), 2)
+        if isinstance(v, list):
+            return [r(x) for x in v]
+        return round(float(v), 4)
     return [{k: r(v) for k, v in f.items()} for f in frames]
 
 
-# ───────────────────────── 손·무기 위치 (FallPose / ExecutionAnims 와 같은 계산) ─────────────────────────
+# ───────────────────────── 무기 ─────────────────────────
 
-PX = 0.9375 / 16
-JOINT = {"arm_r": (-5, 22, 0), "arm_l": (5, 22, 0)}
-W_SCALE = 0.85 * 0.9375
-
-
-def _rx(a):
-    c, s_ = math.cos(a), math.sin(a)
-    return np.array([[1, 0, 0], [0, c, -s_], [0, s_, c]])
+def weapon_rot(a):
+    """무기 각도 [θ, 좌우, 굴림] (도): θ=0 위, 90 앞, 180 아래 (Ry·Rx·Rz). 모델 +Y = 손잡이→끝, +Z = 앞면"""
+    return R.ry(math.radians(a[1])) @ R.rx(math.radians(a[0])) @ R.rz(math.radians(a[2]))
 
 
-def _ry(a):
-    c, s_ = math.cos(a), math.sin(a)
-    return np.array([[c, 0, s_], [0, 1, 0], [-s_, 0, c]])
+def quat(m):
+    t = m[0, 0] + m[1, 1] + m[2, 2]
+    if t > 0:
+        s = math.sqrt(t + 1) * 2
+        return [(m[2, 1] - m[1, 2]) / s, (m[0, 2] - m[2, 0]) / s, (m[1, 0] - m[0, 1]) / s, s / 4]
+    if m[0, 0] > m[1, 1] and m[0, 0] > m[2, 2]:
+        s = math.sqrt(1 + m[0, 0] - m[1, 1] - m[2, 2]) * 2
+        return [s / 4, (m[0, 1] + m[1, 0]) / s, (m[0, 2] + m[2, 0]) / s, (m[2, 1] - m[1, 2]) / s]
+    if m[1, 1] > m[2, 2]:
+        s = math.sqrt(1 + m[1, 1] - m[0, 0] - m[2, 2]) * 2
+        return [(m[0, 1] + m[1, 0]) / s, s / 4, (m[1, 2] + m[2, 1]) / s, (m[0, 2] - m[2, 0]) / s]
+    s = math.sqrt(1 + m[2, 2] - m[0, 0] - m[1, 1]) * 2
+    return [(m[0, 2] + m[2, 0]) / s, (m[1, 2] + m[2, 1]) / s, s / 4, (m[1, 0] - m[0, 1]) / s]
 
 
-def _rz(a):
-    c, s_ = math.cos(a), math.sin(a)
-    return np.array([[c, -s_, 0], [s_, c, 0], [0, 0, 1]])
+def from_quat(q):
+    x, y, z, w = q
+    return np.array([[1 - 2 * (y * y + z * z), 2 * (x * y - z * w), 2 * (x * z + y * w)],
+                     [2 * (x * y + z * w), 1 - 2 * (x * x + z * z), 2 * (y * z - x * w)],
+                     [2 * (x * z - y * w), 2 * (y * z + x * w), 1 - 2 * (x * x + y * y)]])
 
 
-def _rxyz(a):
-    return _rx(math.radians(a[0])) @ _ry(math.radians(a[1])) @ _rz(math.radians(a[2]))
+def grip_for(tip, ang, along_px):
+    """무기의 along_px 지점이 tip 에 닿는 쥐는 곳"""
+    d = weapon_rot(ang) @ np.array([0, 1.0, 0])
+    return list(np.asarray(tip, float) - d * (along_px / 16 * W_SCALE))
 
 
-def fist(fr, hand="arm_r"):
-    body = _rx(math.radians(fr["pitch"]))
-    side = -1 if hand == "arm_r" else 1
-    local = np.array(JOINT[hand]) * PX + _rxyz(fr[hand]) @ np.array([side * PX, -10 * PX, 0])
-    return body @ local + np.array([0, fr["feet"][0], fr["feet"][1]])
+# ───────────────────────── 피처형자 / 처형자 좌표 ─────────────────────────
+
+def victim_point(fv, anchor, part="head", up=0.0):
+    """피처형자 부위 중심(+위로 up) → 처형자 기준 좌표 (피처형자는 발이 -anchor, 머리 쪽 = 처형자 앞)"""
+    c, _ = R.place(fv, part)
+    return np.array([-c[0], c[1] + up, -c[2] - anchor])
 
 
-def weapon_point(fr, along_px):
-    """오른손에 쥔 무기에서 손잡이(쥔 곳)로부터 along_px(모델 픽셀) 떨어진 점"""
-    body = _rx(math.radians(fr["pitch"]))
-    Rw = body @ _rxyz(fr["arm_r"]) @ _rx(math.pi) @ _rx(math.radians(fr["wrist"])) @ _ry(math.radians(fr["twist"]))
-    return fist(fr) + Rw @ np.array([0, along_px / 16 * W_SCALE, 0])
+def head_top(anchor, fv=None):
+    """누운 머리의 얼굴 쪽 표면 (치는 곳)"""
+    return victim_point(fv or LYING, anchor, "head", 0.2)
 
 
-# 피처형자 머리·목 (처형자 기준 좌표, 기준점 = 가슴 0.85): 누운 머리 중심 = 발에서 1.64, 목 = 1.41, 높이 = 몸 중심선 0.14
-HEAD = np.array([0.0, 0.32, 1.64 - 0.85])
-NECK = np.array([0.0, 0.27, 1.41 - 0.85])
+def kneel(fr, pitch, hip_y=0.45, hip_z=0.0, spread=0.27, back=0.36):
+    """무릎 꿇고 올라탐: 엉덩이를 (hip_y, hip_z) 에 두고 무릎은 바닥, 발끝은 뒤로"""
+    h = HIP_PX * PX
+    fr["pitch"] = pitch
+    fr["feet"] = [hip_y - h * math.cos(math.radians(pitch)), hip_z - h * math.sin(math.radians(pitch))]
+    for side, sx in (("r", -1), ("l", 1)):
+        R.ik_leg(fr, side, [sx * spread, 0.12, hip_z - back], [sx * 0.35, -0.5, 1.0])
+    return fr
 
 
-def head_at(anchor):
-    """기준점이 anchor 일 때 피처형자 머리 (처형자 기준 좌표)"""
-    return np.array([0.0, 0.32, 1.64 - anchor])
+def look_at(fr, target):
+    """머리를 target 쪽으로 숙임/듦 (몸 기울기를 뺀 나머지)"""
+    eye, _ = R.place(fr, "head")
+    v = np.asarray(target, float) - eye
+    total = math.degrees(math.atan2(-v[1], max(1e-6, v[2])))
+    fr["head"] = [max(-40.0, min(70.0, total - fr["pitch"])), 0, 0]
 
 
-def weapon_axes(fr):
-    """오른손 무기의 방향(모델 +Y = 손잡이→끝), 앞면(모델 +Z = 치는 면·갈고리 쪽), 옆(모델 +X)"""
-    R = _rx(math.radians(fr["pitch"])) @ _rxyz(fr["arm_r"]) @ _rx(math.pi) @ _rx(math.radians(fr["wrist"])) @ _ry(math.radians(fr["twist"]))
-    return R[:, 1], R[:, 2], R[:, 0]
+def realize(k, vic, anchor):
+    """키(보간된 값) → 출력 프레임: 다리 꿇기, 무기·손 IK, 머리 방향"""
+    fr = pose(k["pose"])
+    if "kneel" in k:
+        kneel(fr, **k["kneel"])
+    for side in ("r", "l"):
+        if "foot_" + side in k:
+            sx = -1 if side == "r" else 1
+            R.ik_leg(fr, side, k["foot_" + side], k.get("knee_pole_" + side, [sx * 0.2, 0.3, 1.0]))
+    if "w" in k:
+        rot = weapon_rot(k["w"]["a"])
+        g = np.asarray(k["w"]["p"], float)
+        R.ik_arm(fr, "r", g, k.get("pole_r", POLE_R))
+        if k.get("both"):
+            R.ik_arm(fr, "l", g - rot @ np.array([0, LEFT_GAP, 0]), k.get("pole_l", POLE_L))
+        fr["w"] = [*g, *quat(rot)]
+    for side in ("r", "l"):
+        tgt = k.get("hand_" + side)
+        if tgt is None:
+            continue
+        if isinstance(tgt, str):   # 피처형자 머리 옆 등 (틱마다 따라감)
+            part, dx, dy, dz = tgt.split(":")
+            tgt = victim_point(vic, anchor, part, float(dy)) + [float(dx), 0, float(dz)]
+        R.ik_arm(fr, side, tgt, k.get("pole_" + side, POLE_R if side == "r" else POLE_L))
+    look_at(fr, victim_point(vic, anchor, "head", 0.1))
+    return fr
 
 
-def _unit(v):
-    v = np.array(v, dtype=float)
-    return v / np.linalg.norm(v)
+def run(keys_e, keys_v, anchor):
+    """처형자 키·피처형자 자세 → 틱마다 프레임"""
+    vic = track(keys_v)
+    ks = track(keys_e, len(vic))
+    ex = [realize(k, v, anchor) for k, v in zip(ks, vic)]
+    return rnd(ex), rnd(vic)
 
 
-def solve(base, target, along_px=None, hands=("arm_r", "arm_l"), free=("x", "wrist"), inward=12, xr=(-190, -10),
-          yr=(-45, 45), zr=(-50, 50), step=3.0, aim=None, face=None, side=None, k=0.5):
-    """target 에 (오른손 무기의 along_px 지점, 없으면 hands[0] 주먹)이 닿도록 격자 탐색.
-    free: 움직일 값 — x(팔 앞뒤), y(팔 비틀기: 무기를 머리 가운데로), z(팔 좌우), wrist(손목).
-    aim: 무기가 향할 방향, face: 앞면(+Z)이 향할 방향, side: 옆면(±X, 날붙이의 날)이 향할 방향 — 벗어난 만큼 k 배로 벌점.
-    두 손이면 왼팔은 오른팔과 좌우 대칭"""
-    xs = np.arange(xr[0], xr[1] + 1, 2.0) if "x" in free else [base[hands[0]][0]]
-    ys = np.arange(yr[0], yr[1] + 1, step) if "y" in free else [None]
-    zs = np.arange(zr[0], zr[1] + 1, step) if "z" in free else [None]
-    ws = np.arange(-180, 181, step) if "wrist" in free else [base["wrist"]]
-    aim = None if aim is None else _unit(aim)
-    face = None if face is None else _unit(face)
-    side = None if side is None else _unit(side)
-    best = None
-    for ax in xs:
-        for ay in ys:
-            for az in zs:
-                f = pose(base)
-                for h in hands:
-                    mirror = 1 if h == hands[0] else -1
-                    y = ay * mirror if ay is not None else base[h][1]
-                    z = az * mirror if az is not None else inward * (1 if h == "arm_r" else -1)
-                    f[h] = [float(ax), float(y), float(z)]
-                if along_px is None:
-                    err = np.linalg.norm(fist(f, hands[0]) - target)
-                    if best is None or err < best[0]:
-                        best = (err, err, pose(f))
-                    continue
-                for wr in ws:
-                    f["wrist"] = float(wr)
-                    hit = np.linalg.norm(weapon_point(f, along_px) - target)
-                    err = hit
-                    if aim is not None or face is not None or side is not None:
-                        d, z_, x_ = weapon_axes(f)
-                        if aim is not None:
-                            err += k * np.linalg.norm(d - aim)
-                        if face is not None:
-                            err += k * np.linalg.norm(z_ - face)
-                        if side is not None:
-                            err += k * (1 - abs(float(x_ @ side)))
-                    if best is None or err < best[0]:
-                        best = (err, hit, pose(f))
-    if best[1] > 0.12:
-        print(f"  [solve] 목표에서 {best[1]:.2f} 떨어짐 (목표 {np.round(target, 2)})")
-    return best[2]
-
-
-def swing_forward(ref, f):
-    """손목 각을 ref 에서 앞으로(위→앞→아래) 돌아가는 값으로 맞춤: 무기가 등 뒤로 한 바퀴 돌지 않게"""
-    f = pose(f)
-    f["wrist"] = ref["wrist"] + (f["wrist"] - ref["wrist"]) % 360
-    return f
-
-
-# 내려친 순간 무기 방향: 앞아래로 비스듬히
-DOWN_FWD = (0, -0.8, 0.6)
-
-# 휘두르기 풀이: 팔 앞뒤 + 팔 비틀기(무기를 머리 가운데로) + 손목
-SWING = ("x", "y", "wrist")
-
-# 무기 묶음별 대표 길이 (쥔 곳 → 치는 부분, 모델 픽셀)
-STRIKE_ALONG = {"blunt": 22.0, "heavy": 23.5, "light": 8.5, "blade": 8.0}
+def K(pose_=None, **kw):
+    """처형자 키: 몸 자세(pose) + kneel / w(무기: p 쥐는 곳, a 각도) / both / hand_r·hand_l / foot_r·foot_l"""
+    d = {"pose": pose(pose_)}
+    d.update(json.loads(json.dumps(kw, default=lambda o: [float(x) for x in o])))
+    return d
 
 
 # ───────────────────────── 처형 동작 ─────────────────────────
 
 def anims():
     A = {}
-    # 1. 맨손: 올라타 머리를 잡고 들어 바닥에 박음 (왼클릭 5번)
-    # 두 손이 머리 양옆을 잡음: 들어 올릴 때는 머리가 들린 높이, 박을 때는 바닥 높이
-    hold = solve(pose(STRADDLE, pitch=26, head=[35, 0, 0]), HEAD + [-0.17, 0.12, -0.05], free=("x", "z"))
-    lift = solve(pose(STRADDLE, pitch=14, head=[25, 0, 0]), HEAD + [-0.17, 0.42, -0.15], free=("x", "z"))
-    slam = solve(pose(STRADDLE, pitch=36, head=[45, 0, 0]), HEAD + [-0.17, 0.02, 0.0], free=("x", "z"))
-    v_hold = pose(LYING, head=[12, 0, 0], arm_r=[-20, 0, -10], arm_l=[-20, 0, 10])
-    v_lift = pose(v_hold, head=[42, 0, 0])
-    v_slam = pose(v_hold, head=[-6, 0, 0], arm_r=[-35, 0, -25], arm_l=[-35, 0, 25])
-    A["fist"] = {"anchor": 0.85, "weapon": "none", "style": "hits",
-                 "ready": {"exec": rnd([hold])[0], "victim": rnd([v_hold])[0]},
-                 "strike": {"exec": rnd(track([(0, hold), (2, lift), (4, slam), (5, slam), (8, hold)])),
-                            "victim": rnd(track([(0, v_hold), (2, v_lift), (4, v_slam), (5, v_slam), (8, v_hold)])),
-                            "impact": 4}}
-    # 1-1. 코브라·돼지·곰 가면 맨손: 머리 위로 한쪽 다리를 들고 힘껏 밟음 (자동)
-    up = pose(STAND, pitch=-8, leg_r=[-100, 0, -4], arm_r=[-25, 0, -32], arm_l=[-30, 0, 34], head=[30, 0, 0])
-    up2 = pose(up, pitch=-11, leg_r=[-108, 0, -4], arm_r=[-40, 0, -45], arm_l=[-45, 0, 45])
-    stomp = pose(STAND, pitch=12, leg_r=[-46, 0, -2], leg_l=[8, 0, 2], arm_r=[10, 0, -20], arm_l=[15, 0, 22], head=[40, 0, 0])
-    v_ok = pose(LYING, head=[8, 0, 0])
-    v_hit = pose(LYING, pitch=-93, head=[-14, 0, 0], arm_r=[-40, 0, -30], arm_l=[-40, 0, 30], leg_r=[-10, 0, 0], leg_l=[-12, 0, 0])
-    A["stomp"] = {"anchor": 1.0, "weapon": "none", "style": "auto",
-                  "full": {"exec": rnd(track([(0, up), (6, up2), (11, up2), (14, stomp), (17, stomp), (26, STAND)])),
-                           "victim": rnd(track([(0, v_ok), (13, v_ok), (14, v_hit), (17, v_hit), (22, LYING), (26, LYING)])),
-                           "impacts": [14], "kill": 16, "events": []}}
-    # 2. 둔기: 올라탄 채 무기를 높이 들고 머리를 내려침 (왼클릭 3번)
-    raised = pose(STRADDLE, pitch=-4, head=[20, 0, 0], arm_r=[-172, 0, 14], arm_l=[-172, 0, -14], wrist=-25)
-    wind = pose(raised, pitch=-10, arm_r=[-180, 0, 14], arm_l=[-180, 0, -14], wrist=-40)
-    # 긴 무기는 머리에서 조금 떨어진 허벅지 위에 올라탐 (무기가 앞아래로 비스듬히 머리에 닿도록)
-    LONG = 0.4
-    hit = solve(pose(STRADDLE, pitch=8, head=[40, 0, 0]), head_at(LONG) + [0, 0.05, 0], STRIKE_ALONG["blunt"],
-                free=SWING, xr=(-150, -60), aim=DOWN_FWD)
-    hit = swing_forward(wind, hit)
     v_r = pose(LYING, head=[6, 0, 0])
     v_h = pose(LYING, head=[-12, 0, 0], arm_r=[-30, 0, -20], arm_l=[-30, 0, 20])
-    blunt_strike = {"exec": rnd(track([(0, raised), (2, wind), (4, hit), (5, hit), (8, raised)])),
-                    "victim": rnd(track([(0, v_r), (3, v_r), (4, v_h), (5, v_h), (8, v_r)])), "impact": 4}
-    A["blunt"] = {"anchor": LONG, "weapon": "both", "style": "hits",
-                  "ready": {"exec": rnd([raised])[0], "victim": rnd([v_r])[0]}, "strike": blunt_strike}
-    # 3. 무거운 무기: 높이 들고 크게 한 번 내려쳐(자동) 박힌 무기를 뽑아 올림
-    hraise = pose(raised, pitch=-8, wrist=-30)
-    hwind = pose(raised, pitch=-14, arm_r=[-182, 0, 14], arm_l=[-182, 0, -14], wrist=-12, head=[10, 0, 0])
-    hhit = solve(pose(STRADDLE, pitch=10, head=[40, 0, 0]), head_at(LONG) + [0, -0.04, 0], STRIKE_ALONG["heavy"],
-                 free=SWING, xr=(-150, -60), aim=DOWN_FWD)
-    hhit = swing_forward(hwind, hhit)
-    tug1 = solve(pose(STRADDLE, pitch=4, head=[35, 0, 0]), head_at(LONG) + [0, -0.02, 0], STRIKE_ALONG["heavy"],
-                 free=SWING, xr=(-150, -60), aim=(0, -0.9, 0.45))
-    tug1 = swing_forward(hwind, tug1)
-    tug2 = pose(hhit)
-    pull = pose(STRADDLE, pitch=0, arm_r=[-120, 0, 14], arm_l=[-120, 0, -14], wrist=-60, head=[25, 0, 0])
+
+    # 1. 맨손: 올라타 두 손으로 머리 양옆을 잡고 들어 바닥에 박음 (왼클릭 5번)
+    an = 0.85
+    grab = {"hand_r": "head:-0.24:0.02:0.0", "hand_l": "head:0.24:0.02:0.0", "pole_r": [-1, 0.2, -0.6], "pole_l": [1, 0.2, -0.6]}
+    hold = K(kneel={"pitch": 30}, **grab)
+    lift = K(kneel={"pitch": 18, "hip_y": 0.5}, **grab)
+    slam = K(kneel={"pitch": 42, "hip_y": 0.42}, **grab)
+    v_hold = pose(LYING, head=[12, 0, 0], arm_r=[-20, 0, -10], arm_l=[-20, 0, 10])
+    v_lift = pose(v_hold, head=[48, 0, 0])
+    v_slam = pose(v_hold, head=[-8, 0, 0], arm_r=[-35, 0, -25], arm_l=[-35, 0, 25])
+    ready_e, ready_v = run([(0, hold)], [(0, v_hold)], an)
+    se, sv = run([(0, hold), (2, lift), (4, slam), (5, slam), (8, hold)],
+                 [(0, v_hold), (2, v_lift), (4, v_slam), (5, v_slam), (8, v_hold)], an)
+    A["fist"] = {"anchor": an, "weapon": "none", "style": "hits",
+                 "ready": {"exec": ready_e[0], "victim": ready_v[0]}, "strike": {"exec": se, "victim": sv, "impact": 4}}
+
+    # 1-1. 코브라·돼지·곰 가면 맨손: 서서 한쪽 다리를 머리 위로 높이 들고(무릎 굽힘) 힘껏 밟음 (자동)
+    an = 1.1
+    top = head_top(an)
+    # 피처형자 가슴을 가랑이 사이에 두고 넓게 서서, 오른발을 머리 바로 위로 들었다가 내리찍음
+    arms_up = {"arm_r": [-30, 0, -40], "arm_l": [-35, 0, 40], "elbow_r": -50, "elbow_l": -50}
+    stand_l = {"foot_l": [0.32, 0.03, -0.04], "knee_pole_l": [0.3, 0.1, 1.0]}
+    hover = top + [0, 0.42, 0.02]
+    up = K(pose(pitch=-6, feet=[-0.03, 0.0], **arms_up), foot_r=list(hover), knee_pole_r=[-0.2, 0.8, 1.0], **stand_l)
+    up2 = K(pose(pitch=-10, feet=[-0.03, 0.0], **{**arms_up, "arm_r": [-45, 0, -55], "arm_l": [-50, 0, 55]}),
+            foot_r=list(hover + [0, 0.08, -0.02]), knee_pole_r=[-0.2, 0.9, 1.0], **stand_l)
+    stomp = K(pose(pitch=12, feet=[-0.1, 0.0], arm_r=[15, 0, -25], arm_l=[20, 0, 25], elbow_r=-20, elbow_l=-20),
+              foot_r=list(top + [0, 0.02, -0.03]), knee_pole_r=[-0.2, 0.4, 1.0], foot_l=[0.32, 0.04, -0.06], knee_pole_l=[0.3, 0.1, 1.0])
+    stand = K(pose(), foot_r=[-0.3, 0.0, 0.0], foot_l=[0.3, 0.0, 0.0], knee_pole_r=[0, 0, 1.0], knee_pole_l=[0, 0, 1.0])
+    v_ok = pose(LYING, head=[8, 0, 0])
+    v_hit = pose(LYING, pitch=-93, head=[-14, 0, 0], arm_r=[-40, 0, -30], arm_l=[-40, 0, 30], leg_r=[-10, 0, 0], leg_l=[-12, 0, 0])
+    fe, fv = run([(0, up), (6, up2), (11, up2), (14, stomp), (17, stomp), (26, stand)],
+                 [(0, v_ok), (13, v_ok), (14, v_hit), (17, v_hit), (22, LYING), (26, LYING)], an)
+    A["stomp"] = {"anchor": an, "weapon": "none", "style": "auto",
+                  "full": {"exec": fe, "victim": fv, "impacts": [14], "kill": 16, "events": []}}
+
+    # 2. 둔기: 무릎 꿇고 올라타 두 손으로 무기를 머리 위로 높이 들고 → 위·앞으로 돌려 내려침 (왼클릭 3번)
+    # 긴 무기는 피처형자 무릎 위에 올라타 앞아래로 비스듬히 머리에 닿음
+    an = 0.25
+    L = STRIKE_ALONG["blunt"]
+    two = {"both": True}
+    raised = K(kneel={"pitch": -6}, w={"p": [-0.08, 1.5, -0.02], "a": [-35, 0, 0]}, **two)
+    wind = K(kneel={"pitch": -12}, w={"p": [-0.08, 1.46, -0.14], "a": [-60, 0, 0]}, **two)
+    over = K(kneel={"pitch": 4}, w={"p": [-0.1, 1.48, 0.3], "a": [35, 0, 0]}, **two)
+    hit_a = [124, 0, 0]
+    hit = K(kneel={"pitch": 18}, w={"p": grip_for(head_top(an), hit_a, L), "a": hit_a}, **two)
+    strike_e, strike_v = run([(0, raised), (2, wind), (3, over), (4, hit), (5, hit), (8, raised)],
+                             [(0, v_r), (3, v_r), (4, v_h), (5, v_h), (8, v_r)], an)
+    ready_e, ready_v = run([(0, raised)], [(0, v_r)], an)
+    A["blunt"] = {"anchor": an, "weapon": "both", "style": "hits", "lgap": LEFT_GAP,
+                  "ready": {"exec": ready_e[0], "victim": ready_v[0]},
+                  "strike": {"exec": strike_e, "victim": strike_v, "impact": 4}}
+
+    # 3. 무거운 무기: 높이 들었다 크게 한 번 내려쳐(자동), 박힌 무기를 흔들어(끝은 머리에 박힌 채) 뽑아 올림
+    L = STRIKE_ALONG["heavy"]
+    tip = head_top(an) + [0, -0.06, 0]
+    hraise = K(kneel={"pitch": -6}, w={"p": [-0.08, 1.5, -0.04], "a": [-38, 0, 0]}, **two)
+    hwind = K(kneel={"pitch": -16, "hip_y": 0.5}, w={"p": [-0.08, 1.5, -0.2], "a": [-75, 0, 0]}, **two)
+    hstart = K(kneel={"pitch": -8, "hip_y": 0.48}, w={"p": [-0.08, 1.52, -0.08], "a": [-20, 0, 0]}, **two)
+    hover = K(kneel={"pitch": 8}, w={"p": [-0.1, 1.48, 0.32], "a": [52, 0, 0]}, **two)
+
+    def stuck(a, pitch):
+        return K(kneel={"pitch": pitch}, w={"p": grip_for(tip, [a, 0, 0], L), "a": [a, 0, 0]}, **two)
+    hhit, tug_a, tug_b = stuck(122, 22), stuck(112, 12), stuck(128, 24)
+    pull = K(kneel={"pitch": 0, "hip_y": 0.5}, w={"p": [-0.06, 1.2, 0.32], "a": [70, 0, 0]}, **two)
     v_big = pose(LYING, pitch=-92, head=[-18, 0, 0], arm_r=[-45, 0, -35], arm_l=[-45, 0, 35], leg_r=[-14, 0, 0], leg_l=[-10, 0, 0])
     v_jerk = pose(LYING, head=[-10, 0, 0], arm_r=[-20, 0, -15], arm_l=[-20, 0, 15])
-    A["heavy"] = {"anchor": LONG, "weapon": "both", "style": "auto",
-                  "full": {"exec": rnd(track([(0, hraise), (5, hwind), (9, hwind), (11, hhit), (14, hhit), (16, tug1), (18, tug2),
-                                              (20, tug1), (22, tug2), (24, tug1), (28, pull), (33, hraise)])),
-                           "victim": rnd(track([(0, v_r), (10, v_r), (11, v_big), (14, v_big), (16, v_jerk), (18, v_big), (20, v_jerk),
-                                                (22, v_big), (24, v_jerk), (28, LYING), (33, LYING)])),
-                           "impacts": [11], "kill": 12, "events": [{"t": 16, "kind": "tug"}, {"t": 20, "kind": "tug"}, {"t": 24, "kind": "tug"},
-                                                                  {"t": 27, "kind": "pull"}]}}
-    # 4. 가벼운 무기: 둔기와 같지만 오른손으로만 (왼손은 가슴을 누름)
-    lraised = pose(STRADDLE, pitch=0, head=[24, 0, 0], arm_r=[-165, 0, 4], arm_l=[-55, 0, -8], wrist=-20)
-    lwind = pose(lraised, pitch=-6, arm_r=[-176, 0, 4], wrist=-35)
-    # 팔을 안쪽으로 모아 머리 가운데를 침, 칼날(앞면)이 아래를 봄
-    lhit = solve(pose(STRADDLE, pitch=10, head=[40, 0, 0], arm_l=[-48, 0, -8]), HEAD + [0, 0.06, 0], STRIKE_ALONG["light"],
-                 hands=("arm_r",), free=("x", "z", "wrist"), xr=(-130, -10), zr=(-10, 40), aim=(0.4, -0.85, 0.4), k=0.6)
-    lhit = swing_forward(lwind, lhit)
-    A["light"] = {"anchor": 0.85, "weapon": "right", "style": "hits",
-                  "ready": {"exec": rnd([lraised])[0], "victim": rnd([v_r])[0]},
-                  "strike": {"exec": rnd(track([(0, lraised), (2, lwind), (4, lhit), (5, lhit), (8, lraised)])),
-                             "victim": rnd(track([(0, v_r), (3, v_r), (4, v_h), (5, v_h), (8, v_r)])), "impact": 4}}
-    # 5. 날붙이: 왼손으로 머리를 누르고 날을 목에 댄 채 시작해 목을 그음 (자동)
-    # 왼손은 머리를 누르고, 오른손 칼날을 목 왼쪽에 댐 → 오른쪽으로 그음 (칼날을 눕혀 목을 가로지름)
-    lhead = solve(pose(STRADDLE, pitch=26, head=[40, 0, 0]), HEAD + [0.05, 0.3, 0.05], hands=("arm_l",), free=("x", "z"))
-    # 칼끝은 왼쪽(목을 가로질러), 날은 아래(목) — 오른쪽으로 당겨 그음
-    blade_fit = dict(hands=("arm_r",), free=("x", "y", "z", "wrist"), xr=(-100, -20), yr=(-60, 60), zr=(-40, 40), step=6.0,
-                     aim=(1, -0.15, 0), side=(0, -1, 0))
-    at_throat = solve(pose(lhead, twist=90), NECK + [0.16, 0.06, 0], STRIKE_ALONG["blade"], **blade_fit)
-    cut = solve(pose(lhead, twist=90), NECK + [-0.26, 0.06, 0], STRIKE_ALONG["blade"], **blade_fit)
-    # 그은 뒤: 칼을 쥔 채 오른쪽 위로 빼 올림
-    after = pose(cut, pitch=14, head=[30, 0, 0], arm_r=[cut["arm_r"][0] - 25, cut["arm_r"][1], cut["arm_r"][2] - 10],
-                 arm_l=[-60, 0, -6], wrist=cut["wrist"] + 15)
+    fe, fv = run([(0, hraise), (5, hwind), (8, hwind), (9, hstart), (10, hover), (11, hhit), (14, hhit), (16, tug_a), (18, tug_b),
+                  (20, tug_a), (22, tug_b), (24, tug_a), (28, pull), (33, hraise)],
+                 [(0, v_r), (10, v_r), (11, v_big), (14, v_big), (16, v_jerk), (18, v_big), (20, v_jerk),
+                  (22, v_big), (24, v_jerk), (28, LYING), (33, LYING)], an)
+    A["heavy"] = {"anchor": an, "weapon": "both", "style": "auto", "lgap": LEFT_GAP,
+                  "full": {"exec": fe, "victim": fv, "impacts": [11], "kill": 12,
+                           "events": [{"t": 16, "kind": "tug"}, {"t": 20, "kind": "tug"}, {"t": 24, "kind": "tug"}, {"t": 27, "kind": "pull"}]}}
+
+    # 4. 가벼운 무기: 올라타 왼손으로 가슴을 누르고 오른손으로만 내려침 (왼클릭 3번)
+    an = 0.85
+    L = STRIKE_ALONG["light"]
+    chest = {"hand_l": "body:0.08:0.14:-0.05", "pole_l": [1, 0.3, -0.4]}
+    lraised = K(kneel={"pitch": 8}, w={"p": [-0.2, 1.3, 0.02], "a": [-40, 0, 0]}, **chest)
+    lwind = K(kneel={"pitch": 2}, w={"p": [-0.22, 1.32, -0.08], "a": [-55, 0, 0]}, **chest)
+    lover = K(kneel={"pitch": 16}, w={"p": [-0.14, 1.2, 0.28], "a": [30, 0, 0]}, **chest)
+    la = [118, 0, 0]
+    lhit = K(kneel={"pitch": 30}, w={"p": grip_for(head_top(an), la, L), "a": la}, **chest)
+    se, sv = run([(0, lraised), (2, lwind), (3, lover), (4, lhit), (5, lhit), (8, lraised)],
+                 [(0, v_r), (3, v_r), (4, v_h), (5, v_h), (8, v_r)], an)
+    ready_e, ready_v = run([(0, lraised)], [(0, v_r)], an)
+    A["light"] = {"anchor": an, "weapon": "right", "style": "hits",
+                  "ready": {"exec": ready_e[0], "victim": ready_v[0]}, "strike": {"exec": se, "victim": sv, "impact": 4}}
+
+    # 5. 날붙이: 왼손으로 이마를 누르고, 칼끝을 왼쪽으로 눕혀 날(옆면)을 목에 댄 채 → 오른쪽으로 당겨 그음 (자동)
+    L = STRIKE_ALONG["blade"]
+    neck = victim_point(LYING, an, "head", 0.0) + [0, 0.02, -0.24]
+    # 칼끝은 왼쪽 앞(목을 비스듬히 가로질러), 날 아래 — 오른손이 너무 멀리 뻗지 않게
+    knife, knife2 = [0, -40, -90], [0, -25, -90]
+    kl = L / 16 * W_SCALE
+
+    def knife_grip(tip_x, a):
+        d = weapon_rot(a) @ np.array([0, 1.0, 0])
+        return list(neck + [tip_x, 0.1, 0] - d * kl)
+    press = {"hand_l": "head:0.02:0.24:0.06", "pole_l": [1, 0.4, -0.3], "pole_r": [-1, -0.3, -0.5]}
+    at = K(kneel={"pitch": 58, "hip_y": 0.38, "hip_z": 0.14}, w={"p": knife_grip(0.14, knife), "a": knife}, **press)
+    cut = K(kneel={"pitch": 60, "hip_y": 0.38, "hip_z": 0.14}, w={"p": knife_grip(-0.16, knife2), "a": knife2}, **press)
+    after = K(kneel={"pitch": 16}, w={"p": [-0.26, 0.98, 0.3], "a": [-30, -20, -90]}, hand_l="head:0.02:0.3:0.1", pole_l=[1, 0.4, -0.3])
     v_neck = pose(LYING, head=[-24, 0, 0], arm_r=[-10, 0, -10], arm_l=[-10, 0, 10])
     v_cut = pose(LYING, head=[-30, 0, 0], arm_r=[-50, 0, -30], arm_l=[-55, 0, 20], leg_r=[-12, 0, 0])
     v_twitch = pose(LYING, head=[-20, 0, 0], arm_r=[-30, 0, -15], arm_l=[-20, 0, 10])
-    A["blade"] = {"anchor": 0.85, "weapon": "right", "style": "auto",
-                  "full": {"exec": rnd(track([(0, at_throat), (8, at_throat), (11, cut), (14, cut), (20, after), (24, after)])),
-                           "victim": rnd(track([(0, v_neck), (9, v_neck), (11, v_cut), (14, v_twitch), (17, v_cut), (20, v_twitch), (24, LYING)])),
-                           "impacts": [10], "kill": 14, "events": [{"t": 10, "kind": "artery"}]}}
+    fe, fv = run([(0, at), (8, at), (11, cut), (14, cut), (20, after), (24, after)],
+                 [(0, v_neck), (9, v_neck), (11, v_cut), (14, v_twitch), (17, v_cut), (20, v_twitch), (24, LYING)], an)
+    A["blade"] = {"anchor": an, "weapon": "right", "style": "auto",
+                  "full": {"exec": fe, "victim": fv, "impacts": [10], "kill": 14, "events": [{"t": 10, "kind": "artery"}]}}
     return A
+
+
+def check(A):
+    """손이 무기에 붙어 있는지 출력"""
+    for name, a in A.items():
+        frames = []
+        if "ready" in a:
+            frames.append(a["ready"]["exec"])
+        for part in ("strike", "full"):
+            if part in a:
+                frames += a[part]["exec"]
+        worst = 0.0
+        for f in frames:
+            if "w" not in f:
+                continue
+            g = np.array(f["w"][:3])
+            worst = max(worst, float(np.linalg.norm(R.hand(f, "r") - g)))
+            if a["weapon"] == "both":
+                d = from_quat(f["w"][3:]) @ np.array([0, 1.0, 0])
+                worst = max(worst, float(np.linalg.norm(R.hand(f, "l") - (g - d * LEFT_GAP))))
+        if a["weapon"] != "none":
+            print(f"  {name}: 손과 손잡이 최대 거리 {worst:.3f} 블록")
 
 
 # 무기 묶음 (플러그인 ExecutionAnim 과 같아야 함 — 테스트가 확인)
@@ -319,10 +357,12 @@ STOMP_MASKS = ["JAKE", "PIG_BUTCHER", "MARK"]
 
 
 def build():
+    A = anims()
+    check(A)
     data = {"_comment": "처형 애니메이션 (tools/exec_anims.py 가 만듦 — 직접 고치지 말고 그 파일을 고친 뒤 다시 실행)",
             "groups": GROUPS, "stomp_masks": STOMP_MASKS,
             "grips": {k: list(v) for k, v in models_melee.GRIP.items()},
-            "anims": anims()}
+            "anims": A}
     with open(OUT, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=1)
     return data
@@ -330,53 +370,44 @@ def build():
 
 # ───────────────────────── 미리보기 ─────────────────────────
 
+def weapon_polys(fr, wid, grips):
+    """frame["w"] 그대로 무기를 놓음 (ExecutionAnims.weapon 과 같음)"""
+    from PIL import Image
+    import tp_sim as T
+    NS = os.path.join(ROOT, "resourcepack", "assets", "violence")
+    m = json.load(open(os.path.join(NS, "models", "item", "weapon", wid + ".json"), encoding="utf-8"))
+    tex = Image.open(os.path.join(NS, "textures", m["textures"]["t"].split(":")[1] + ".png")).convert("RGBA")
+    rot = from_quat(fr["w"][3:])
+    g = np.array(grips[wid]) / 16 - 0.5
+    M = np.eye(4)
+    M[:3, :3] = rot
+    M = T.tr(*(np.array(fr["w"][:3]) - rot @ (g * W_SCALE))) @ M @ T.sc(W_SCALE, W_SCALE, W_SCALE)
+    return T.item_polys(M, m, tex, {"rotation": [0, 0, 0], "translation": [0, 0, 0], "scale": [1, 1, 1]})
+
+
 def preview(data):
     from PIL import Image, ImageDraw, ImageFont
     import fall_preview as FPV
     import melee_kill_preview as MK
-    import tp_sim as T
-    PX = FPV.PX
-    S = 260
-    NS = os.path.join(ROOT, "resourcepack", "assets", "violence")
+    S = 300
     font = ImageFont.truetype(FPV.FONT, 15)
-    samples = {"fist": None, "stomp": None, "blunt": "bat", "heavy": "sledgehammer", "light": "cleaver", "blade": "dagger"}
-    labels = {"fist": "맨손: 머리 박기 ×5", "stomp": "코브라·돼지·곰: 밟기", "blunt": "둔기(몽둥이): 내려치기 ×3",
+    samples = {"fist": None, "stomp": None, "blunt": "crowbar", "heavy": "sledgehammer", "light": "cleaver", "blade": "dagger"}
+    labels = {"fist": "맨손: 머리 박기 ×5", "stomp": "코브라·돼지·곰: 밟기", "blunt": "둔기(크로우바): 내려치기 ×3",
               "heavy": "무거운 무기(오함마): 내려치고 뽑기", "light": "가벼운 무기(중식도): 한 손 ×3", "blade": "날붙이(단검): 목 긋기"}
-
-    def rot_xyz(a):
-        return T.rx(math.radians(a[0])) @ T.ry(math.radians(a[1])) @ T.rz(math.radians(a[2]))
-
-    def weapon_polys(fr, wid, hand):
-        m = json.load(open(os.path.join(NS, "models", "item", "weapon", wid + ".json"), encoding="utf-8"))
-        tex = Image.open(os.path.join(NS, "textures", m["textures"]["t"].split(":")[1] + ".png")).convert("RGBA")
-        body = T.rx(math.radians(fr["pitch"]))
-        joint, off = FPV.PARTS[hand]
-        R = body @ rot_xyz(fr[hand])
-        side = -1 if hand == "arm_r" else 1
-        local = np.array(joint) * PX + (rot_xyz(fr[hand]) @ np.array([side * PX, -10 * PX, 0, 1.0]))[:3]
-        fist = (body @ np.array([*local, 1.0]))[:3] + np.array([0, fr["feet"][0], fr["feet"][1]])
-        Rw = R @ T.rx(math.pi) @ T.rx(math.radians(fr["wrist"])) @ T.ry(math.radians(fr["twist"]))
-        s = 0.85 * 0.9375
-        g = np.array(data["grips"][wid]) / 16 - 0.5
-        M = T.tr(*(fist - (Rw[:3, :3] @ (g * s)))) @ Rw @ T.sc(s, s, s)
-        return T.item_polys(M, m, tex, {"rotation": [0, 0, 0], "translation": [0, 0, 0], "scale": [1, 1, 1]})
 
     def scene(name, fr_e, fr_v):
         a = data["anims"][name]
         polys = []
         FPV.floor_polys(polys)
-        # 피처형자: 발이 원점, 머리가 +Z (몸 방향 yaw 180)
         MK.set_fall_colors(MK.NPC_COL)
         vp = []
         FPV.puppet_polys(fr_v, vp)
         polys += MK.world_of(vp, np.array([0.0, 0, -0.9]), 180)
-        # 처형자: 머리 쪽(+Z)을 봄
         MK.set_fall_colors(MK.ME_COL)
         ep = []
         FPV.puppet_polys(fr_e, ep)
-        wid = samples[name]
-        if wid:
-            ep += weapon_polys(fr_e, wid, "arm_r")
+        if samples[name] and "w" in fr_e:
+            ep += weapon_polys(fr_e, samples[name], data["grips"])
         polys += MK.world_of(ep, np.array([0.0, 0, -0.9 + a["anchor"]]), 0)
         return polys
 
@@ -390,25 +421,27 @@ def preview(data):
         f = a["full"]
         return list(zip(f["exec"], f["victim"])), f["impacts"]
 
-    cam_side, cam_q = (3.2, 1.3, 0.2), (2.4, 2.2, 2.2)
+    cam_side, cam_q = (3.3, 1.4, 0.1), (2.4, 2.3, 2.3)
     rows = []
     gdir = os.path.join(ROOT, "build-out", "executions")
     os.makedirs(gdir, exist_ok=True)
     for name in samples:
         seq, impacts = frames_of(name)
-        pick = sorted(set([0, impacts[0] - 2, impacts[0], min(len(seq) - 1, impacts[0] + 3), len(seq) - 1]))
+        pick = sorted(set([0, impacts[0] - 2, impacts[0] - 1, impacts[0], min(len(seq) - 1, impacts[0] + 3), len(seq) - 1]))
+        if len(pick) > 5:
+            pick = [pick[0], pick[1], pick[2], pick[3], pick[-1]]
         row = []
-        for k in pick[:5]:
+        for k in pick:
             fe, fv = seq[k]
             img = FPV.draw(scene(name, fe, fv), cam_side, S, (labels[name] if k == pick[0] else f"{k}틱" + (" (닿음)" if k in impacts else "")),
-                           look=(0, 0.5, 0.0))
+                           look=(0, 0.55, 0.0))
             row.append(img)
         rows.append(row)
         gif = []
         for fe, fv in seq:
             im = Image.new("RGB", (S * 2, S))
             im.paste(FPV.draw(scene(name, fe, fv), cam_q, S, "", look=(0, 0.5, 0.0)), (0, 0))
-            im.paste(FPV.draw(scene(name, fe, fv), cam_side, S, "", look=(0, 0.5, 0.0)), (S, 0))
+            im.paste(FPV.draw(scene(name, fe, fv), cam_side, S, "", look=(0, 0.55, 0.0)), (S, 0))
             ImageDraw.Draw(im).text((8, 6), labels[name], font=font, fill=(255, 220, 90))
             gif.append(im)
         gif[0].save(os.path.join(gdir, name + ".gif"), save_all=True, append_images=gif[1:], duration=50, loop=0)

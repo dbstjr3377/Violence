@@ -21,17 +21,18 @@ import org.joml.Vector3d;
 /**
  * 처형 애니메이션 (execution.json, tools/exec_anims.py 가 만듦). 순수 계산이라 서버 없이 테스트 가능.
  *
- * 처형자와 피처형자 모두 6부위 인형으로 움직인다 (FallPose 와 같은 좌표).
+ * 처형자와 피처형자 모두 10부위 인형(팔꿈치·무릎이 있는 두 마디 팔다리)으로 움직인다 (FallPose 와 같은 좌표).
  *  - 처형자 기준점 = 누운 적의 발에서 머리 쪽으로 anchor 블록, 머리 쪽을 봄
  *  - 피처형자 = 누운 대역 자리, 등으로 누운 자세 + 머리·팔 움직임
- *  - 무기 = 처형자 오른손에 붙은 아이템 (none / right / both), wrist·twist 로 손목 각도
+ *  - 무기 = 프레임마다 w = [x, y, z, qx, qy, qz, qw] (오른손이 쥐는 곳, 몸 기준 블록 + 회전).
+ *    팔은 만들 때 두 마디 IK 로 손을 손잡이에 붙여 두었으므로 무기만 그대로 놓으면 됨 (none / right / both)
  * 왼클릭 처형(hits)은 ready + strike(한 번 칠 때, impact 프레임에 머리에 닿음), 자동(auto)은 full + impacts + kill.
  */
 public final class ExecutionAnims {
     public enum Style { HITS, AUTO }
 
-    /** 인형 한 줄(처형자 또는 피처형자)의 프레임 + 손목 */
-    public record Track(FallPose pose, double[] wrist, double[] twist) {
+    /** 인형 한 줄(처형자 또는 피처형자)의 프레임 + 무기 놓임 (프레임마다 [x,y,z,qx,qy,qz,qw], 없으면 null) */
+    public record Track(FallPose pose, double[][] weapon) {
         public int length() { return pose.frameCount(); }
     }
 
@@ -119,14 +120,15 @@ public final class ExecutionAnims {
         JsonObject wrap = new JsonObject();
         wrap.add("frames", frames);
         FallPose pose = FallPose.parse(wrap);
-        double[] wrist = new double[frames.size()];
-        double[] twist = new double[frames.size()];
+        double[][] weapon = new double[frames.size()][];
         for (int i = 0; i < frames.size(); i++) {
             JsonObject f = frames.get(i).getAsJsonObject();
-            wrist[i] = f.has("wrist") ? f.get("wrist").getAsDouble() : 0;
-            twist[i] = f.has("twist") ? f.get("twist").getAsDouble() : 0;
+            if (!f.has("w")) continue;
+            JsonArray w = f.getAsJsonArray("w");
+            weapon[i] = new double[7];
+            for (int k = 0; k < 7; k++) weapon[i][k] = w.get(k).getAsDouble();
         }
-        return new Track(pose, wrist, twist);
+        return new Track(pose, weapon);
     }
 
     public Anim get(String name) { return anims.get(name); }
@@ -154,15 +156,26 @@ public final class ExecutionAnims {
     /** 무기 크기 (손에 든 3인칭 무기와 같음: 0.85 × 플레이어 모델 0.9375) */
     public static final double WEAPON_SCALE = 0.85 * 0.9375;
 
+    /** 그 프레임의 오른손 쥐는 곳 (몸 기준, 블록) — 무기가 없으면 null */
+    public static Vector3d grip(Track t, int frame, double scale) {
+        double[] w = t.weapon()[frame];
+        return w == null ? null : new Vector3d(w[0], w[1], w[2]).mul(scale);
+    }
+
+    /** 그 프레임의 무기 회전 (모델 +Y = 손잡이→끝, +Z = 앞면) — 무기가 없으면 null */
+    public static Quaterniond weaponRotation(Track t, int frame) {
+        double[] w = t.weapon()[frame];
+        return w == null ? null : new Quaterniond(w[3], w[4], w[5], w[6]).normalize();
+    }
+
     /**
      * 오른손 무기 놓임 (몸 기준 좌표): 중심(모델 원점이 놓일 곳)과 회전.
-     * 손 = 오른팔 상자 중심에서 팔 방향으로 6px, 무기 +Y = 팔 끝 방향(Rx 180) → 손목(wrist), 무기 축 회전(twist).
+     * 쥐는 곳(grip, 모델 px)이 프레임의 w 위치에 오도록 모델 원점을 옮김.
      */
     public static FallPose.Placement weapon(Track t, int frame, double scale, double[] grip) {
-        FallPose.Placement arm = t.pose().place(frame, FallPose.Part.ARM_R, scale);
-        Vector3d hand = arm.rotation().transform(new Vector3d(0, -6 * FallPose.PX * scale, 0)).add(arm.center());
-        Quaterniond r = new Quaterniond(arm.rotation()).rotateX(Math.PI)
-                .rotateX(Math.toRadians(t.wrist()[frame])).rotateY(Math.toRadians(t.twist()[frame]));
+        Vector3d hand = grip(t, frame, scale);
+        Quaterniond r = weaponRotation(t, frame);
+        if (hand == null) return null;
         double s = WEAPON_SCALE * scale;
         Vector3d g = new Vector3d(grip[0] / 16 - 0.5, grip[1] / 16 - 0.5, grip[2] / 16 - 0.5).mul(s);
         Vector3d origin = hand.sub(r.transform(g, new Vector3d()), new Vector3d());
