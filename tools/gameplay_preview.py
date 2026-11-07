@@ -272,7 +272,7 @@ class Hud:
     def text_w(self, s):
         return self.font.getlength(s)
 
-    def draw(self, img, weapon, ammo, kills, score):
+    def draw(self, img, weapon, ammo, kills, score, crosshair=True):
         d = ImageDraw.Draw(img)
         cx = OW // 2
         # 보스바 상태 줄 (시간, 목표, 1위, 내 킬/점수)
@@ -310,7 +310,9 @@ class Hud:
         for i in range(1, 9):
             d.line([(hx + i * 20 * GUI, hy + GUI), (hx + i * 20 * GUI, hy + 21 * GUI)], fill=(70, 70, 70, 200), width=max(1, round(GUI)))
         d.rectangle([hx - GUI, hy - GUI, hx + 22 * GUI, hy + 23 * GUI], outline=(235, 235, 235, 255), width=max(1, round(GUI)))
-        # 조준점
+        # 조준점 (3인칭에서는 바닐라가 숨김)
+        if not crosshair:
+            return
         c2 = (cx, OH // 2)
         d.line([(c2[0] - 9, c2[1]), (c2[0] + 9, c2[1])], fill=(255, 255, 255), width=2)
         d.line([(c2[0], c2[1] - 9), (c2[0], c2[1] + 9)], fill=(255, 255, 255), width=2)

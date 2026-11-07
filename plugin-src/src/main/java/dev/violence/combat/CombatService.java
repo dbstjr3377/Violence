@@ -239,6 +239,8 @@ public final class CombatService {
             return;
         }
         v.lastAttacker = shooter;
+        // 샷건처럼 펠릿이 여러 개인 총 = 강한 공격 (팔을 벌리고 뒤로 날아가며 넘어짐)
+        if (shooter != null && shooter.weapon != null && shooter.weapon.type().pelletsMax() > 1) v.strongHitTick = now;
         boolean headshot = part == Hitbox.Part.HEAD;
         if (headshot || v.state.isDownedLike()) {
             plugin.fx().blood(arena(), point, dir, headshot ? 4 : 2);
@@ -265,9 +267,9 @@ public final class CombatService {
         boolean swings = WeaponItems.swings(t);
         boolean backhand = swings && (c.swingChain & 1) == 1;
         c.lastSwingTick = now;
-        c.entity().swingMainHand();
-        // 3인칭: 두 손 대기 자세에서 무기를 옆으로 크게 휘두름 (연속 공격은 좌우를 번갈아)
+        // 3인칭: 두 손 대기 자세에서 무기를 옆으로 크게 휘두름 (연속 공격은 좌우를 번갈아, 늘 오른팔이 휘두름)
         if (swings) plugin.game().tpSwing(c, t, backhand, now);
+        else c.entity().swingMainHand();
         int animTicks = Math.max(6, Math.min(9, t.meleeCooldown()));
         if (c instanceof PlayerCombatant pcm) {
             if (swings) {
@@ -646,7 +648,8 @@ public final class CombatService {
         v.feelImpact(0.5);
         plugin.fx().sound(v.world(), v.eye(), "violence:hit.knockdown", 1.2f, 1f);
         v.refreshEquipment();
-        plugin.falls().start(v);   // 6프레임 넘어지는 동작
+        // 넘어지는 동작: 앞에서 맞으면 뒤로, 등 뒤에서 맞으면 앞으로, 샷건이면 팔을 벌리고 뒤로
+        plugin.falls().knockdown(v, dir, now - v.strongHitTick <= 1);
     }
 
     private void standUp(Combatant v, long now) {

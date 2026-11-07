@@ -299,21 +299,24 @@ def weapons():
 
 
 def melee_third_person(wid, grip):
-    """다른 사람에게 보이는 근접 무기 (melee_tp.py 참고)
-    - "<id>_world": 두 손 대기 자세 (오른손 주 손 = 오른쪽 어깨 위, 왼손 주 손 = 왼쪽 어깨 위)
-    - "<id>_world_swing": 사용 시간(틱)에 따라 휘두르기 프레임, 끝나면 반대쪽 대기 자세로 멈춤"""
+    """다른 사람에게 보이는 근접 무기 (melee_tp.py 참고). 왼손 주 손에 들고 오른손이 위, 오른팔로 휘두름.
+    - "<id>_world" / "<id>_world_l": 오른쪽 / 왼쪽 대기 자세
+    - "<id>_world_swing" / "<id>_world_swing_b": 오→왼 / 왼→오 휘두르기 (사용 시간(틱) 프레임, 끝나면 반대쪽 대기 자세로 멈춤)"""
     import melee_tp
     weapon_dir = os.path.join(NS, "models", "item", "weapon")
-    write(os.path.join(weapon_dir, wid + "_tp.json"),
-          {"parent": "violence:item/weapon/" + wid, "display": melee_tp.stance(grip)})
-    write(os.path.join(NS, "items", "weapon", wid + "_world.json"), item_def(f"violence:item/weapon/{wid}_tp"))
-    entries = []
-    for k, disp in enumerate(melee_tp.swing_frames(grip)):
-        write(os.path.join(weapon_dir, f"{wid}_tp_s{k}.json"), {"parent": "violence:item/weapon/" + wid, "display": disp})
-        entries.append({"threshold": k, "model": ref(f"violence:item/weapon/{wid}_tp_s{k}")})
-    write(os.path.join(NS, "items", "weapon", wid + "_world_swing.json"), {"model": {
-        "type": "minecraft:range_dispatch", "property": "minecraft:use_duration",
-        "entries": entries, "fallback": ref(f"violence:item/weapon/{wid}_tp_s0")}})
+    for suffix, left in (("", False), ("_l", True)):
+        write(os.path.join(weapon_dir, f"{wid}_tp{suffix}.json"),
+              {"parent": "violence:item/weapon/" + wid, "display": melee_tp.stance(grip, left)})
+        write(os.path.join(NS, "items", "weapon", f"{wid}_world{suffix}.json"), item_def(f"violence:item/weapon/{wid}_tp{suffix}"))
+    for suffix, kind in (("", "r2l"), ("_b", "l2r")):
+        entries = []
+        for k, disp in enumerate(melee_tp.swing_frames(grip, kind)):
+            name = f"{wid}_tp_s{suffix}{k}"
+            write(os.path.join(weapon_dir, name + ".json"), {"parent": "violence:item/weapon/" + wid, "display": disp})
+            entries.append({"threshold": k, "model": ref("violence:item/weapon/" + name)})
+        write(os.path.join(NS, "items", "weapon", f"{wid}_world_swing{suffix}.json"), {"model": {
+            "type": "minecraft:range_dispatch", "property": "minecraft:use_duration",
+            "entries": entries, "fallback": entries[0]["model"]}})
 
 
 def melee_fp_display(grip):

@@ -32,6 +32,9 @@ public final class PoseSync {
     /** 개체 종류별 주 손 데이터 (없으면 null) */
     private final java.util.Map<Class<?>, Object[]> mainHand = new java.util.HashMap<>();
     private final java.util.Map<Class<?>, Method> handles = new java.util.HashMap<>();
+    private Constructor<?> animateCtor;
+    private int swingMain = 0;
+    private int swingOff = 3;
     private boolean mainHandOk = true;
 
     public PoseSync(ViolencePlugin plugin) {
@@ -57,6 +60,14 @@ public final class PoseSync {
                 }
             }
             ok = sendMethod != null;
+            try {
+                Class<?> anim = Class.forName("net.minecraft.network.protocol.game.ClientboundAnimatePacket");
+                animateCtor = anim.getConstructor(Class.forName("net.minecraft.world.entity.Entity"), int.class);
+                swingMain = anim.getField("SWING_MAIN_HAND").getInt(null);
+                swingOff = anim.getField("SWING_OFF_HAND").getInt(null);
+            } catch (Throwable t) {
+                animateCtor = null;   // 휘두르기는 서버 방송으로 대신함
+            }
         } catch (Throwable t) {
             plugin.getLogger().log(Level.WARNING, "한 팔 조준 자세 초기화 실패 - 기본 들기 자세로 보입니다: " + t);
             ok = false;
@@ -72,16 +83,41 @@ public final class PoseSync {
         sendUsing(viewer, target, true);
     }
 
+    /**
+     * viewer 에게만 target 이 팔을 휘두르는 동작을 보낸다 (offHand: 보조 손).
+     * 패킷을 만들 수 없으면 서버 방송(본인 포함)으로 대신한다.
+     */
+    public void sendSwing(Player viewer, LivingEntity target, boolean offHand) {
+        if (!ok || animateCtor == null) {
+            if (offHand) target.swingOffHand();
+            else target.swingMainHand();
+            return;
+        }
+        try {
+            Object handle = handle(target);
+            Object packet = animateCtor.newInstance(handle, offHand ? swingOff : swingMain);
+            Object conn = connectionField.get(getHandle.invoke(viewer));
+            sendMethod.invoke(conn, packet);
+        } catch (Throwable t) {
+            plugin.getLogger().log(Level.WARNING, "휘두르기 패킷 실패 - 서버 방송으로 대신합니다: " + t);
+            animateCtor = null;
+        }
+    }
+
+    private Object handle(LivingEntity target) throws ReflectiveOperationException {
+        Method h = handles.get(target.getClass());
+        if (h == null) {
+            h = target.getClass().getMethod("getHandle");
+            handles.put(target.getClass(), h);
+        }
+        return h.invoke(target);
+    }
+
     /** viewer 에게 target 의 주 손을 왼손(true)/오른손(false) 으로 보이게 한다. 지원하지 않는 개체는 무시. */
     public void sendMainHand(Player viewer, LivingEntity target, boolean left) {
         if (!ok || !mainHandOk || viewer.equals(target)) return;
         try {
-            Method h = handles.get(target.getClass());
-            if (h == null) {
-                h = target.getClass().getMethod("getHandle");
-                handles.put(target.getClass(), h);
-            }
-            Object handle = h.invoke(target);
+            Object handle = handle(target);
             Object[] acc = mainHand.computeIfAbsent(handle.getClass(), c -> findMainHand(handle));
             if (acc == null) return;
             Object v;

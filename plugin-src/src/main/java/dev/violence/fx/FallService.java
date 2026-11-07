@@ -4,10 +4,12 @@ import dev.violence.ViolencePlugin;
 import dev.violence.arena.Arena;
 import dev.violence.combat.CombatState;
 import dev.violence.combat.Combatant;
+import dev.violence.math.Vec3;
 import dev.violence.npc.NpcCombatant;
 import dev.violence.player.PlayerCombatant;
 import io.papermc.paper.datacomponent.DataComponentTypes;
 import io.papermc.paper.datacomponent.item.CustomModelData;
+import io.papermc.paper.datacomponent.item.ResolvableProfile;
 import java.awt.image.BufferedImage;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -28,7 +30,10 @@ import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.entity.ItemDisplay;
 import org.bukkit.entity.LivingEntity;
+import org.bukkit.entity.Mannequin;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.Pose;
+import org.bukkit.inventory.EntityEquipment;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.util.Transformation;
@@ -37,12 +42,18 @@ import org.joml.Vector3d;
 import org.joml.Vector3f;
 
 /**
- * 쓰러질 때 6프레임(20fps) 넘어지는 동작.
+ * 쓰러지거나 죽을 때 넘어지는 동작.
  *
- * 바닐라는 엎드린 자세로 바뀔 때 몸이 바닥에 반쯤 묻혔다가 0.55초에 걸쳐 천천히 눕는다.
- * 그동안 실제 몸과 장비를 숨기고, 같은 크기·색의 6부위 인형(아이템 디스플레이)으로 앞으로 고꾸라지는 동작을 보여준다.
- * 인형의 마지막 프레임은 바닐라 엎드린 자세와 같아서, 바닐라 전환이 끝난 뒤(12틱) 실제 몸으로 바꿔도 튀지 않는다.
- * 처형·사망·일어서기 등 상태가 바뀌면 바로 끝내고 실제 몸을 보인다.
+ * 맞은 방향으로 넘어진다: 앞에서 맞으면 뒤로(등으로 누움), 등 뒤에서 맞으면 앞으로(엎드림),
+ * 샷건처럼 강한 공격을 앞에서 맞으면 두 팔을 벌리고 뒤로 날아간다 (fall.json, FallPose).
+ *
+ * 1) 넘어지는 동안: 실제 몸과 장비를 숨기고, 같은 크기·색의 6부위 인형(아이템 디스플레이)이 20fps 키프레임으로 넘어진다.
+ * 2) 넘어진 뒤: 인형 대신 같은 스킨·장비의 마네킹(대역)이 같은 자세로 눕는다.
+ *    바닐라는 등으로 누운 자세를 플레이어에게 줄 수 없어서(엎드린 자세만 있음), 쓰러져 있는 동안은 대역이 대신 누워 있고
+ *    실제 몸은 숨긴 채 위치만 따라간다. 일어서면 대역을 치우고 실제 몸을 보인다.
+ *    대역의 자세: 등 = 침대 없이 SLEEPING (바닐라가 발을 축으로 뒤로 눕힘), 엎드림 = SWIMMING (12틱 전환이 끝난 뒤 보임).
+ * 3) 죽으면: 대역이 그대로 시체가 된다(CorpseService). 쓰러지지 않고 바로 죽어도 같은 순서로 넘어져 시체가 된다.
+ * 처형 중에도 대역이 누워 있다. 아레나가 정리되면 모두 실제 몸으로 돌린다.
  *
  * 색: 플레이어는 스킨 그림에서 얼굴·머리카락·옷·바지·신발 색을 뽑아 쓰고(처음 한 번 내려받음), NPC 는 옷 색을 쓴다.
  * 가면을 쓰고 있으면 인형 머리 대신 가면 모델을 씌운다.
@@ -56,113 +67,256 @@ public final class FallService {
     private static final float MASK_SCALE = 0.625f;
 
     private final ViolencePlugin plugin;
-    private final FallPose pose;
-    private final Map<UUID, Fall> active = new HashMap<>();
+    private final Map<FallPose.Kind, FallPose> poses;
+    /** 쓰러져 있는 (살아 있는) 대상 */
+    private final Map<UUID, Lying> downed = new HashMap<>();
+    /** 넘어지는 중인 시체 */
+    private final List<Lying> falling = new ArrayList<>();
     private final Map<UUID, int[]> skins = new ConcurrentHashMap<>();
     private final Map<UUID, Boolean> fetching = new ConcurrentHashMap<>();
     private HttpClient http;
 
-    private static final class Fall {
-        final Combatant c;
+    private static final class Lying {
+        final Combatant victim;
         final Arena arena;
+        final FallPose pose;
+        /** 넘어지기 전 몸이 보던 방향 (도) */
+        final float yaw;
+        final double scale;
         final Map<FallPose.Part, ItemDisplay> parts = new EnumMap<>(FallPose.Part.class);
         ItemDisplay mask;
+        Mannequin body;
+        Location feet;
+        boolean corpse;
+        boolean revealed;
         int tick;
 
-        Fall(Combatant c, Arena arena) {
-            this.c = c;
+        Lying(Combatant victim, Arena arena, FallPose pose, float yaw) {
+            this.victim = victim;
             this.arena = arena;
+            this.pose = pose;
+            this.yaw = yaw;
+            this.scale = victim.scale();
         }
     }
 
     public FallService(ViolencePlugin plugin) {
         this.plugin = plugin;
-        FallPose p;
+        Map<FallPose.Kind, FallPose> p;
         try {
-            p = FallPose.load();
+            p = FallPose.loadAll();
         } catch (RuntimeException e) {
             plugin.getLogger().log(Level.WARNING, "fall.json 읽기 실패 - 넘어지는 동작 없이 바로 눕습니다: " + e);
             p = null;
         }
-        this.pose = p;
+        this.poses = p;
     }
 
-    /** 넘어지는 중이라 실제 몸을 숨겨야 하는지 */
+    /** 쓰러져 있어서 실제 몸을 숨기고 대역(인형/마네킹)을 보여주는 중인지 */
     public boolean hiding(Combatant c) {
-        return active.containsKey(c.id);
+        return downed.containsKey(c.id);
     }
 
-    /** 쓰러진 직후 호출 (상태는 이미 DOWNED, 엎드린 자세 전환이 막 시작됨) */
-    public void start(Combatant c) {
+    // ───────── 시작 ─────────
+
+    /** 쓰러진 직후 호출 (상태는 이미 DOWNED). push = 밀려나는 방향, strong = 샷건 등 강한 공격 */
+    public void knockdown(Combatant c, Vec3 push, boolean strong) {
         Arena a = plugin.arena();
         LivingEntity e = c.entity();
-        if (pose == null || a == null || e == null || !e.isValid() || c.state != CombatState.DOWNED || active.containsKey(c.id)) return;
-        Fall f = new Fall(c, a);
-        try {
-            int[] col = colors(c);
-            Location at = feet(e);
-            for (FallPose.Part part : FallPose.Part.values()) {
-                if (part == FallPose.Part.HEAD && c.mask != null) continue;
-                f.parts.put(part, a.track(a.world.spawn(at, ItemDisplay.class, d -> setup(d, partItem(part, col)))));
-            }
-            if (c.mask != null) {
-                f.mask = a.track(a.world.spawn(at, ItemDisplay.class, d -> {
-                    setup(d, dev.violence.weapon.WeaponItems.mask(c.mask, false));
-                    d.setItemDisplayTransform(ItemDisplay.ItemDisplayTransform.HEAD);
-                }));
-            }
-        } catch (RuntimeException ex) {
-            plugin.getLogger().log(Level.WARNING, "넘어지는 인형 생성 실패: " + ex);
-            remove(f);
-            return;
-        }
-        active.put(c.id, f);
-        place(f, 0, false);
+        if (poses == null || a == null || e == null || !e.isValid() || c.state != CombatState.DOWNED || downed.containsKey(c.id)) return;
+        Lying l = create(a, c, push, strong, e.getLocation());
+        if (l == null) return;
+        downed.put(c.id, l);
         e.setInvisible(true);
         sendEquipment(a, c, true);
     }
 
-    /** 매 틱: 다음 프레임, 끝나거나 상태가 바뀌면 실제 몸으로 */
-    public void tick() {
-        if (active.isEmpty()) return;
-        for (Fall f : new ArrayList<>(active.values())) {
-            f.tick++;
-            LivingEntity e = f.c.entity();
-            boolean done = f.tick >= pose.holdTicks() || f.c.state != CombatState.DOWNED || e == null || !e.isValid()
-                    || plugin.arena() != f.arena || !f.arena.combatants.containsKey(f.c.id);
-            if (done) {
-                finish(f);
-                continue;
-            }
-            place(f, pose.frameAt(f.tick), true);
+    /**
+     * 죽은 자리의 시체 (CorpseService 가 수명 관리). 쓰러져 누워 있던 대역이 있으면 그대로 시체가 되고,
+     * 없으면 넘어지는 동작부터 보여준다. 만들 수 없으면 null.
+     */
+    public Mannequin corpse(Arena a, Combatant v, Vec3 push, boolean strong) {
+        Lying l = downed.remove(v.id);
+        if (l != null) {
+            l.corpse = true;
+            falling.add(l);
+            // 실제 몸은 죽어서 숨겨진 상태 → 다음 틱에 실제 장비(죽으며 비워짐)를 다시 보냄
+            plugin.laterIn(a, 1, () -> {
+                if (a.combatants.containsKey(v.id)) sendEquipment(a, v, false);
+            });
+            return l.body;
         }
+        if (poses == null || v.entity() == null) return null;
+        Location at = v.entity().getLocation();
+        l = create(a, v, push, strong, at);
+        if (l == null) return null;
+        l.corpse = true;
+        falling.add(l);
+        return l.body;
+    }
+
+    private Lying create(Arena a, Combatant c, Vec3 push, boolean strong, Location at) {
+        Vec3 face = c.look().horizontal();
+        Vec3 p = push == null ? Vec3.ZERO : push.horizontal();
+        FallPose.Kind kind = FallPose.kindFor(p.x(), p.z(), face.x(), face.z(), strong);
+        // 넘어지는 방향을 밀려나는 방향에 맞춤 (앞으로 = 밀리는 쪽을 봄, 뒤로 = 밀려오는 쪽을 봄)
+        float yaw;
+        if (p.lengthSq() < 1e-6) yaw = (float) (face.lengthSq() < 1e-6 ? at.getYaw() : face.yaw());
+        else yaw = (float) (kind == FallPose.Kind.FORWARD ? p.yaw() : p.mul(-1).yaw());
+        Lying l = new Lying(c, a, poses.get(kind), yaw);
+        l.feet = feet(at);
+        try {
+            int[] col = colors(c);
+            for (FallPose.Part part : FallPose.Part.values()) {
+                if (part == FallPose.Part.HEAD && c.mask != null) continue;
+                l.parts.put(part, a.track(a.world.spawn(l.feet, ItemDisplay.class, d -> setup(d, partItem(part, col)))));
+            }
+            if (c.mask != null) {
+                l.mask = a.track(a.world.spawn(l.feet, ItemDisplay.class, d -> {
+                    setup(d, dev.violence.weapon.WeaponItems.mask(c.mask, false));
+                    d.setItemDisplayTransform(ItemDisplay.ItemDisplayTransform.HEAD);
+                }));
+            }
+            l.body = spawnDouble(a, c, l);
+        } catch (RuntimeException ex) {
+            plugin.getLogger().log(Level.WARNING, "넘어지는 인형 생성 실패: " + ex);
+            removePuppet(l);
+            if (l.body != null && l.body.isValid()) l.body.remove();
+            return null;
+        }
+        place(l, 0, false);
+        return l;
+    }
+
+    /** 넘어진 뒤 누워 있을 대역 (처음엔 숨김: 엎드린 자세 전환을 숨긴 채 끝냄) */
+    private Mannequin spawnDouble(Arena a, Combatant c, Lying l) {
+        Location loc = doubleLocation(l);
+        return a.track(a.world.spawn(loc, Mannequin.class, m -> {
+            m.setPersistent(false);
+            m.setImmovable(true);
+            m.setDescription(null);
+            m.setInvulnerable(true);
+            m.setSilent(true);
+            m.setGravity(false);
+            m.setCollidable(false);
+            m.setInvisible(true);
+            if (c instanceof NpcCombatant n) m.setProfile(n.profile());
+            else if (c.entity() instanceof Player p) m.setProfile(ResolvableProfile.resolvableProfile(p.getPlayerProfile()));
+            if (c.heavy) {
+                var s = m.getAttribute(org.bukkit.attribute.Attribute.SCALE);
+                if (s != null) s.setBaseValue(c.scale());
+            }
+            m.setBodyYaw(loc.getYaw());
+            try {
+                m.setPose(l.pose.faceUp() ? Pose.SLEEPING : Pose.SWIMMING, true);
+            } catch (IllegalArgumentException ex) {
+                Poses.lying(m);
+            }
+        }));
+    }
+
+    private static Location doubleLocation(Lying l) {
+        Location loc = l.feet.clone();
+        if (l.pose.faceUp()) {
+            loc.add(0, l.pose.lift() * l.scale, 0);
+            loc.setYaw(FallPose.sleepingYaw(l.yaw));
+        } else {
+            loc.setYaw(l.yaw);
+        }
+        loc.setPitch(0);
+        return loc;
+    }
+
+    // ───────── 매 틱 ─────────
+
+    public void tick() {
+        if (!downed.isEmpty()) {
+            for (Lying l : new ArrayList<>(downed.values())) {
+                LivingEntity e = l.victim.entity();
+                boolean gone = e == null || !e.isValid() || plugin.arena() != l.arena || !l.arena.combatants.containsKey(l.victim.id);
+                if (gone || !l.victim.state.isDownedLike()) {
+                    // 일어섬 (죽었으면 corpse() 가 먼저 데려감)
+                    downed.remove(l.victim.id);
+                    end(l, !gone);
+                    continue;
+                }
+                // 기어가면 따라감 (방향은 그대로)
+                Location now = feet(e.getLocation());
+                if (now.distanceSquared(l.feet) > 1e-4) {
+                    l.feet = now;
+                    if (l.body != null && l.body.isValid()) l.body.teleport(doubleLocation(l));
+                }
+                advance(l);
+                if (l.revealed && l.tick % 10 == 0) sendEquipment(l.arena, l.victim, true);
+            }
+        }
+        if (!falling.isEmpty()) {
+            for (Lying l : new ArrayList<>(falling)) {
+                if (l.body == null || !l.body.isValid() || plugin.arena() != l.arena) {
+                    removePuppet(l);
+                    falling.remove(l);
+                    continue;
+                }
+                advance(l);
+                if (l.tick > l.pose.holdTicks()) falling.remove(l);
+            }
+        }
+    }
+
+    /** 다음 프레임 → 끝나기 한 틱 전에 대역을 보이고, 끝나면 인형을 치움 (한 틱 겹쳐서 빈 틱이 없게) */
+    private void advance(Lying l) {
+        l.tick++;
+        int hold = l.pose.holdTicks();
+        if (l.tick < hold) place(l, l.pose.frameAt(l.tick), true);
+        if (!l.revealed && l.tick >= hold - 1) reveal(l);
+        if (l.tick == hold) removePuppet(l);
+    }
+
+    private void reveal(Lying l) {
+        l.revealed = true;
+        Mannequin m = l.body;
+        if (m == null || !m.isValid()) return;
+        EntityEquipment eq = m.getEquipment();
+        Combatant c = l.victim;
+        if (c instanceof NpcCombatant n) n.copyOutfitTo(eq);
+        else if (c.entity() instanceof Player p) {
+            // 시체가 되었으면 가면은 벗겨진 상태 (죽을 때 가면이 사라짐)
+            eq.setHelmet(l.corpse ? null : p.getInventory().getHelmet());
+            eq.setChestplate(p.getInventory().getChestplate());
+            eq.setLeggings(p.getInventory().getLeggings());
+        }
+        m.setInvisible(false);
+    }
+
+    private void end(Lying l, boolean restore) {
+        removePuppet(l);
+        if (l.body != null && l.body.isValid()) {
+            l.arena.tracked.remove(l.body);
+            l.body.remove();
+        }
+        LivingEntity e = l.victim.entity();
+        if (!restore || e == null || !e.isValid()) return;
+        l.victim.applyStateVisuals();
+        sendEquipment(l.arena, l.victim, false);
     }
 
     /** 아레나 정리 시: 모두 실제 몸으로 */
     public void clear() {
-        for (Fall f : new ArrayList<>(active.values())) finish(f);
-        active.clear();
+        for (Lying l : new ArrayList<>(downed.values())) end(l, true);
+        for (Lying l : falling) removePuppet(l);
+        downed.clear();
+        falling.clear();
     }
 
-    private void finish(Fall f) {
-        active.remove(f.c.id);
-        remove(f);
-        LivingEntity e = f.c.entity();
-        if (e == null || !e.isValid()) return;
-        f.c.applyStateVisuals();
-        if (plugin.arena() == f.arena && f.arena.combatants.containsKey(f.c.id)) sendEquipment(f.arena, f.c, false);
-        else e.setInvisible(false);
+    private static void removePuppet(Lying l) {
+        for (ItemDisplay d : l.parts.values()) if (d.isValid()) d.remove();
+        l.parts.clear();
+        if (l.mask != null && l.mask.isValid()) l.mask.remove();
+        l.mask = null;
     }
 
-    private static void remove(Fall f) {
-        for (ItemDisplay d : f.parts.values()) if (d.isValid()) d.remove();
-        f.parts.clear();
-        if (f.mask != null && f.mask.isValid()) f.mask.remove();
-        f.mask = null;
-    }
-
-    private static Location feet(LivingEntity e) {
-        Location l = e.getLocation();
+    private static Location feet(Location src) {
+        Location l = src.clone();
         l.setYaw(0);
         l.setPitch(0);
         return l;
@@ -178,19 +332,15 @@ public final class FallService {
         d.setViewRange(1.5f);
     }
 
-    private void place(Fall f, int frame, boolean animate) {
-        LivingEntity e = f.c.entity();
-        float yaw = e.getBodyYaw();
-        double s = f.c.scale();
-        Location at = feet(e);
+    private void place(Lying l, int frame, boolean animate) {
         for (FallPose.Part part : FallPose.Part.values()) {
-            ItemDisplay d = part == FallPose.Part.HEAD && f.mask != null ? f.mask : f.parts.get(part);
+            ItemDisplay d = part == FallPose.Part.HEAD && l.mask != null ? l.mask : l.parts.get(part);
             if (d == null || !d.isValid()) continue;
-            FallPose.Placement p = pose.place(frame, part, s);
-            Vector3d c = FallPose.toWorld(p.center(), yaw);
-            Quaternionf r = new Quaternionf(FallPose.toWorld(p.rotation(), yaw));
-            float sc = (float) (FallPose.PX * 16 * s) * (d == f.mask ? MASK_SCALE : 1f);
-            if (d.getLocation().distanceSquared(at) > 1e-4) d.teleport(at);
+            FallPose.Placement p = l.pose.place(frame, part, l.scale);
+            Vector3d c = FallPose.toWorld(p.center(), l.yaw);
+            Quaternionf r = new Quaternionf(FallPose.toWorld(p.rotation(), l.yaw));
+            float sc = (float) (FallPose.PX * 16 * l.scale) * (d == l.mask ? MASK_SCALE : 1f);
+            if (d.getLocation().distanceSquared(l.feet) > 1e-4) d.teleport(l.feet);
             d.setTransformation(new Transformation(new Vector3f((float) c.x, (float) c.y, (float) c.z), r,
                     new Vector3f(sc, sc, sc), new Quaternionf()));
             if (animate) d.setInterpolationDelay(0);
@@ -200,8 +350,9 @@ public final class FallService {
     /** 보는 사람들에게 실제 몸의 장비를 숨김(hide) / 다시 보냄 */
     private void sendEquipment(Arena a, Combatant c, boolean hide) {
         LivingEntity e = c.entity();
+        if (e == null) return;
         Map<EquipmentSlot, ItemStack> eq = new EnumMap<>(EquipmentSlot.class);
-        org.bukkit.inventory.EntityEquipment real = e.getEquipment();
+        EntityEquipment real = e.getEquipment();
         for (EquipmentSlot slot : SLOTS) {
             ItemStack it = hide || real == null ? null : real.getItem(slot);
             eq.put(slot, it == null ? new ItemStack(Material.AIR) : it);
@@ -264,6 +415,7 @@ public final class FallService {
         }
         if (url == null) {
             skins.put(id, DEFAULT_COLORS.clone());
+            fetching.remove(id);
             return;
         }
         final String target = url.toString();
@@ -309,9 +461,4 @@ public final class FallService {
         if (n == 0) return fallback;
         return (int) (r / n) << 16 | (int) (g / n) << 8 | (int) (b / n);
     }
-
-    /** 테스트용: 프레임 계산 */
-    public FallPose pose() { return pose; }
-
-    static List<FallPose.Part> parts() { return List.of(FallPose.Part.values()); }
 }

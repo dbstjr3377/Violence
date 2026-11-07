@@ -33,9 +33,10 @@ def item_polys(M, model, tex, disp, mirror):
     return T.item_polys(F, model, tex, ident)
 
 
-def render(model, tex, disp, left_main, attack, label, cam=(2.0, 1.9, 3.2), charge=1.0, size=TILE):
+def render(model, tex, disp, attack, label, cam=(2.0, 1.9, 3.2), charge=1.0, size=TILE, extra=None):
+    """왼손 주 손 + 오른팔(보조 손) 휘두르기 — 플러그인이 보는 사람에게 보내는 것과 같음"""
     root = T.entity_root(0)
-    right, left, body_y, rpiv, lpiv = MT.arm_pose(left_main, attack, charge)
+    right, left, body_y, rpiv, lpiv = MT.arm_pose(True, attack, charge, attack_off=True)
     polys = []
     body = root @ T.part(0, 0, 0, 0, body_y, 0)
     T.cuboid(root @ T.part(0, 0, 0), -4, -8, -4, 8, 8, 8, T.SKIN, polys)
@@ -48,8 +49,9 @@ def render(model, tex, disp, left_main, attack, label, cam=(2.0, 1.9, 3.2), char
     T.cuboid(la, -1, 6, -2.01, 4, 6, 4.02, T.SKIN, polys)
     T.cuboid(root @ T.part(-1.9, 12, 0), -2, 0, -2, 4, 12, 4, T.PANTS, polys)
     T.cuboid(root @ T.part(1.9, 12, 0), -2, 0, -2, 4, 12, 4, T.PANTS, polys)
-    hand_disp = disp["thirdperson_lefthand" if left_main else "thirdperson_righthand"]
-    polys += item_polys(MT.hand_matrix(left_main, attack, charge), model, tex, hand_disp, left_main)
+    polys += item_polys(MT.hand_matrix(True, attack, charge, attack_off=True), model, tex, disp["thirdperson_lefthand"], True)
+    if extra:
+        polys += extra
     eye = np.array(cam, dtype=float)
     look = np.array([0, 1.25, 0])
     fwd = look - eye
@@ -83,10 +85,10 @@ def load(name):
     return m, tex
 
 
-def sequence(grip):
+def sequence(grip, kind):
     """한 번 휘두르기: 대기 → 프레임 0..5 → 끝 자세(=반대쪽 대기). (표시 변환, 공격 시간, 장전 진행)"""
-    out = [(MT.stance(grip), 0.0, 1.0)]
-    for d, (_, att, ch) in zip(MT.swing_frames(grip), MT.frame_states()):
+    out = [(MT.stance(grip, left=kind == "l2r"), 0.0, 1.0)]
+    for d, (_, att, ch) in zip(MT.swing_frames(grip, kind), MT.frame_states()):
         out.append((d, att, ch))
     return out
 
@@ -95,30 +97,30 @@ if __name__ == "__main__":
     name = sys.argv[1] if len(sys.argv) > 1 else "bat"
     m, tex = load(name)
     grip = models_melee.GRIP[name]
-    cam = (1.6, 1.9, 3.4)
-    tiles = [render(m, tex, MT.stance(grip), False, 0, "오른쪽 대기 (다음: 오른쪽에서 왼쪽)", cam),
-             render(m, tex, MT.stance(grip), True, 0, "왼쪽 대기 (다음: 왼쪽에서 오른쪽)", cam)]
-    seq = sequence(grip)
-    for i in (2, 3, 5):
-        d, a, ch = seq[i]
-        tiles.append(render(m, tex, d, False, a, f"오른쪽에서 휘두르기 {i}/6틱", cam, ch))
-    for i in (2, 3, 5):
-        d, a, ch = seq[i]
-        tiles.append(render(m, tex, d, True, a, f"왼쪽에서 휘두르기 {i}/6틱", cam, ch))
+    cam = (1.0, 1.9, 3.4)
+    tiles = [render(m, tex, MT.stance(grip), 0, "오른쪽 대기 (다음: 오른쪽에서 왼쪽)", cam),
+             render(m, tex, MT.stance(grip, left=True), 0, "왼쪽 대기 (다음: 왼쪽에서 오른쪽)", cam)]
+    for kind, label in (("r2l", "오른쪽에서"), ("l2r", "왼쪽에서")):
+        seq = sequence(grip, kind)
+        for i in (2, 3, 5):
+            d, a, ch = seq[i]
+            tiles.append(render(m, tex, d, a, f"{label} 휘두르기 {i}/6틱", cam, ch))
     sheet = Image.new("RGB", (4 * TILE, 2 * TILE))
     for i, t in enumerate(tiles):
         sheet.paste(t, ((i % 4) * TILE, (i // 4) * TILE))
     out = sys.argv[2] if len(sys.argv) > 2 else os.path.join(ROOT, "docs", "images", "melee_tp.png")
     sheet.save(out)
     print(out)
-    # GIF: 오→왼 휘두르고 왼쪽 대기, 잠시 뒤 왼→오 휘두르고 오른쪽 대기 (20fps)
+    # GIF (20fps): 오른쪽 대기 → 오→왼 → 왼쪽 대기 → 왼→오 → 오른쪽 대기. 정면과 뒤쪽 시점을 나란히
     frames = []
-    for left in (False, True):
-        seq = sequence(grip)
-        for _ in range(6):
-            frames.append(render(m, tex, seq[0][0], left, 0, "", cam, size=320))
-        for d, a, ch in seq[1:]:
-            frames.append(render(m, tex, d, left, a, "", cam, ch, size=320))
+    for kind in ("r2l", "l2r"):
+        seq = sequence(grip, kind)
+        steps = [seq[0]] * 6 + seq[1:]
+        for d, a, ch in steps:
+            im = Image.new("RGB", (640, 320))
+            im.paste(render(m, tex, d, a, "", cam, ch, size=320), (0, 0))
+            im.paste(render(m, tex, d, a, "", (-1.6, 2.2, -3.0), ch, size=320), (320, 0))
+            frames.append(im)
     gdir = os.path.join(ROOT, "build-out", "melee_tp")
     os.makedirs(gdir, exist_ok=True)
     gif = os.path.join(gdir, f"swing_{name}.gif")

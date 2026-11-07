@@ -17,6 +17,8 @@ import org.joml.Vector3d;
 
 /**
  * 쓰러질 때 넘어지는 동작의 키프레임 계산 (fall.json, 순수 계산이라 서버 없이 테스트 가능).
+ * 동작은 세 가지: 앞으로 고꾸라짐(FORWARD, 뒤에서 맞음), 뒤로 넘어짐(BACK, 앞에서 맞음),
+ * 두 팔을 벌리고 날아감(BLAST, 샷건처럼 강한 공격). 앞은 엎드린 자세, 뒤 두 가지는 등으로 누운 자세로 끝난다.
  *
  * 바닐라 플레이어 모델과 같은 크기의 6부위(머리·몸통·두 팔·두 다리)를 몸 기준 좌표(x=왼쪽, y=위, z=앞, 블록)에 놓는다.
  * 몸 전체는 발을 기준으로 pitch 만큼 앞으로 기울고 발은 feet 위치로 옮겨지며, 팔다리·머리는 관절에서 따로 돈다.
@@ -53,22 +55,72 @@ public final class FallPose {
 
     public record Frame(double pitch, double feetY, double feetZ, Map<Part, double[]> joints) {}
 
+    /** 넘어지는 방식 (fall.json "kinds" 의 이름) */
+    public enum Kind {
+        FORWARD("forward"), BACK("back"), BLAST("blast");
+
+        public final String key;
+
+        Kind(String key) { this.key = key; }
+    }
+
     private final List<Frame> frames;
     private final int holdTicks;
+    private final boolean faceUp;
+    private final double lift;
 
     public FallPose(List<Frame> frames, int holdTicks) {
+        this(frames, holdTicks, false, 0);
+    }
+
+    public FallPose(List<Frame> frames, int holdTicks, boolean faceUp, double lift) {
         if (frames.isEmpty()) throw new IllegalArgumentException("프레임이 없습니다");
         this.frames = List.copyOf(frames);
         this.holdTicks = Math.max(frames.size(), holdTicks);
+        this.faceUp = faceUp;
+        this.lift = lift;
     }
 
-    public static FallPose load() {
+    /** 세 가지 동작 모두 */
+    public static Map<Kind, FallPose> loadAll() {
         try (InputStream in = FallPose.class.getResourceAsStream("/fall.json")) {
             if (in == null) throw new IllegalStateException("fall.json 없음");
-            return parse(JsonParser.parseReader(new InputStreamReader(in, StandardCharsets.UTF_8)).getAsJsonObject());
+            JsonObject root = JsonParser.parseReader(new InputStreamReader(in, StandardCharsets.UTF_8)).getAsJsonObject();
+            double lift = root.has("back_lift") ? root.get("back_lift").getAsDouble() : 0.14;
+            JsonObject kinds = root.getAsJsonObject("kinds");
+            Map<Kind, FallPose> out = new EnumMap<>(Kind.class);
+            for (Kind k : Kind.values()) {
+                JsonObject o = kinds.getAsJsonObject(k.key);
+                FallPose p = parse(o);
+                out.put(k, new FallPose(p.frames, p.holdTicks, "face_up".equals(o.get("end").getAsString()), lift));
+            }
+            return out;
         } catch (java.io.IOException e) {
             throw new IllegalStateException("fall.json 읽기 실패", e);
         }
+    }
+
+    /** 앞으로 고꾸라지는 동작 */
+    public static FallPose load() {
+        return loadAll().get(Kind.FORWARD);
+    }
+
+    /** 등으로 누운 자세로 끝나는지 (아니면 엎드린 자세) */
+    public boolean faceUp() { return faceUp; }
+
+    /** 누운 마네킹을 띄우는 높이 (바닥에 머리가 묻히지 않게) */
+    public double lift() { return lift; }
+
+    /**
+     * 맞은 방향(push: 밀려나는 방향)과 몸이 보는 방향으로 넘어지는 방식을 고른다.
+     * 등 뒤에서 맞아 앞으로 밀리면 앞으로 고꾸라지고, 앞에서 맞으면 뒤로 넘어진다(강한 공격이면 팔을 벌리고 날아감).
+     */
+    public static Kind kindFor(double pushX, double pushZ, double faceX, double faceZ, boolean strong) {
+        double pl = Math.hypot(pushX, pushZ);
+        double fl = Math.hypot(faceX, faceZ);
+        double dot = pl < 1e-6 || fl < 1e-6 ? -1 : (pushX * faceX + pushZ * faceZ) / (pl * fl);
+        if (dot > 0.25) return Kind.FORWARD;
+        return strong ? Kind.BLAST : Kind.BACK;
     }
 
     public static FallPose parse(JsonObject root) {
@@ -130,6 +182,25 @@ public final class FallPose {
             c = new Vector3d(p.x, 0.3 - p.z, p.y - 1).mul(scale);
         }
         return new Placement(c, body.mul(local));
+    }
+
+    /**
+     * 바닐라 누운 자세 (침대 없이 SLEEPING 인 마네킹, 몸 방향 φ = -yaw - 90).
+     * LivingEntityRenderer: Y(φ)·Z(90)·Y(270) 를 서 있을 때 회전 Y(180-yaw) 대신 씀 →
+     * 몸 기준 좌표로는 Ry(-90)·Rz(90)·Ry(90) (발을 축으로 뒤로 90° 누움, 얼굴이 위). 팔다리·머리는 똑바로. lift 만큼 띄움.
+     */
+    public static Placement vanillaBack(Part part, double scale, double lift) {
+        Quaterniond r = new Quaterniond().rotationY(Math.toRadians(-90))
+                .mul(new Quaterniond().rotationZ(Math.toRadians(90)))
+                .mul(new Quaterniond().rotationY(Math.toRadians(90)));
+        Vector3d stand = new Vector3d(part.offset).add(part.joint).mul(PX);
+        Vector3d c = r.transform(stand).add(0, lift, 0).mul(scale);
+        return new Placement(c, r);
+    }
+
+    /** 누운 마네킹의 바닐라 몸 방향 (yaw: 넘어지기 전 몸이 보던 방향) */
+    public static float sleepingYaw(float yaw) {
+        return (float) (((-yaw - 90) % 360 + 540) % 360 - 180);
     }
 
     /** 몸 기준 → 월드 (yaw: 바닐라 몸 방향, 도) */

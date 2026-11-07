@@ -393,13 +393,17 @@ public final class GameService {
         // 3인칭 휘두르기 프레임 재생 중에는 손 아이템을 다시 보내지 않음 (프레임이 처음으로 튐)
         if (swingShowing(pc, held)) return;
         java.util.Map<org.bukkit.inventory.EquipmentSlot, org.bukkit.inventory.ItemStack> eq = new java.util.EnumMap<>(org.bukkit.inventory.EquipmentSlot.class);
-        eq.put(org.bukkit.inventory.EquipmentSlot.HAND, pc.state == CombatState.DEAD ? null : dev.violence.weapon.WeaponItems.world(held));
+        boolean melee = dev.violence.weapon.WeaponItems.swings(held);
+        if (!melee) pc.tpStanceLeft = false;
+        eq.put(org.bukkit.inventory.EquipmentSlot.HAND, pc.state == CombatState.DEAD ? null
+                : melee ? dev.violence.weapon.WeaponItems.worldStance(held, pc.tpStanceLeft) : dev.violence.weapon.WeaponItems.world(held));
         eq.put(org.bukkit.inventory.EquipmentSlot.OFF_HAND, pc.offhand != null && pc.state != CombatState.DEAD ? dev.violence.weapon.WeaponItems.world(pc.offhand.type()) : null);
         boolean using = usingPose(pc, held);
-        if (!dev.violence.weapon.WeaponItems.swings(held)) pc.tpStanceLeft = false;
+        // 근접 무기: 주 손을 왼손으로 보여 왼손이 손잡이 아래, 오른손이 위 (오른팔로 휘두름)
+        boolean leftMain = melee && pc.state == CombatState.ALIVE;
         for (PlayerCombatant viewer : a.players.values()) {
             if (viewer == pc || !viewer.player().isOnline()) continue;
-            plugin.poses().sendMainHand(viewer.player(), pc.player(), pc.tpStanceLeft);
+            plugin.poses().sendMainHand(viewer.player(), pc.player(), leftMain);
             viewer.player().sendEquipmentChange(pc.player(), eq);
             plugin.poses().sendUsing(viewer.player(), pc.player(), using);
         }
@@ -430,43 +434,52 @@ public final class GameService {
             Player vp = viewer.player();
             // 멀리 있어 보이지 않는 NPC 는 건너뜀 (가까워지면 다음 주기에 받음)
             if (!vp.isOnline() || vp.getWorld() != at.getWorld() || vp.getLocation().distanceSquared(at) > 72 * 72) continue;
-            // 주 손 기본값(오른손)은 서버가 이미 보냄 → 왼쪽 대기일 때만
-            if (n.tpStanceLeft) plugin.poses().sendMainHand(vp, n.entity(), true);
+            // 주 손(근접이면 왼손)은 NPC 실제 값으로 보냄 (NpcCombatant.refreshEquipment). 왼쪽 대기 아이템만 따로
+            if (n.tpStanceLeft && using) vp.sendEquipmentChange(n.entity(), org.bukkit.inventory.EquipmentSlot.HAND,
+                    dev.violence.weapon.WeaponItems.worldStance(held, true));
             plugin.poses().sendUsing(vp, n.entity(), using);
         }
     }
 
     /**
      * 3인칭 근접 휘두르기 (보는 사람 모두에게).
-     * fromLeft 이면 주 손을 왼손으로 보내 왼→오로 휘두르고, 아니면 오른손 주 손으로 오→왼.
-     * 휘두르기 아이템으로 바꾸고 "사용 시작"을 다시 보내 프레임을 0 틱부터 재생한다.
-     * 끝나면 주 손을 반대로 바꿔 반대쪽 대기 자세가 된다 (휘두르기 끝 자세와 같은 방향이라 무기가 튀지 않음).
+     * 무기는 왼손(주 손)에 들고 오른손이 위를 잡는다. 휘두르기는 오른팔(보조 손) 휘두르기로 보내 방향과 상관없이 오른팔이 휘두른다.
+     * backhand 이면 왼→오, 아니면 오→왼 휘두르기 아이템으로 바꾸고 "사용 시작"을 다시 보내 프레임을 0 틱부터 재생한다.
+     * 끝나면 반대쪽 대기 아이템으로 바꾼다 (휘두르기 끝 자세와 같아서 무기가 튀지 않음).
      */
-    public void tpSwing(Combatant c, WeaponType t, boolean fromLeft, long now) {
+    public void tpSwing(Combatant c, WeaponType t, boolean backhand, long now) {
         Arena a = plugin.arena();
         if (a == null || !dev.violence.weapon.WeaponItems.swings(t) || c.state != CombatState.ALIVE) return;
         int seq = ++c.tpSwingSeq;
-        c.tpStanceLeft = fromLeft;
+        c.tpStanceLeft = backhand;
         c.tpSwingType = t;
         c.tpSwingUntil = now + dev.violence.weapon.WeaponItems.TP_SWING_TICKS;
-        sendHand(a, c, dev.violence.weapon.WeaponItems.worldSwing(t), fromLeft, true);
+        sendHand(a, c, dev.violence.weapon.WeaponItems.worldSwing(t, backhand), true);
+        // 오른팔 휘두르기: 플레이어는 보는 사람에게만 보내고(본인 1인칭에 영향 없음), NPC 는 그대로 방송
+        if (c instanceof NpcCombatant) c.entity().swingOffHand();
+        else {
+            for (PlayerCombatant viewer : a.players.values()) {
+                if (viewer == c || !viewer.player().isOnline()) continue;
+                plugin.poses().sendSwing(viewer.player(), c.entity(), true);
+            }
+        }
         plugin.laterIn(a, dev.violence.weapon.WeaponItems.TP_SWING_TICKS, () -> {
             if (c.tpSwingSeq != seq) return;
             c.tpSwingType = null;
             if (c.state != CombatState.ALIVE || c.weaponType(plugin.weapons().fist()) != t) return;
-            c.tpStanceLeft = !fromLeft;
-            sendHand(a, c, dev.violence.weapon.WeaponItems.world(t), c.tpStanceLeft, false);
+            c.tpStanceLeft = !backhand;
+            sendHand(a, c, dev.violence.weapon.WeaponItems.worldStance(t, c.tpStanceLeft), false);
         });
     }
 
-    private void sendHand(Arena a, Combatant c, org.bukkit.inventory.ItemStack item, boolean left, boolean restart) {
+    private void sendHand(Arena a, Combatant c, org.bukkit.inventory.ItemStack item, boolean restart) {
         org.bukkit.entity.LivingEntity e = c.entity();
         if (e == null) return;
         java.util.Map<org.bukkit.inventory.EquipmentSlot, org.bukkit.inventory.ItemStack> eq = new java.util.EnumMap<>(org.bukkit.inventory.EquipmentSlot.class);
         eq.put(org.bukkit.inventory.EquipmentSlot.HAND, item);
         for (PlayerCombatant viewer : a.players.values()) {
             if (viewer == c || !viewer.player().isOnline()) continue;
-            plugin.poses().sendMainHand(viewer.player(), e, left);
+            if (c instanceof PlayerCombatant) plugin.poses().sendMainHand(viewer.player(), e, true);
             viewer.player().sendEquipmentChange(e, eq);
             if (restart) plugin.poses().restartUsing(viewer.player(), e);
             else plugin.poses().sendUsing(viewer.player(), e, true);
@@ -480,10 +493,7 @@ public final class GameService {
         if (now - c.lastSwingTick <= t.meleeCooldown() + 12) return;
         c.tpStanceLeft = false;
         if (c.state != CombatState.ALIVE || !dev.violence.weapon.WeaponItems.swings(t)) return;
-        for (PlayerCombatant viewer : a.players.values()) {
-            if (viewer == c || !viewer.player().isOnline()) continue;
-            plugin.poses().sendMainHand(viewer.player(), c.entity(), false);
-        }
+        sendHand(a, c, dev.violence.weapon.WeaponItems.worldStance(t, false), false);
     }
 
     // ───────── 처치 ─────────

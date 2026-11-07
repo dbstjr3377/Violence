@@ -24,6 +24,12 @@ public final class CorpseService {
     }
 
     public void spawn(Arena a, Combatant v, Vec3 dir) {
+        // 맞은 방향으로 넘어지는 동작 → 같은 자세의 마네킹이 시체가 됨 (쓰러져 누워 있던 대역이면 그대로)
+        Mannequin fallen = plugin.falls().corpse(a, v, dir, plugin.now() - v.strongHitTick <= 1);
+        if (fallen != null) {
+            keep(a, fallen);
+            return;
+        }
         Vec3 f = v.feet();
         Location l = Fx.loc(a.world, f.add(dir.horizontal().normalize().mul(0.3)));
         // 날아온 방향을 머리가 향하도록 (뒤로 넘어짐)
@@ -51,6 +57,11 @@ public final class CorpseService {
             }
         }));
         dev.violence.fx.Poses.lying(m);
+        keep(a, m);
+    }
+
+    /** 시체 수 제한과 수명 */
+    private void keep(Arena a, Mannequin m) {
         corpses.addLast(m);
         int max = plugin.getConfig().getInt("fx.max-corpses", 30);
         while (corpses.size() > max) {

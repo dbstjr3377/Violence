@@ -63,6 +63,8 @@ public abstract class Combatant {
     public long tpSwingUntil = -100;
     public WeaponType tpSwingType;
     public int tpSwingSeq;
+    /** 샷건 등 강한 공격에 맞은 틱 (넘어지는 동작 선택) */
+    public long strongHitTick = -100;
 
     protected Combatant(UUID id) {
         this.id = id;

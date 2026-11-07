@@ -104,7 +104,7 @@ public final class WeaponItems {
                     .build());
             return it;
         }
-        if (swings(type)) return meleeStance(type, false);
+        if (swings(type)) return meleeStance(type, false);   // 오른쪽 대기 (NPC 실제 장비)
         if (type.isFist()) it.setData(DataComponentTypes.ITEM_MODEL, Key.key("violence:misc/blank"));
         if (type.isMelee() || type.isFist()) {
             SwingAnimation.Animation a = type.id().equals("pool_cue_short") ? SwingAnimation.Animation.STAB : SwingAnimation.Animation.WHACK;
@@ -118,19 +118,32 @@ public final class WeaponItems {
      */
     public static final int TP_SWING_TICKS = 6;
 
-    /** 휘두르는 근접 무기의 3인칭 휘두르기 아이템: 사용 시간(틱)에 따라 무기가 옆으로 크게 휘둘러지는 프레임 */
-    public static ItemStack worldSwing(WeaponType type) {
-        return meleeStance(type, true);
+    /** 휘두르는 근접 무기의 3인칭 대기 아이템 (left: 왼쪽 대기 = 다음 공격이 왼→오) */
+    public static ItemStack worldStance(WeaponType type, boolean left) {
+        return meleeItem(type, left ? "_world_l" : "_world");
+    }
+
+    /**
+     * 휘두르는 근접 무기의 3인칭 휘두르기 아이템: 사용 시간(틱)에 따라 무기가 옆으로 크게 휘둘러지는 프레임.
+     * backhand 이면 왼→오. 끝 자세는 반대쪽 대기와 같다.
+     */
+    public static ItemStack worldSwing(WeaponType type, boolean backhand) {
+        return meleeItem(type, backhand ? "_world_swing_b" : "_world_swing");
     }
 
     /**
      * 휘두르는 근접 무기의 3인칭 아이템 (두 손 대기 자세).
      * "석궁 장전" 동작의 소모품으로 만들어, 보는 사람에게 "사용 중" 상태를 보내면 양손을 몸 앞에 모은 자세가 된다.
+     * 보는 사람에게는 주 손을 왼손으로 보내므로 왼손이 손잡이 아래, 오른손(보조 팔)이 위를 잡는다 (tools/melee_tp.py).
      * 빠른 장전 IV 로 보조 팔이 0.25초 만에 자세를 잡는다 (반짝임은 끔). 공격하면 바닐라 휘두르기가 팔과 몸통을 비튼다.
      */
-    private static ItemStack meleeStance(WeaponType type, boolean swing) {
+    private static ItemStack meleeStance(WeaponType type, boolean left) {
+        return worldStance(type, left);
+    }
+
+    private static ItemStack meleeItem(WeaponType type, String suffix) {
         ItemStack it = new ItemStack(Material.STICK);
-        it.setData(DataComponentTypes.ITEM_MODEL, Key.key(type.model() + (swing ? "_world_swing" : "_world")));
+        it.setData(DataComponentTypes.ITEM_MODEL, Key.key(type.model() + suffix));
         it.setData(DataComponentTypes.MAX_STACK_SIZE, 1);
         it.setData(DataComponentTypes.TOOLTIP_DISPLAY, TooltipDisplay.tooltipDisplay().hideTooltip(true).build());
         it.setData(DataComponentTypes.CONSUMABLE, io.papermc.paper.datacomponent.item.Consumable.consumable()

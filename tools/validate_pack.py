@@ -199,7 +199,7 @@ def main():
     for wid in models_melee.MELEE:
         if wid == "pool_cue_short":
             continue
-        for suffix in ("_world", "_world_swing"):
+        for suffix in ("_world", "_world_l", "_world_swing", "_world_swing_b"):
             if f"violence:weapon/{wid}{suffix}" not in item_ids:
                 err(f"3인칭 근접 아이템 없음: {wid}{suffix}")
     # 가면

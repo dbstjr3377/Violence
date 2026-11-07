@@ -114,6 +114,13 @@ public final class NpcCombatant extends Combatant {
             return;
         }
         eq.setItemInMainHand(weapon != null ? WeaponItems.world(weapon.type()) : null);
+        // 근접 무기: 왼손 주 손 (왼손이 손잡이 아래, 오른손이 위, 오른팔로 휘두름)
+        boolean melee = weapon != null && WeaponItems.swings(weapon.type()) && state == dev.violence.combat.CombatState.ALIVE;
+        try {
+            body.setMainHand(melee ? org.bukkit.inventory.MainHand.LEFT : org.bukkit.inventory.MainHand.RIGHT);
+        } catch (RuntimeException ignored) {
+            // 지원하지 않으면 오른손 주 손 그대로
+        }
         eq.setItemInOffHand(offhand != null ? WeaponItems.world(offhand.type()) : null);
         if (eq.getChestplate() == null || eq.getChestplate().getType() == Material.AIR) copyOutfitTo(eq);
         ViolencePlugin.get().game().syncNpcPose(this);

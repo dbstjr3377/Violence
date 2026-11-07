@@ -63,6 +63,11 @@ public final class PlayerListener implements Listener {
         if (pc.state == CombatState.EXECUTING && plugin.game().state() == dev.violence.game.GameService.State.RUNNING) {
             plugin.combat().executionClick(pc, now);
         }
+        // 근접 무기를 들고 있으면 클라이언트의 주 손 휘두르기를 다른 사람에게 보내지 않음
+        // (3인칭은 플러그인이 오른팔 휘두르기 + 무기 프레임으로 따로 보여줌)
+        if (pc.state == CombatState.ALIVE && dev.violence.weapon.WeaponItems.swings(pc.weaponType(plugin.weapons().fist()))) {
+            e.setCancelled(true);
+        }
     }
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = false)
