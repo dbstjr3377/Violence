@@ -106,7 +106,7 @@ class Lying:
         t = min(1.0, k / 3.0)
         return lerp_angle(self.start_yaw, self.yaw, t * t * (3 - 2 * t))
 
-    def polys(self, tk, col):
+    def polys(self, tk, col, mask=None):
         k = tk - self.t0
         hold = self.fall["hold_ticks"]
         FPV_set(col)
@@ -114,7 +114,7 @@ class Lying:
         if k < hold:
             fi = min(k, len(self.frames()) - 1)
             p = []
-            FPV.puppet_polys(self.frames()[fi], p)
+            FPV.puppet_polys(self.frames()[fi], p, mask)
             out += MK.world_of(p, self.anchor(fi, tk), self.yaw_at(fi))
         if k >= hold - 1 and self.fall["end"] != "stand":
             p = []
@@ -604,7 +604,7 @@ def main():
         # 그릴 것 기록
         npcs = sc.npc_polys(tk)
         if sc.kick:
-            me_polys = sc.kick.polys(tk, ME_COL)
+            me_polys = sc.kick.polys(tk, ME_COL, "richard")   # 발차기 인형도 플레이어 가면(닭)을 씀 (FallService.spawnPuppet)
         else:
             a = (tk - sc.punch) / 6 if sc.punch is not None and 0 <= tk - sc.punch < 6 else 0.0
             if sc.holding == "magnum":

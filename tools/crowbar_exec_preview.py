@@ -96,10 +96,13 @@ def weapon_polys(fr):
     return exec_anims.weapon_polys(fr, "crowbar", EXEC["grips"]) if "w" in fr else []
 
 
-def puppet(fr, col, weapon=False):
+ME_MASK = "richard"   # 플레이어가 쓴 가면 (닭) — 서 있을 때 그림과 같게 처형 인형도 씀
+
+
+def puppet(fr, col, weapon=False, mask=None):
     MK.set_fall_colors(col)
     p = []
-    FPV.puppet_polys(fr, p)
+    FPV.puppet_polys(fr, p, mask)
     if weapon:
         p += weapon_polys(fr)
     return p
@@ -300,7 +303,7 @@ def main():
                 victim_only = npc["lying"].polys(tk, KC.NPC_COL)
             else:
                 victim_only = MK.world_of(puppet(fv, KC.NPC_COL), ex["vf"], ex["vyaw"])
-            polys += MK.world_of(puppet(fe, KC.ME_COL, weapon=True), ex["at"], ex["yaw"]) + victim_only
+            polys += MK.world_of(puppet(fe, KC.ME_COL, weapon=True, mask=ME_MASK), ex["at"], ex["yaw"]) + victim_only
         else:
             if npc["lying"] is None:
                 polys += MK.world_of(KC.figure(KC.NPC_COL, {"x": 0.05, "y": 0, "z": 0.03}, {"x": -0.05, "y": 0, "z": -0.03}),

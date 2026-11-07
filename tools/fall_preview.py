@@ -56,12 +56,33 @@ def load():
     return json.load(open(FALL, encoding="utf-8"))
 
 
-def puppet_polys(frame, polys):
-    """FallPose.place 와 같은 계산 (puppet_rig) + 아이템 디스플레이의 Y180° (모델 +z 가 뒤쪽)"""
+MASK_SCALE = 0.625   # FallService.MASK_SCALE
+_MASKS = {}
+
+
+def mask_polys(M, mask):
+    """가면 아이템 (FallService: 머리 자리에 HEAD 표시 아이템 디스플레이, 크기 = 인형 배율 × 0.625)"""
+    from PIL import Image
+    if mask not in _MASKS:
+        ns = os.path.join(ROOT, "resourcepack", "assets", "violence")
+        m = json.load(open(os.path.join(ns, "models", "item", "mask", mask + ".json"), encoding="utf-8"))
+        tex = Image.open(os.path.join(ns, "textures", m["textures"]["t"].split(":")[1] + ".png")).convert("RGBA")
+        _MASKS[mask] = (m, tex)
+    m, tex = _MASKS[mask]
+    return T.item_polys(M, m, tex, m.get("display", {}).get("head", {}))
+
+
+def puppet_polys(frame, polys, mask=None):
+    """FallPose.place 와 같은 계산 (puppet_rig) + 아이템 디스플레이의 Y180° (모델 +z 가 뒤쪽).
+    mask(가면 모델 이름)가 있으면 머리 대신 가면 (게임과 같음: 머리 놓임 × 0.625, HEAD 표시)"""
     for name in RIG.PARTS:
         c, r = RIG.place(frame, name)
         M = np.eye(4)
         M[:3, :3] = r
+        if name == "head" and mask:
+            s = 0.9375 * MASK_SCALE
+            polys += mask_polys(T.tr(*c) @ M @ T.ry(math.pi) @ T.sc(s, s, s), mask)
+            continue
         M = T.tr(*c) @ M @ T.ry(math.pi) @ T.sc(0.9375, 0.9375, 0.9375)
         kind = RIG.PARTS[name][4]
         for a, b, tint in BOXES[kind]:
