@@ -127,11 +127,17 @@ def draw_card(img, item, f_cam, eye, b, kind, name, ammo, empty):
         return
     # 글자 px 단위로 그린 뒤 화면 크기로 줄임 (텍스트 디스플레이: 1px = 0.025블록 × 배율)
     k = 4
-    cw, ch = (CARD_WIDTH + 4) * k, 46 * k
+    cw, ch = (CARD_WIDTH + 4) * k, 47 * k
     card = Image.new("RGBA", (cw, ch), CARD_BG)
     d = ImageDraw.Draw(card)
     d.text((2 * k, 1 * k), kind, font=ImageFont.truetype(G.FONT_KR, 9 * k), fill=(184, 184, 200, 255))
     d.text((2 * k, 11 * k), name, font=ImageFont.truetype(G.FONT_KR, 14 * k), fill=(255, 255, 255, 255))
+    # 왼쪽 아래: 우클릭 아이콘 + "줍기" (회색)
+    icon = Image.open(os.path.join(NS, "textures", "font", "mouse_right.png")).convert("RGBA")
+    icon = icon.resize((icon.width * k, icon.height * k), Image.NEAREST)
+    gray = Image.new("RGBA", icon.size, (184, 184, 200, 255))
+    card.paste(gray, (2 * k, 35 * k), icon)
+    d.text((2 * k + icon.width + 3 * k, 35 * k), "줍기", font=ImageFont.truetype(G.FONT_KR, 9 * k), fill=(184, 184, 200, 255))
     if ammo:
         fnt = ImageFont.truetype(G.FONT_KR, 9 * k)
         tw = d.textlength(ammo, font=fnt)

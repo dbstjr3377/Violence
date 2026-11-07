@@ -762,6 +762,22 @@ def fonts():
         pts.append((4 + math.cos(ang) * rr, 4.4 + math.sin(ang) * rr))
     ImageDraw.Draw(star).polygon(pts, fill=(255, 255, 255, 255))
     save_png(star, os.path.join(T, "star.png"))
+    # 마우스 우클릭 아이콘 (바닥 무기 정보 카드의 "줍기"): 테두리 + 오른쪽 버튼만 채움, 흰색 → 글자 색으로 물듦
+    mouse_rows = [".#####.",
+                  "#..####",
+                  "#..####",
+                  "#..####",
+                  "#######",
+                  "#.....#",
+                  "#.....#",
+                  "#.....#",
+                  ".#####."]
+    mouse = Image.new("RGBA", (7, 9), (0, 0, 0, 0))
+    for y, row in enumerate(mouse_rows):
+        for x, ch in enumerate(row):
+            if ch == "#":
+                mouse.putpixel((x, y), (255, 255, 255, 255))
+    save_png(mouse, os.path.join(T, "mouse_right.png"))
     # 가면 안내 문구 (미리 그린 이미지 글리프: 화면 중앙 하단에 오도록 아래로 내림)
     prompt_img = render_text("E키를 눌러 가면을 착용하세요", 64, (255, 255, 255, 255), outline=(30, 0, 20, 255))
     save_png(prompt_img, os.path.join(T, "prompt_mask.png"))
@@ -771,6 +787,7 @@ def fonts():
         {"type": "bitmap", "file": "violence:font/skull.png", "ascent": 7, "height": 8, "chars": [""]},
         {"type": "bitmap", "file": "violence:font/bar.png", "ascent": 7, "height": 8, "chars": ["\uE003"]},
         {"type": "bitmap", "file": "violence:font/star.png", "ascent": 7, "height": 8, "chars": ["\uE004"]},
+        {"type": "bitmap", "file": "violence:font/mouse_right.png", "ascent": 8, "height": 9, "chars": ["\uE005"]},
     ]
 
     def ttf_pair(size, shift_y=0.0):

@@ -27,6 +27,8 @@ public final class Glyphs {
     public static final String SKULL = "";
     /** "E키를 눌러 가면을 착용하세요" (리소스팩에서 미리 그린 글리프, 화면 중앙 하단 위치) */
     public static final String PROMPT_MASK = "\uE100";
+    /** 마우스 우클릭 아이콘 (hud 글꼴, 바닥 무기 정보 카드의 "줍기") */
+    public static final String MOUSE_RIGHT = "\uE005";
     /** 콤보 게이지 한 칸 */
     public static final String BAR = "\uE003";
     /** 점수 별 */

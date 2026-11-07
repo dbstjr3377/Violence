@@ -230,24 +230,28 @@ public final class GroundWeaponService {
 
     // ───────── 정보 카드 ─────────
 
-    /** 카드 글자: 무기 종류(회색) / 이름(흰색) / 빈 줄 / 오른쪽 끝에 맞춘 현재·최대 탄수 */
+    /**
+     * 카드 글자: 무기 종류(회색) / 이름(흰색) / 빈 줄 / 왼쪽 아래 [우클릭 아이콘] 줍기, 오른쪽 아래 현재·최대 탄수.
+     * 빈 줄을 카드 폭만큼 띄워 배경 폭을 고정하고, 마지막 줄은 탄수를 오른쪽 끝에 그린 뒤 줄 처음으로 되돌아가 "줍기"를 그림
+     * (한글 글자 폭을 몰라도 양 끝에 맞음).
+     */
     Component cardText(WeaponInstance w) {
         String group = plugin.falls() != null && plugin.falls().execAnims() != null ? plugin.falls().execAnims().groupOf(w.type().id()) : null;
         Component kind = Component.text(WeaponLabels.kind(w.type(), group)).font(Glyphs.HUD).color(TextColor.color(Glyphs.GRAY));
         Component name = Component.text(w.type().displayName()).font(Glyphs.POPUP).color(TextColor.color(Glyphs.WHITE));
+        Component pick = Component.text(Glyphs.MOUSE_RIGHT + " 줍기").font(Glyphs.HUD).color(TextColor.color(Glyphs.GRAY));
         String ammo = WeaponLabels.ammo(w);
-        Component bottom;
-        if (ammo == null) {
-            bottom = Glyphs.space(CARD_WIDTH);
-        } else {
-            bottom = Component.text()
-                    .append(Glyphs.space(Math.max(0, CARD_WIDTH - WeaponLabels.defaultFontWidth(ammo))))
+        var bottom = Component.text();
+        if (ammo != null) {
+            int aw = WeaponLabels.defaultFontWidth(ammo);
+            bottom.append(Glyphs.space(Math.max(0, CARD_WIDTH - aw)))
                     .append(Component.text(ammo).color(TextColor.color(emptyGun(w) ? EMPTY_RED : Glyphs.WHITE))
                             .decoration(TextDecoration.BOLD, false))
-                    .build();
+                    .append(Glyphs.space(-Math.max(CARD_WIDTH, aw)));
         }
+        bottom.append(pick);
         return Component.text().append(kind).append(Component.newline()).append(name).append(Component.newline())
-                .append(Component.newline()).append(bottom).build();
+                .append(Glyphs.space(CARD_WIDTH)).append(Component.newline()).append(bottom.build()).build();
     }
 
     /** 카드 위치: 무기 오른쪽(보는 사람 기준)으로 카드 반 폭 + 여유만큼, 무기보다 조금 위 */
