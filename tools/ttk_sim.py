@@ -9,6 +9,11 @@ TTK(처치까지 걸리는 시간) 분석용 매치 시뮬레이션.
   - 사람: 반응 0.22~0.40초, 조준 오차 0.7°, 이동 5.8블록/초 (NPC 4.7)
 시간 간격 0.25초로 단순화한 모델이므로 절대값보다 경향(맵/인원/규칙 변경 비교)을 보는 용도.
 결과: build-out/ttk/results.json, docs/TTK_ANALYSIS.md 의 표에 쓰는 요약
+
+--loadout: 지금 규칙으로 NPC 시작 무기 효과 비교 (build-out/ttk/loadout.json)
+  rules="new" = 지금 플러그인: 총 몸통은 쓰러뜨리지 않고 HP 100 에서 한 발 40, 30 이하면 즉사(3초 안 맞으면 회복),
+                근접 무기는 즉사, 맨주먹·투척(투척 전용 제외)은 쓰러뜨림
+  npc_armed / npc_gun_share = NpcLoadout (NPC 5명 중 3명 무기, 그중 총 2 : 근접 3), 리스폰 때도
 """
 import json
 import math
@@ -214,6 +219,8 @@ class Agent:
         self.alive_time = 0.0
         self.unarmed_time = 0.0
         self.gun_time = 0.0
+        self.hp = 100.0
+        self.hurt_at = -99.0
         self.melee_time = 0.0
         self.lives = []
         self.goal = None
@@ -221,18 +228,24 @@ class Agent:
 
 class Match:
     def __init__(self, mp, weapons, humans, rng, spawn_protect=0.0, target_kills=30, limit=600.0, weapon_ratio=0.5,
-                 npc_react_mul=1.0, downed=3.0, respawn=2.0):
+                 npc_react_mul=1.0, downed=3.0, respawn=2.0, rules="old", npc_armed=0.0, npc_gun_share=0.4,
+                 weapon_respawn=0.0):
         self.m, self.W, self.rng = mp, weapons, rng
         self.spawn_protect, self.target_kills, self.limit = spawn_protect, target_kills, limit
         self.npc_react_mul, self.downed_time, self.respawn_time = npc_react_mul, downed, respawn
         self.t = 0.0
+        self.rules, self.npc_armed, self.npc_gun_share = rules, npc_armed, npc_gun_share
+        self.spawnable = [w for w in weapons.values() if w["weight"] > 0]
         self.agents = [Agent(i, i < humans, 1.0 if i < humans else rng.uniform(0.35, 0.8), rng) for i in range(TOTAL)]
         self.ground = []            # [노드, 무기 정의, 탄]
         spawnable = [w for w in weapons.values() if w["weight"] > 0]
         weights = [w["weight"] for w in spawnable]
         spots = list(mp.weapon_spots) or list(mp.main)
         rng.shuffle(spots)
-        for k in spots[: int(round(TOTAL * weapon_ratio))]:
+        self.weapon_respawn = weapon_respawn
+        self.spots = spots[: int(round(TOTAL * weapon_ratio))]
+        self.spot_empty_since = {}
+        for k in self.spots:
             w = rng.choices(spawnable, weights)[0]
             self.ground.append([k, w, w["ammo"]])
         self.events = defaultdict(int)
@@ -260,6 +273,13 @@ class Match:
         a.path = []
         a.state = "alive"
         a.weapon = None
+        a.hp = 100.0
+        # NpcLoadout: NPC 는 시작·리스폰 때 일정 비율로 무기를 들고 나옴
+        if not a.human and self.npc_armed > 0 and self.rng.random() < self.npc_armed:
+            cat = "GUN" if self.rng.random() < self.npc_gun_share else "MELEE"
+            pool = [w for w in self.spawnable if w["cat"] == cat]
+            w = self.rng.choices(pool, [x["weight"] for x in pool])[0]
+            a.weapon = (w, w["ammo"])
         a.target = None
         a.spawned_at = self.t
         a.gap_start = self.t
@@ -279,6 +299,14 @@ class Match:
             return
         if head or v.state == "downed":
             self.kill(v, attacker, kind)
+        elif self.rules == "new" and kind == "gun":
+            # 지금 규칙: 총은 쓰러뜨리지 않음, HP 30 이하면 즉사
+            v.hp -= 40
+            v.hurt_at = self.t
+            if v.hp <= 30:
+                self.kill(v, attacker, kind)
+        elif self.rules == "new" and kind == "melee":
+            self.kill(v, attacker, kind)       # 근접 무기는 즉사
         else:
             if kind == "fist" and v.heavy:
                 return
@@ -324,6 +352,21 @@ class Match:
                 self.spawn(a)
             elif a.state == "downed" and t >= a.until:
                 a.state = "alive"
+                a.hp = 100.0
+            if a.state == "alive" and a.hp < 100 and t - a.hurt_at > 3.0:
+                a.hp = 100.0
+        # (선택) 바닥 무기 다시 생성: 무기 지점이 weapon_respawn 초 동안 비어 있으면 새 무기
+        if self.weapon_respawn > 0:
+            occupied = {g[0] for g in self.ground}
+            for k in self.spots:
+                if k in occupied:
+                    self.spot_empty_since.pop(k, None)
+                    continue
+                since = self.spot_empty_since.setdefault(k, t)
+                if t - since >= self.weapon_respawn:
+                    w = rng.choices(self.spawnable, [x["weight"] for x in self.spawnable])[0]
+                    self.ground.append([k, w, w["ammo"]])
+                    self.spot_empty_since.pop(k, None)
         alive = [a for a in ag if a.state != "dead"]
         pos = np.array([m.pos[a.node] for a in alive])
         n = len(alive)
@@ -586,11 +629,15 @@ def run(maps, humans_list, seeds, variants):
 if __name__ == "__main__":
     maps = ["club", "prison", "apartment_a", "sewer", "restaurant"]
     variants = [("기본", {})]
+    if "--loadout" in sys.argv:
+        variants = [("예전 규칙 (문서 기준)", {}), ("지금 규칙, NPC 맨손", {"rules": "new"}),
+                    ("지금 규칙 + NPC 시작 무기", {"rules": "new", "npc_armed": 0.6, "npc_gun_share": 0.4}),
+                    ("+ 바닥 무기 25초 뒤 다시 생성", {"rules": "new", "npc_armed": 0.6, "npc_gun_share": 0.4, "weapon_respawn": 25.0})]
     if "--levers" in sys.argv:
         maps = ["prison", "sewer"]
         variants = [("기본", {}), ("리스폰 보호 1.5초", {"spawn_protect": 1.5}), ("NPC 반응 1.5배 느림", {"npc_react_mul": 1.5}),
                     ("무기 비율 1.0", {"weapon_ratio": 1.0}), ("쓰러짐 2초", {"downed": 2.0})]
     res = run(maps, [8, 16, 24], [1, 2], variants)
     os.makedirs(os.path.join(ROOT, "build-out", "ttk"), exist_ok=True)
-    name = "levers.json" if "--levers" in sys.argv else "results.json"
+    name = "levers.json" if "--levers" in sys.argv else "loadout.json" if "--loadout" in sys.argv else "results.json"
     json.dump(res, open(os.path.join(ROOT, "build-out", "ttk", name), "w", encoding="utf-8"), ensure_ascii=False, indent=1)
