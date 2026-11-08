@@ -59,7 +59,7 @@ public final class GroundWeaponService {
     }
 
     /** 탄이 없는 총: 빨간 테두리·빨간 탄수 */
-    static boolean emptyGun(WeaponInstance w) {
+    public static boolean emptyGun(WeaponInstance w) {
         return w.type().isGun() && !w.hasAmmo();
     }
 
@@ -255,7 +255,7 @@ public final class GroundWeaponService {
     }
 
     /** 카드 위치: 무기 오른쪽(보는 사람 기준)으로 카드 반 폭 + 여유만큼, 무기보다 조금 위 */
-    static Vec3 cardPos(Vec3 item, Vec3 look) {
+    public static Vec3 cardPos(Vec3 item, Vec3 look) {
         Vec3 f = look.horizontal();
         f = f.lengthSq() < 1e-6 ? new Vec3(0, 0, 1) : f.normalize();
         Vec3 right = new Vec3(-f.z(), 0, f.x());

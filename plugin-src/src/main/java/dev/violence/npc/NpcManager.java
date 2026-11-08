@@ -47,6 +47,8 @@ public final class NpcManager {
         double skillMin = plugin.getConfig().getDouble("npc.skill-min", 0.35);
         double skillMax = plugin.getConfig().getDouble("npc.skill-max", 0.8);
         // 게임 시작처럼 한 번에 많이 만들 때는 시야 검사 없이 리스폰 지점을 골고루 나눠 씀 (시작 렉 방지)
+        List<NpcLoadout.Kind> loadout = count > 1
+                ? NpcLoadout.batch(count, armedChance(), gunShare(), plugin.random()) : null;
         List<Vec3> spread = null;
         if (count > 3 && !a.map.spawns.isEmpty()) {
             spread = new ArrayList<>(a.map.spawns);
@@ -80,6 +82,7 @@ public final class NpcManager {
             NpcCombatant n = new NpcCombatant(m, prof, nm, color, heavy, skill);
             n.copyOutfitTo(m.getEquipment());
             a.add(n);
+            arm(n, loadout != null ? loadout.get(i) : null);
             // 시작 위치는 숨겨진 곳으로
             Vec3 start = spread != null ? spread.get(i % spread.size()) : plugin.spawns().choose(a, n);
             Location sl = Fx.loc(a.world, start);
@@ -87,6 +90,18 @@ public final class NpcManager {
             n.teleport(sl);
             n.nextThink = plugin.now() + plugin.random().nextInt(10);
         }
+    }
+
+    private double armedChance() { return plugin.getConfig().getDouble("npc.armed-chance", 0.6); }
+
+    private double gunShare() { return plugin.getConfig().getDouble("npc.armed-gun-share", 0.4); }
+
+    /** 시작 무기를 쥐어 줌 (kind 가 null 이면 확률로: 리스폰 등) */
+    public void arm(NpcCombatant n, NpcLoadout.Kind kind) {
+        NpcLoadout.Kind k = kind != null ? kind : NpcLoadout.roll(armedChance(), gunShare(), plugin.random());
+        dev.violence.weapon.WeaponType t = NpcLoadout.pick(k, plugin.weapons(), plugin.random());
+        n.weapon = t == null || t.isFist() ? null : new dev.violence.weapon.WeaponInstance(t);
+        n.refreshEquipment();
     }
 
     /** 총소리/유리 깨지는 소리 등: 반경 안의 NPC 가 그쪽을 살피러 간다 */

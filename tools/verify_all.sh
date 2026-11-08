@@ -15,6 +15,8 @@ echo "== 3. 리소스팩 검증 =="
 python3 tools/validate_pack.py
 echo "== 3-1. 쉐이더 컴파일 검사 (glslang) =="
 python3 tools/check_shaders.py
+echo "== 3-2. 예전에 제기된 문제 다시 검사 (리소스팩·애니메이션 데이터) =="
+python3 tools/check_regressions.py
 echo "== 4. Skript 정적 검사 =="
 python3 tools/lint_skript.py
 echo "모든 검증 통과"

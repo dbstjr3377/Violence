@@ -74,10 +74,15 @@ public final class WeaponRegistry {
 
     /** 맵에 배치 가능한 무기 중 가중치 랜덤 선택. */
     public WeaponType randomSpawnable(Random rnd) {
+        return randomSpawnable(rnd, t -> true);
+    }
+
+    /** 맵에 배치 가능한 무기 중 filter 에 맞는 것을 가중치 랜덤 선택 (없으면 맨손). */
+    public WeaponType randomSpawnable(Random rnd, java.util.function.Predicate<WeaponType> filter) {
         List<WeaponType> pool = new ArrayList<>();
         int total = 0;
         for (WeaponType t : types.values()) {
-            if (t.mapSpawn() && t.spawnWeight() > 0) {
+            if (t.mapSpawn() && t.spawnWeight() > 0 && filter.test(t)) {
                 pool.add(t);
                 total += t.spawnWeight();
             }

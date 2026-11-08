@@ -251,10 +251,12 @@ public final class CombatService {
             return;
         }
         // 몸통: 총은 쓰러뜨리지 않음. 피해를 입히고 HP 가 일정 이하로 떨어지면 바로 즉사
-        v.hp -= plugin.getConfig().getDouble("combat.gun-body-damage", 40);
+        GunRules.BodyHit hit = GunRules.bodyHit(v.hp, plugin.getConfig().getDouble("combat.gun-body-damage", 40),
+                plugin.getConfig().getDouble("combat.gun-death-hp", 30));
+        v.hp = hit.hpAfter();
         v.lastHurtTick = now;
         plugin.fx().blood(arena(), point, dir, 2);
-        if (v.hp <= plugin.getConfig().getDouble("combat.gun-death-hp", 30)) {
+        if (hit.dies()) {
             kill(v, shooter, KillType.GUN, dir, false);
         } else {
             // 살아남으면 맞은 쪽으로 잠깐 휘청 (움직임만 멈칫, 행동은 가능)
@@ -710,43 +712,20 @@ public final class CombatService {
         Execution e = new Execution(ex, victim);
         WeaponType t = ex.weaponType(fist());
         e.fast = ex.mask != null && ex.mask.fastExecution();
-        // 벽에 기대 기절한 적: 어떤 상황이든(무기·가면 상관없이) 머리를 발로 차서 처형
+        // 벽에 기대 기절한 적은 언제나 발차기, 총·투척 무기는 버리고 맨손, 그 밖에는 무기 묶음별 처형 동작 (ExecutionChoice)
         boolean wallKick = plugin.falls().wallStunned(victim);
-        if (wallKick) {
-            e.style = ExecutionStyle.WALL_KICK;
-        } else if (t.isGun()) {
-            if (ex.mask == Mask.DETECTIVE && ex.weapon.hasAmmo()) {
-                e.style = ExecutionStyle.GUN_SHOT;
-            } else {
-                // 총기: 무기를 바닥에 버리고 맨손으로 교체
-                plugin.ground().drop(arena(), ex.weapon, ex.feet(), ex.look());
-                ex.weapon = null;
-                ex.offhand = null;
-                t = fist();
-                e.style = ExecutionStyle.HITS;
-            }
-        } else if (t.isThrowable()) {
+        dev.violence.fx.ExecutionAnims anims = plugin.falls().execAnims();
+        ExecutionChoice choice = ExecutionChoice.choose(wallKick, t, fist(), ex.mask, ex.weapon != null && ex.weapon.hasAmmo(), anims);
+        if (choice.drop()) {
             plugin.ground().drop(arena(), ex.weapon, ex.feet(), ex.look());
             ex.weapon = null;
-            t = fist();
-            e.style = ExecutionStyle.HITS;
-        } else {
-            e.style = t.execution();
+            if (t.isGun()) ex.offhand = null;
         }
-        // 처형 동작 (맨손 머리 박기 / 밟기 / 둔기 / 무거운 무기 / 가벼운 무기 / 날붙이)
-        dev.violence.fx.ExecutionAnims anims = plugin.falls().execAnims();
-        dev.violence.fx.ExecutionAnims.Anim anim = null;
-        if (!wallKick && e.style != ExecutionStyle.GUN_SHOT && anims != null) {
-            anim = anims.get(anims.animFor(t, ex.mask));
-        }
+        t = choice.weapon();
+        e.style = choice.style();
+        dev.violence.fx.ExecutionAnims.Anim anim = choice.anim() == null || anims == null ? null : anims.get(choice.anim());
         e.anim = anim == null ? null : anim.name();
-        if (anim != null) {
-            e.style = anim.hits() ? ExecutionStyle.HITS : ExecutionStyle.AUTO;
-            // 토니(맨주먹 즉사)·바이커 중식도는 왼클릭 처형도 자동으로 연달아 침
-            if (anim.hits() && ((t.isFist() && ex.mask == Mask.TONY) || (ex.mask == Mask.BIKER && t.id().equals("cleaver")))) {
-                e.autoHits = true;
-            }
-        }
+        e.autoHits = choice.autoHits();
         e.hitsLeft = t.isFist() ? fist().executionHits() : t.executionHits();
         if (e.fast) e.hitsLeft = Math.max(1, e.hitsLeft / 2);
         e.startTick = now;
@@ -1105,6 +1084,8 @@ public final class CombatService {
         v.history.clear();
         v.actionLockUntil = now + 4;
         v.setState(CombatState.ALIVE, now);
+        // NPC 는 리스폰할 때도 시작 무기 (5명 중 3명꼴로 무기, 그중 총 2 : 근접 3)
+        if (v instanceof dev.violence.npc.NpcCombatant n) plugin.npcs().arm(n, null);
         v.refreshEquipment();
         v.onRespawn(now);
     }

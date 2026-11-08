@@ -154,6 +154,12 @@ public final class BloodService {
         }
     }
 
+    /** 비스듬히 닿은 혈흔 크기 [길이, 폭]: 넓게 퍼짐 (길이 ÷ 폭 ≤ 1.75, 가늘고 길게 늘이지 않음) */
+    public static float[] streakSize(float size, double glance) {
+        float stretch = (float) (1.0 + Math.min(1.0, glance) * 0.45);
+        return new float[] {size * 1.6f * stretch, size * 1.35f};
+    }
+
     /** 동맥: from 에서 dir 쪽으로 ticks 동안 맥박치듯 뿜어져 나옴 (날붙이 처형) */
     public void jet(Arena a, Vec3 from, Vec3 dir, int ticks) {
         Vec3 d = dir.normalize();
@@ -253,9 +259,9 @@ public final class BloodService {
         } else if (glance >= 0.45 && along != null) {
             // 넓게 퍼짐 (가늘고 길게 늘이지 않음)
             shape = "streak";
-            float stretch = (float) (1.0 + glance * 0.45);
-            sx = size * 1.6f * stretch;
-            sz = size * 1.35f;
+            float[] wh = streakSize(size, glance);
+            sx = wh[0];
+            sz = wh[1];
             head = 0.26;
         } else {
             shape = "splat";

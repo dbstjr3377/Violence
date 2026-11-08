@@ -37,6 +37,9 @@ npc:
   # 실력 범위 0~1 (반응 속도, 명중률)
   skill-min: 0.35
   skill-max: 0.8
+  # 시작 무기: 이 비율만큼 무기를 들고 나옴 (리스폰 포함), 무기를 든 NPC 중 총기 비율 (나머지는 근접 무기)
+  armed-chance: 0.6
+  armed-gun-share: 0.4
 
 spawn:
   samples: 24
