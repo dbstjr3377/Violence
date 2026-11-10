@@ -7,6 +7,7 @@ bukkit/plugins/ViolenceCore/resourcepack.zip 으로 압축한다.
 
 사용법:  python3 tools/build_pack.py
 """
+import glob
 import json
 import math
 import os
@@ -44,6 +45,40 @@ def clean():
 
 
 # ───────────────────────── pack.mcmeta ─────────────────────────
+
+# 아이템 모델이 쓰는 텍스처는 아틀라스에 등록된 폴더에 있어야 게임에서 보인다.
+# 바닐라는 item/ (items 아틀라스)·block/ (blocks 아틀라스)만 등록하므로, fx/(총구 화염·혈흔·궤적 등)와 misc/(문)를 추가한다.
+# 26.x 는 아이템 모델이 items 아틀라스를, 그 이전(1.21.x)은 blocks 아틀라스를 쓰므로 둘 다 등록.
+ATLAS_DIRS = ["fx", "misc"]
+
+
+def atlases():
+    # 이 팩은 26.x 전용(min_format 69)이라 items 아틀라스만 (blocks 에도 넣으면 중복 스프라이트 경고)
+    src = [{"type": "minecraft:directory", "source": d, "prefix": d + "/"} for d in ATLAS_DIRS]
+    write(os.path.join(PACK, "assets", "minecraft", "atlases", "items.json"), {"sources": src})
+
+
+# 26.3 클라이언트는 한 글자가 256px 보다 큰 비트맵 글꼴을 조용히 버리고 빈 네모로 그린다 (실제 클라이언트에서 확인).
+# 화면 크기는 글꼴의 height 값이 정하므로, 글자 하나가 256px 이하가 되도록 그림만 줄인다.
+MAX_GLYPH = 256
+
+
+def fit_bitmap_glyphs():
+    for fp in glob.glob(os.path.join(NS, "font", "*.json")):
+        d = json.load(open(fp, encoding="utf-8"))
+        for prov in d.get("providers", []):
+            if prov.get("type") != "bitmap":
+                continue
+            ns, path = prov["file"].split(":")
+            img_path = os.path.join(PACK, "assets", ns, "textures", path)
+            img = Image.open(img_path)
+            rows, cols = len(prov["chars"]), max(len(r) for r in prov["chars"])
+            gw, gh = img.width / cols, img.height / rows
+            k = min(1.0, MAX_GLYPH / gw, MAX_GLYPH / gh)
+            if k < 1.0:
+                nw, nh = max(cols, int(cols * math.floor(gw * k))), max(rows, int(rows * math.floor(gh * k)))
+                save_png(img.convert("RGBA").resize((nw, nh), Image.LANCZOS), img_path)
+
 
 def mcmeta():
     write(os.path.join(PACK, "pack.mcmeta"), {
@@ -1013,6 +1048,7 @@ def crosshair():
 def main():
     clean()
     mcmeta()
+    atlases()
     n = weapons()
     puppet()
     crosshair()
@@ -1025,6 +1061,7 @@ def main():
     gui()
     sounds()
     shaders()
+    fit_bitmap_glyphs()
     out = build_zip()
     files = sum(len(f) for _, _, f in os.walk(PACK))
     print(f"초상화 {portraits}개, 모델 {n}개 (무기+가면), 파일 {files}개 → {out} ({os.path.getsize(out) // 1024}KB)")

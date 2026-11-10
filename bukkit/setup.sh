@@ -13,11 +13,15 @@ curl -fL -o paper.jar "$URL"
 echo "  paper.jar 다운로드 완료"
 
 echo "▶ Skript ${SKRIPT_VERSION} 다운로드..."
-REL=$(curl -fsSL -H "User-Agent: violence-setup" "https://api.github.com/repos/SkriptLang/Skript/releases/tags/${SKRIPT_VERSION}")
-SURL=$(printf '%s' "$REL" | grep -o '"browser_download_url"[[:space:]]*:[[:space:]]*"[^"]*\.jar"' | head -1 | sed 's/.*"\(https[^"]*\)"/\1/')
-if [ -z "$SURL" ]; then echo "Skript 다운로드 주소를 찾지 못했습니다"; exit 1; fi
 mkdir -p plugins
-curl -fL -o plugins/Skript.jar "$SURL"
+# 릴리스 파일을 바로 받음 (GitHub API 는 요청 한도·프록시로 막힐 수 있어 실패할 때만 씀)
+SURL="https://github.com/SkriptLang/Skript/releases/download/${SKRIPT_VERSION}/Skript-${SKRIPT_VERSION}.jar"
+if ! curl -fL -o plugins/Skript.jar "$SURL"; then
+  REL=$(curl -fsSL -H "User-Agent: violence-setup" "https://api.github.com/repos/SkriptLang/Skript/releases/tags/${SKRIPT_VERSION}")
+  SURL=$(printf '%s' "$REL" | grep -o '"browser_download_url"[[:space:]]*:[[:space:]]*"[^"]*\.jar"' | head -1 | sed 's/.*"\(https[^"]*\)"/\1/')
+  if [ -z "$SURL" ]; then echo "Skript 다운로드 주소를 찾지 못했습니다"; exit 1; fi
+  curl -fL -o plugins/Skript.jar "$SURL"
+fi
 echo "  plugins/Skript.jar 다운로드 완료"
 
 if grep -q "eula=false" eula.txt 2>/dev/null; then

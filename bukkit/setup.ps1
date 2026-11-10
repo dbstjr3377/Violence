@@ -8,8 +8,13 @@ $meta = Invoke-RestMethod -Uri "https://fill.papermc.io/v3/projects/paper/versio
 $url = $meta.downloads.'server:default'.url
 Invoke-WebRequest -Uri $url -OutFile "paper.jar"
 Write-Host "Skript $skript 다운로드..."
-$rel = Invoke-RestMethod -Uri "https://api.github.com/repos/SkriptLang/Skript/releases/tags/$skript" -Headers @{ "User-Agent" = "violence-setup" }
-$asset = $rel.assets | Where-Object { $_.name -like "*.jar" } | Select-Object -First 1
 New-Item -ItemType Directory -Force -Path plugins | Out-Null
-Invoke-WebRequest -Uri $asset.browser_download_url -OutFile "plugins/Skript.jar"
+try {
+    # 릴리스 파일을 바로 받음 (GitHub API 는 요청 한도로 막힐 수 있어 실패할 때만 씀)
+    Invoke-WebRequest -Uri "https://github.com/SkriptLang/Skript/releases/download/$skript/Skript-$skript.jar" -OutFile "plugins/Skript.jar"
+} catch {
+    $rel = Invoke-RestMethod -Uri "https://api.github.com/repos/SkriptLang/Skript/releases/tags/$skript" -Headers @{ "User-Agent" = "violence-setup" }
+    $asset = $rel.assets | Where-Object { $_.name -like "*.jar" } | Select-Object -First 1
+    Invoke-WebRequest -Uri $asset.browser_download_url -OutFile "plugins/Skript.jar"
+}
 Write-Host "완료. Minecraft EULA 에 동의하면 eula.txt 를 eula=true 로 바꾸고 start.bat 을 실행하세요."

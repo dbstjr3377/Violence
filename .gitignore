@@ -30,3 +30,16 @@ bukkit/.console_history
 # 리소스팩 빌드 결과
 build-out/
 __pycache__/
+# Paper/플러그인이 첫 실행 때 만드는 설정·데이터
+bukkit/.paper/
+bukkit/bukkit.yml
+bukkit/commands.yml
+bukkit/spigot.yml
+bukkit/config/
+bukkit/plugins/spark/
+bukkit/plugins/Skript/config.sk
+bukkit/plugins/Skript/features.sk
+bukkit/plugins/Skript/lang/
+bukkit/plugins/ViolenceCore/config.yml
+bukkit/plugins/ViolenceCore/maps/
+bukkit/plugins/ViolenceCore/weapons.yml

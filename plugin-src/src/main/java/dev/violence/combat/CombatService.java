@@ -341,6 +341,18 @@ public final class CombatService {
     }
 
     /** 두 지점 사이 시야가 뚫려 있는가 (유리는 투명하게 취급). */
+    /** from 에서 to 쪽으로 블록에 막히기 전까지 거리 (지나갈 수 있는 블록은 무시) */
+    private double clearDistance(Arena a, Vec3 from, Vec3 to) {
+        Vec3 d = to.sub(from);
+        double len = d.length();
+        if (len < 1e-6) return 0;
+        org.bukkit.util.RayTraceResult r = a.world.rayTraceBlocks(Fx.loc(a.world, from), new org.bukkit.util.Vector(d.x(), d.y(), d.z()).normalize(),
+                len, org.bukkit.FluidCollisionMode.NEVER, true);
+        if (r == null) return len;
+        org.bukkit.util.Vector hp = r.getHitPosition();
+        return from.distance(new Vec3(hp.getX(), hp.getY(), hp.getZ()));
+    }
+
     public boolean lineOfSight(Arena a, Vec3 from, Vec3 to) {
         Vec3 d = to.sub(from);
         double len = d.length();
@@ -745,6 +757,7 @@ public final class CombatService {
         Vec3 face = vf.sub(ex.feet()).horizontal().normalize();
         if (face.lengthSq() < 0.01) face = ex.look().horizontal().normalize();
         Vec3 camPos;
+        List<Vec3> camAlt = new ArrayList<>();   // 기본 자리가 벽에 막히면 차례로 시도할 자리
         Vec3 camLook;
         Location exAt;
         if (wallKick) {
@@ -762,6 +775,8 @@ public final class CombatService {
             Vec3 mid = vf.add(out.mul(0.5));
             camPos = mid.add(side.mul(2.4)).add(out.mul(0.9)).add(0, 1.3, 0);
             camLook = mid.add(0, 0.8, 0);
+            camAlt.add(mid.sub(side.mul(2.4)).add(out.mul(0.9)).add(0, 1.3, 0));
+            camAlt.add(mid.add(out.mul(2.4)).add(0, 1.6, 0));
         } else {
             // 처형자를 누운 몸 위에 머리 쪽을 보게 세움 (기준점: 동작마다 발에서 머리 쪽으로 anchor 블록, 가슴 0.85)
             Vec3 head = plugin.falls().head(victim);
@@ -780,10 +795,15 @@ public final class CombatService {
                 Vec3 mid = chest.add(head).mul(0.5);
                 camPos = mid.add(right.mul(2.6)).sub(face.mul(0.5)).add(0, 2.1, 0);
                 camLook = mid.add(0, 0.7, 0);   // 머리 위로 높이 든 무기까지 보이게
+                camAlt.add(mid.sub(right.mul(2.6)).sub(face.mul(0.5)).add(0, 2.1, 0));   // 왼쪽 옆
+                camAlt.add(chest.sub(face.mul(1.6)).add(right.mul(0.6)).add(0, 2.6, 0));  // 뒤 위
+                camAlt.add(mid.sub(face.mul(0.3)).add(0, 3.2, 0));                        // 바로 위
             } else {
                 // 카메라: 처형자의 뒤 오른쪽 위에서 머리를 봄 (처형자 몸에 머리가 가리지 않게)
                 camPos = chest.sub(face.mul(1.5)).add(right.mul(1.1)).add(0, 2.7, 0);
                 camLook = head != null ? head : vf.add(0, 0.4, 0);
+                camAlt.add(chest.sub(face.mul(1.5)).sub(right.mul(1.1)).add(0, 2.7, 0));
+                camAlt.add(chest.add(0, 3.2, 0));
             }
         }
         ex.teleport(exAt);
@@ -796,6 +816,10 @@ public final class CombatService {
         }
         ItemDisplay cam = null;
         if (ex.isPlayer() || victim.isPlayer()) {
+            List<Vec3> cands = new ArrayList<>();
+            cands.add(camPos);
+            cands.addAll(camAlt);
+            camPos = CameraPlacer.place(camLook, cands, (from, to) -> clearDistance(arena(), from, to));
             Vec3 lookDir = camLook.sub(camPos).normalize();
             Location cl = Fx.loc(arena().world, camPos);
             cl.setYaw((float) lookDir.yaw());

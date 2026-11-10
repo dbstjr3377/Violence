@@ -123,6 +123,12 @@ def main():
         if not d:
             continue
         walk(d.get("model", {}), os.path.relpath(it, PACK))
+    # 아틀라스: 모델 텍스처는 item/·block/ 또는 리소스팩이 아틀라스에 등록한 폴더에 있어야 게임에서 보임 (아니면 보라·검정 격자)
+    atlas_dirs = {"item", "block"}
+    for ap in glob.glob(os.path.join(ASSETS, "minecraft", "atlases", "*.json")):
+        for src in (load(ap) or {}).get("sources", []):
+            if src.get("type", "").endswith("directory"):
+                atlas_dirs.add(src["source"].split("/")[0])
     # models → textures, 좌표 범위
     for mp in glob.glob(os.path.join(ASSETS, "*", "models", "**", "*.json"), recursive=True):
         d = load(mp)
@@ -133,6 +139,8 @@ def main():
         for k, v in d.get("textures", {}).items():
             if isinstance(v, str) and not v.startswith("#") and not os.path.isfile(res_path(v, "textures", ".png")):
                 err(f"{os.path.relpath(mp, PACK)} → 텍스처 없음 {k}={v}")
+            if isinstance(v, str) and not v.startswith("#") and v.split(":")[-1].split("/")[0] not in atlas_dirs:
+                err(f"{os.path.relpath(mp, PACK)} → 텍스처 {v} 가 아틀라스에 등록되지 않은 폴더 (게임에서 보라·검정 격자로 보임)")
         for e in d.get("elements", []):
             for key in ("from", "to"):
                 if any(c < -16 or c > 32 for c in e[key]):
@@ -144,6 +152,19 @@ def main():
             rot = e.get("rotation")
             if rot and rot.get("axis") not in ("x", "y", "z"):
                 err(f"{os.path.relpath(mp, PACK)} 잘못된 회전 축")
+    # 비트맵 글꼴: 한 글자가 256px 를 넘으면 26.3 클라이언트가 조용히 버림 (빈 네모)
+    for fp in glob.glob(os.path.join(ASSETS, "*", "font", "*.json")):
+        for prov in (load(fp) or {}).get("providers", []):
+            if prov.get("type") != "bitmap":
+                continue
+            ip = res_path(prov["file"], "textures", "")
+            if os.path.isfile(ip):
+                from PIL import Image
+                im = Image.open(ip)
+                gw = im.width / max(len(r) for r in prov["chars"])
+                gh = im.height / len(prov["chars"])
+                if gw > 256 or gh > 256:
+                    err(f"{os.path.relpath(fp, PACK)} → {prov['file']} 글자 크기 {gw:.0f}x{gh:.0f} 가 256px 초과 (게임에서 빈 네모)")
     # fonts
     for fp in glob.glob(os.path.join(ASSETS, "*", "font", "*.json")):
         d = load(fp)

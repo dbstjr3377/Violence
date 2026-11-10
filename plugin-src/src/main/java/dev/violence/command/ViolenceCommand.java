@@ -108,6 +108,67 @@ public final class ViolenceCommand implements TabExecutor {
                 PlayerCombatant pc = plugin.arena().players.get(p.getUniqueId());
                 if (pc != null) plugin.masks().offer(pc);
             }
+            case "test" -> {
+                // 테스트용 (관리자): /vio test down = 가장 가까운 NPC 를 내 앞 1.2칸에 데려와 쓰러뜨림 → Space 로 처형 확인
+                if (!(sender instanceof Player p) || plugin.arena() == null) return true;
+                Arena a = plugin.arena();
+                PlayerCombatant pc = a.players.get(p.getUniqueId());
+                if (pc == null) return true;
+                if (args.length > 1 && args[1].equalsIgnoreCase("weapon")) {
+                    // 가장 가까운 바닥 무기를 1.6칸 앞에서 내려다봄 → 테두리와 정보 카드 확인
+                    dev.violence.arena.GroundWeapon g = null;
+                    double gd = Double.MAX_VALUE;
+                    for (dev.violence.arena.GroundWeapon w : a.groundWeapons) {
+                        double d = w.pos.distanceSq(pc.feet());
+                        if (d < gd) {
+                            gd = d;
+                            g = w;
+                        }
+                    }
+                    if (g == null) {
+                        msg(sender, "바닥 무기가 없습니다.");
+                        return true;
+                    }
+                    dev.violence.math.Vec3 back = pc.look().horizontal().normalize().mul(-1.6);
+                    dev.violence.math.Vec3 at = g.pos.add(back.x(), 0, back.z());
+                    dev.violence.math.Vec3 dir = g.pos.add(0, 0.15, 0).sub(at.add(0, 1.62, 0)).normalize();
+                    org.bukkit.Location to = new org.bukkit.Location(a.world, at.x(), at.y(), at.z(), (float) dir.yaw(), (float) dir.pitch());
+                    p.teleport(to);
+                    msg(sender, g.weapon.type().displayName() + " 을(를) 봅니다.");
+                    return true;
+                }
+                dev.violence.npc.NpcCombatant best = null;
+                double bd = Double.MAX_VALUE;
+                for (dev.violence.npc.NpcCombatant n : a.npcs) {
+                    if (n.state != dev.violence.combat.CombatState.ALIVE || n.execution != null) continue;
+                    double d = n.feet().distanceSq(pc.feet());
+                    if (d < bd) {
+                        bd = d;
+                        best = n;
+                    }
+                }
+                if (best == null) {
+                    msg(sender, "쓰러뜨릴 NPC 가 없습니다.");
+                    return true;
+                }
+                dev.violence.math.Vec3 dir = pc.look().horizontal().normalize();
+                org.bukkit.Location l = p.getLocation().clone().add(dir.x() * 1.2, 0, dir.z() * 1.2);
+                l.setYaw(p.getLocation().getYaw() + 180);
+                l.setPitch(0);
+                best.teleport(l);
+                plugin.combat().knockdown(best, dir, pc, true);
+                // 밀려난 뒤 처형할 수 있는 거리(발 앞 0.8칸)로 내가 다가감
+                final dev.violence.npc.NpcCombatant target = best;
+                plugin.later(10, () -> {
+                    if (!p.isOnline() || target.state != dev.violence.combat.CombatState.DOWNED) return;
+                    org.bukkit.Location to = p.getLocation().clone();
+                    to.setX(target.feet().x() - dir.x() * 0.8);
+                    to.setZ(target.feet().z() - dir.z() * 0.8);
+                    to.setPitch(35);
+                    p.teleport(to);
+                });
+                msg(sender, best.name() + " 를 쓰러뜨렸습니다. Space 로 처형하세요.");
+            }
             case "reloadpack" -> {
                 plugin.pack().reload();
                 for (Player p : Bukkit.getOnlinePlayers()) plugin.pack().send(p);
@@ -257,7 +318,7 @@ public final class ViolenceCommand implements TabExecutor {
 
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
-        if (args.length == 1) return filter(List.of("start", "stop", "cutscene", "maps", "map", "info", "give", "mask", "offer", "reloadpack"), args[0]);
+        if (args.length == 1) return filter(List.of("start", "stop", "cutscene", "maps", "map", "info", "give", "mask", "offer", "reloadpack", "test"), args[0]);
         if (args.length == 2 && args[0].equalsIgnoreCase("start")) return filter(plugin.maps().mapIds(), args[1]);
         if (args.length == 2 && args[0].equalsIgnoreCase("cutscene")) return filter(List.of("begin", "say", "actor", "next", "end", "reload"), args[1]);
         if (args.length == 2 && args[0].equalsIgnoreCase("map")) return filter(List.of("generate", "edit", "save", "close", "weapon", "spawn", "door", "bounds"), args[1]);
