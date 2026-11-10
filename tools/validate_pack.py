@@ -150,7 +150,8 @@ def main():
                 if t.startswith("#") and t[1:] not in d.get("textures", {}):
                     err(f"{os.path.relpath(mp, PACK)} 정의되지 않은 텍스처 변수 {t}")
             rot = e.get("rotation")
-            if rot and rot.get("axis") not in ("x", "y", "z"):
+            # 한 축 회전 (axis + angle) 또는 26.3 의 x·y·z 오일러 회전
+            if rot and rot.get("axis") not in ("x", "y", "z") and not any(k in rot for k in ("x", "y", "z")):
                 err(f"{os.path.relpath(mp, PACK)} 잘못된 회전 축")
     # 비트맵 글꼴: 한 글자가 256px 를 넘으면 26.3 클라이언트가 조용히 버림 (빈 네모)
     for fp in glob.glob(os.path.join(ASSETS, "*", "font", "*.json")):

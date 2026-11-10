@@ -49,7 +49,7 @@ def clean():
 # 아이템 모델이 쓰는 텍스처는 아틀라스에 등록된 폴더에 있어야 게임에서 보인다.
 # 바닐라는 item/ (items 아틀라스)·block/ (blocks 아틀라스)만 등록하므로, fx/(총구 화염·혈흔·궤적 등)와 misc/(문)를 추가한다.
 # 26.x 는 아이템 모델이 items 아틀라스를, 그 이전(1.21.x)은 blocks 아틀라스를 쓰므로 둘 다 등록.
-ATLAS_DIRS = ["fx", "misc"]
+ATLAS_DIRS = ["fx", "misc", "skin"]
 
 
 def atlases():
@@ -78,6 +78,30 @@ def fit_bitmap_glyphs():
             if k < 1.0:
                 nw, nh = max(cols, int(cols * math.floor(gw * k))), max(rows, int(rows * math.floor(gh * k)))
                 save_png(img.convert("RGBA").resize((nw, nh), Image.LANCZOS), img_path)
+
+
+def default_skin():
+    """1인칭 팔 기본 스킨 (64x64 표준 배치). 플러그인이 접속한 사람마다 자기 스킨으로 덮는 리소스팩을 따로 보낸다."""
+    from PIL import Image
+    im = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
+    px = im.load()
+    skin, shirt = (196, 146, 112), (58, 62, 70)
+
+    def fill(x0, y0, x1, y1, c):
+        for y in range(y0, y1):
+            for x in range(x0, x1):
+                k = 0.94 + 0.06 * ((x * 7 + y * 13) % 5) / 4
+                px[x, y] = (int(c[0] * k), int(c[1] * k), int(c[2] * k), 255)
+
+    for u, v in ((40, 16), (32, 48)):            # 오른팔 / 왼팔 바닥 층
+        fill(u + 4, v, u + 8, v + 4, shirt)        # 어깨 (위)
+        fill(u + 8, v, u + 12, v + 4, skin)        # 손 (아래)
+        fill(u, v + 4, u + 16, v + 11, shirt)      # 소매 (위팔 + 팔꿈치 아래 조금)
+        fill(u, v + 11, u + 16, v + 16, skin)      # 팔뚝·손
+        fill(u, v + 11, u + 16, v + 12, (44, 46, 52))   # 소매 끝
+    fill(8, 8, 16, 16, skin)                       # 얼굴 (쓰지 않지만 스킨답게)
+    fill(20, 20, 28, 32, shirt)
+    save_png(im, os.path.join(NS, "textures", "skin", "self.png"))
 
 
 def mcmeta():
@@ -207,6 +231,39 @@ def save_model(kind, name, vm, display):
     save_png(img, os.path.join(NS, "textures", "item", kind, name + ".png"))
 
 
+def save_model_arms(kind, name, vm, display, arms):
+    """1인칭 모델 + 스킨 팔. arms: [(손 모델 좌표, 'r'/'l', 위팔, 아래팔, 굵기)]. 무기 원소(JSON)를 돌려줌 (프레임에서 재사용)"""
+    tex_ref = f"violence:item/{kind}/{name}"
+    mj, img = vm.build(tex_ref)
+    save_png(img, os.path.join(NS, "textures", "item", kind, name + ".png"))
+    write_arms_frame(name, mj, display, arms)
+    return mj
+
+
+def write_arms_frame(name, base_mj, display, arms):
+    """무기 원소는 base_mj 그대로, 팔은 이 프레임의 표시 변환으로 다시 IK 를 풀어 붙인 1인칭 모델"""
+    import models_arms
+    fr = display["firstperson_righthand"]
+    left = {"rotation": [fr["rotation"][0], 360 - fr["rotation"][1], -fr["rotation"][2]],
+            "translation": [-fr["translation"][0], fr["translation"][1], fr["translation"][2]], "scale": fr["scale"]}
+    els = list(base_mj["elements"])
+    for hand, side, l1, l2, thick in arms:
+        els += models_arms.arm(fr, hand, side, l1, l2, thick)
+    mj = {"textures": dict(base_mj["textures"], skin=models_arms.SKIN), "elements": els,
+          "display": {"firstperson_righthand": fr, "firstperson_lefthand": left}}
+    write(os.path.join(NS, "models", "item", "weapon", name + ".json"), mj)
+
+
+def arm_specs(disps, hands):
+    """프레임 표시 변환들 + 손 자리 {'r': 모델 좌표, 'l': ...} → 팔 목록 (길이는 모든 프레임에서 닿게 한 번 정함)"""
+    import models_arms
+    out = []
+    for side, hand in hands.items():
+        l1, l2, thick = models_arms.lengths([(d, hand) for d in disps], side)
+        out.append((hand, side, l1, l2, thick))
+    return out
+
+
 def select_by_context(fp_model, other_model):
     return {"model": {
         "type": "minecraft:select", "property": "minecraft:display_context",
@@ -256,21 +313,22 @@ def weapons():
         base_cfg = custom.get(gid, FP_GUN)
         align = gid not in custom
         rest_disp = aim_at_crosshair(fp_display(base_cfg, right, align=align), models_guns.MUZZLE[gid], right)
-        fp = make()
-        models_hands.hands_for(fp, gid, right, left)
-        save_model("weapon", gid + "_fp", fp, rest_disp)
         base = rest_disp["firstperson_righthand"]
+        recoil = [anim.apply(base, dr, dt) for _, dr, dt in anim.RECOIL]
+        # 플레이어 스킨 팔: 오른손은 손잡이, 양손 총은 왼손이 총열 아래 (권총은 한 손)
+        hands = {"r": right} if gid in ("magnum", "silenced_pistol") else {"r": right, "l": left}
+        arms = arm_specs([base] + recoil, hands)
+        fp_mj = save_model_arms("weapon", gid + "_fp", make(), rest_disp, arms)
         frames = []
         for i, (th, dr, dt) in enumerate(anim.RECOIL):
-            d = anim.apply(base, dr, dt)
+            d = recoil[i]
             if i == 0:
                 fire = make()
-                models_hands.hands_for(fire, gid, right, left)
                 models_flash.add_flash(fire, models_guns.MUZZLE[gid], 2.6 if "silenced" in gid else 3.4)
-                save_model("weapon", gid + "_fp_fire", fire, {"firstperson_righthand": d, "firstperson_lefthand": d})
+                save_model_arms("weapon", gid + "_fp_fire", fire, {"firstperson_righthand": d}, arms)
                 frames.append((th, gid + "_fp_fire"))
             else:
-                write_frame(f"{gid}_fp_r{i}", gid + "_fp", {"firstperson_righthand": d})
+                write_arms_frame(f"{gid}_fp_r{i}", fp_mj, {"firstperson_righthand": d}, arms)
                 frames.append((th, f"{gid}_fp_r{i}"))
         write(os.path.join(NS, "items", "weapon", gid + ".json"),
               select_by_context(dispatch(frames, gid + "_fp"), ref(f"violence:item/weapon/{gid}")))
@@ -285,24 +343,27 @@ def weapons():
         for wid, make in table.items():
             grip = models_melee.GRIP[wid]
             save_model("weapon", wid, make(), disp)
-            fp = make()
-            models_hands.right_fist(fp, grip)
             rest_disp = melee_fp_display(grip)
-            save_model("weapon", wid + "_fp", fp, rest_disp)
+            rest_fr = rest_disp["firstperson_righthand"]
+            keys = (anim.STAB if wid in STAB_WEAPONS else anim.SWING) if animated else []
+            keys_b = anim.SWING_L2R if animated and wid not in STAB_WEAPONS else []
+            disps_a = [anim.apply(rest_fr, dr, dt) for _, dr, dt in keys]
+            disps_b = [anim.apply(rest_fr, dr, dt) for _, dr, dt in keys_b]
+            # 오른손(플레이어 스킨 팔)이 손잡이를 쥠. 프레임마다 팔꿈치를 다시 풀어 휘두를 때 팔이 굽혀졌다 펴짐
+            arms = arm_specs([rest_fr] + disps_a + disps_b, {"r": grip})
+            fp_mj = save_model_arms("weapon", wid + "_fp", make(), rest_disp, arms)
             fp_model = ref(f"violence:item/weapon/{wid}_fp")
             if animated:
-                rest_fr = rest_disp["firstperson_righthand"]
-                keys = anim.STAB if wid in STAB_WEAPONS else anim.SWING
                 frames = []
-                for i, (th, dr, dt) in enumerate(keys):
-                    write_frame(f"{wid}_fp_a{i}", wid + "_fp", {"firstperson_righthand": anim.apply(rest_fr, dr, dt)})
+                for i, (th, _, _) in enumerate(keys):
+                    write_arms_frame(f"{wid}_fp_a{i}", fp_mj, {"firstperson_righthand": disps_a[i]}, arms)
                     frames.append((th, f"{wid}_fp_a{i}"))
                 fp_model = dispatch(frames, wid + "_fp")
                 if wid not in STAB_WEAPONS:
                     # 연속 공격 시 번갈아 쓰는 왼→오 휘두르기 (플러그인이 "<id>_b" 아이템으로 바꿔 끼움)
                     frames_b = []
-                    for i, (th, dr, dt) in enumerate(anim.SWING_L2R):
-                        write_frame(f"{wid}_fp_b{i}", wid + "_fp", {"firstperson_righthand": anim.apply(rest_fr, dr, dt)})
+                    for i, (th, _, _) in enumerate(keys_b):
+                        write_arms_frame(f"{wid}_fp_b{i}", fp_mj, {"firstperson_righthand": disps_b[i]}, arms)
                         frames_b.append((th, f"{wid}_fp_b{i}"))
                     item_b = select_by_context(dispatch(frames_b, wid + "_fp"), ref(f"violence:item/weapon/{wid}"))
                     item_b["hand_animation_on_swap"] = False
@@ -1049,6 +1110,7 @@ def main():
     clean()
     mcmeta()
     atlases()
+    default_skin()
     n = weapons()
     puppet()
     crosshair()

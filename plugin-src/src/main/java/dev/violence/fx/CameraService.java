@@ -92,12 +92,28 @@ public final class CameraService {
     public void view(Player p, ItemDisplay cam) {
         ItemDisplay old = cameras.put(p.getUniqueId(), cam);
         if (old != null && old != cam && old.isValid()) old.remove();
-        if (!sendCamera(p, cam)) {
+        if (sendCamera(p, cam)) {
+            hideHands(p);
+            // 같은 틱에 바뀐 손 아이템 동기화가 뒤에 도착해도 다시 숨김
+            plugin.later(1, () -> { if (p.isOnline() && cameras.get(p.getUniqueId()) == cam) hideHands(p); });
+        } else {
             fallbackModes.putIfAbsent(p.getUniqueId(), p.getGameMode());
             fallbackLocations.putIfAbsent(p.getUniqueId(), p.getLocation());   // 관전하면 몸이 카메라로 따라가므로 원래 자리 기억
             p.setGameMode(GameMode.SPECTATOR);
             p.setSpectatorTarget(cam);
         }
+    }
+
+    /**
+     * 카메라로 볼 때도 클라이언트는 자기 손(빈손이면 팔, 아니면 아이템)을 1인칭으로 그린다.
+     * 자기 자신에게만 투명 아이템을 쥔 것처럼 보내서 숨김 (서버 인벤토리는 그대로, reset 에서 다시 동기화).
+     */
+    public void hideHands(Player p) {
+        if (!isViewing(p) || fallbackModes.containsKey(p.getUniqueId())) return;
+        Map<org.bukkit.inventory.EquipmentSlot, org.bukkit.inventory.ItemStack> eq = new java.util.EnumMap<>(org.bukkit.inventory.EquipmentSlot.class);
+        eq.put(org.bukkit.inventory.EquipmentSlot.HAND, dev.violence.weapon.WeaponItems.hiddenHand());
+        eq.put(org.bukkit.inventory.EquipmentSlot.OFF_HAND, new org.bukkit.inventory.ItemStack(org.bukkit.Material.AIR));
+        p.sendEquipmentChange(p, eq);
     }
 
     public ItemDisplay cameraOf(Player p) {
@@ -117,6 +133,7 @@ public final class CameraService {
             }
         } else {
             sendCamera(p, p);
+            if (cam != null && p.isOnline()) p.updateInventory();   // 숨겼던 1인칭 손 아이템 복구
         }
         if (cam != null && cam.isValid()) {
             // 다른 플레이어가 같은 카메라를 보고 있지 않으면 제거

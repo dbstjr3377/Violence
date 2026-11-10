@@ -110,6 +110,9 @@ public abstract class Combatant {
     /** 연사 중 잔떨림 (흔들림을 최소 이 정도로 유지, 누적되지 않음) */
     public void feelSustained(double level) {}
 
+    /** 총 반동: 화면이 위로 튀었다가 제자리로 돌아옴 (도, 플레이어만) */
+    public void feelRecoil(double degrees) {}
+
     /** 다음 리스폰 틱 (사망 상태일 때) */
     public long respawnAt = -1;
     /** 가면 F키 능력으로 임시로 바꾸기 전 들고 있던 무기 */

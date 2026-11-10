@@ -70,6 +70,16 @@ public final class WeaponItems {
         return it;
     }
 
+    /** 아무것도 보이지 않는 손 아이템 (처형·컷씬 카메라 중 1인칭 손과 무기를 숨김: 빈손이면 팔이 그려지므로 투명 아이템을 쥐게 함) */
+    public static ItemStack hiddenHand() {
+        ItemStack it = new ItemStack(Material.STICK);
+        it.setData(DataComponentTypes.ITEM_MODEL, Key.key("violence:misc/blank"));
+        it.setData(DataComponentTypes.TOOLTIP_DISPLAY, TooltipDisplay.tooltipDisplay().hideTooltip(true).build());
+        it.setData(DataComponentTypes.ATTACK_ANIMATION, SwingAnimation.swingAnimation().type(SwingAnimation.Animation.NONE).duration(1).build());
+        it.setData(DataComponentTypes.INTERACT_ANIMATION, SwingAnimation.swingAnimation().type(SwingAnimation.Animation.NONE).duration(1).build());
+        return it;
+    }
+
     /** 한 손으로 드는 총 (나머지 총은 양손 조준 자세) */
     public static boolean oneHanded(WeaponType t) {
         return t.id().equals("magnum") || t.id().equals("silenced_pistol");

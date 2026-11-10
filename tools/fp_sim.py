@@ -43,9 +43,13 @@ def element_rot(p, r):
     if not r:
         return p
     o = r["origin"]
-    a = math.radians(r["angle"])
     q = [p[i] - o[i] for i in range(3)]
-    R = {"x": rx(a), "y": ry(a), "z": rz(a)}[r["axis"]]
+    if "axis" in r:
+        a = math.radians(r["angle"])
+        R = {"x": rx(a), "y": ry(a), "z": rz(a)}[r["axis"]]
+    else:
+        # 26.3 오일러 회전: Rz·Ry·Rx
+        R = mm(mm(rz(math.radians(r.get("z", 0))), ry(math.radians(r.get("y", 0)))), rx(math.radians(r.get("x", 0))))
     q = mv(R, q)
     return [q[i] + o[i] for i in range(3)]
 
@@ -67,8 +71,12 @@ def render_items(draw_list, model, tex, disp, hand=(0.56, -0.52, -0.72), recoil=
     r = [math.radians(v) for v in disp.get("rotation", [0, 0, 0])]
     s = disp.get("scale", [1, 1, 1])
     R = mm(mm(rx(r[0]), ry(r[1])), rz(r[2]))
-    tw, th = tex.size
-    px = tex.load()
+    texs = tex if isinstance(tex, dict) else {"#t": tex}
+    if "#skin" not in texs:
+        sp = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "resourcepack", "assets", "violence", "textures", "skin", "self.png")
+        if os.path.isfile(sp):
+            texs["#skin"] = Image.open(sp).convert("RGBA")
+    main_tex = texs.get("#t") or next(iter(texs.values()))
 
     def xf(p):
         q = [(p[i] / 16 - 0.5) * s[i] for i in range(3)]
@@ -78,6 +86,9 @@ def render_items(draw_list, model, tex, disp, hand=(0.56, -0.52, -0.72), recoil=
     for el in model["elements"]:
         a, b = el["from"], el["to"]
         for f, fd in el["faces"].items():
+            tex_f = texs.get(fd.get("texture", "#t"), main_tex)
+            tw, th = tex_f.size
+            px = tex_f.load()
             tl, tr, bl = CORNERS[f](a, b)
             tl, tr, bl = (element_rot(list(p), el.get("rotation")) for p in (tl, tr, bl))
             u0, v0, u1, v1 = fd["uv"]

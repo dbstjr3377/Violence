@@ -15,7 +15,6 @@ import net.kyori.adventure.key.Key;
 import org.bukkit.Color;
 import org.bukkit.FluidCollisionMode;
 import org.bukkit.Material;
-import org.bukkit.Particle;
 import org.bukkit.World;
 import org.bukkit.entity.ItemDisplay;
 import org.bukkit.inventory.ItemStack;
@@ -43,7 +42,6 @@ public final class BloodService {
     /** 상황별 혈흔 모양과 개수 (리소스팩 fx/blood_<모양>_<번호>) */
     private static final java.util.Map<String, Integer> SHAPES = java.util.Map.of("splat", 3, "streak", 3, "drip", 3, "drops", 2, "spray", 2);
     public static final int FADE_STEPS = 6;
-    private static final Color DROP = Color.fromRGB(150, 8, 14);
     private static final double GRAVITY = 0.045;
     private static final int SPLAT_LIFE = 100;     // 5초
     private static final int FADE_STEP_TICKS = 4;
@@ -197,11 +195,8 @@ public final class BloodService {
                         continue;
                     }
                 }
-                // 날아가는 핏방울 (선을 따라 입자 2개)
-                Vec3 next = d.pos.add(d.vel);
-                w.spawnParticle(Particle.DUST, Fx.loc(w, d.pos), 1, 0, 0, 0, 0, new Particle.DustOptions(DROP, 0.9f + d.size));
-                w.spawnParticle(Particle.DUST, Fx.loc(w, d.pos.add(d.vel.mul(0.5))), 1, 0, 0, 0, 0, new Particle.DustOptions(DROP, 0.7f + d.size));
-                d.pos = next;
+                // 날아가는 핏방울은 보이지 않게 궤적만 계산 (닿은 자리에 혈흔)
+                d.pos = d.pos.add(d.vel);
                 d.vel = d.vel.mul(0.98).add(0, -GRAVITY, 0);
             }
         }

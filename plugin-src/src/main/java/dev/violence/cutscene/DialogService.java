@@ -364,7 +364,7 @@ public final class DialogService {
             p.setSpectatorTarget(cam);
         } else {
             plugin.camera().view(p, cam);
-            setAttr(p, Attribute.MOVEMENT_SPEED, 0);
+            dev.violence.player.PlayerSpeed.set(p, 0);
             setAttr(p, Attribute.JUMP_STRENGTH, 0);
         }
         applyBar(p);
@@ -383,7 +383,7 @@ public final class DialogService {
         Location back = s.loc() != null && s.loc().isWorldLoaded() ? s.loc() : plugin.lobby().spawn();
         p.teleport(back);
         p.getInventory().setHelmet(s.helmet());
-        setAttr(p, Attribute.MOVEMENT_SPEED, s.speed());
+        dev.violence.player.PlayerSpeed.set(p, s.speed());
         setAttr(p, Attribute.JUMP_STRENGTH, s.jump());
         p.clearTitle();
         p.sendActionBar(Component.empty());

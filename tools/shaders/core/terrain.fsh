@@ -9,6 +9,7 @@
 #include <minecraft:terrainglobals.glsl>
 #include <minecraft:violence_club.glsl>  // VIOLENCE
 #include <minecraft:violence_grim.glsl>  // VIOLENCE
+#include <minecraft:violence_flash.glsl>  // VIOLENCE
 #ifndef MULTIDRAW_TERRAIN
     #include <minecraft:chunksection.glsl>
 #endif
@@ -36,25 +37,23 @@ vec4 calculateFinalColor(vec4 color) {
     #else
     vec4 fogColor = FogColor;
     #endif
-    return apply_fog(color, sphericalVertexDistance, cylindricalVertexDistance, FogEnvironmentalStart, FogEnvironmentalEnd, FogRenderDistanceStart, FogRenderDistanceEnd, fogColor);
+    return apply_fog(color, sphericalVertexDistance, cylindricalVertexDistance, violence_env_start(violenceFlash), violence_env_end(violenceFlash),  /* VIOLENCE */ FogRenderDistanceStart, FogRenderDistanceEnd, fogColor);
 }
 
 void main() {
     vec4 texColor = (UseRgss == 1 ? sampleRGSS(Sampler0, texCoord0, 1.0f / TextureSize) : sampleNearest(Sampler0, texCoord0, 1.0f / TextureSize));  // VIOLENCE
     vec4 color = texColor * vertexColor;
     #ifndef OIT_ALPHA_ONLY
+    // VIOLENCE: 처치 회색 깜빡임 중에는 야간 투시로 밝아진 라이트맵 대신 블록·하늘 밝기로 다시 비춤 (회색은 맨 끝에 violence_flash 로)
+    if (violenceFlash > 0.5) {
+        color.rgb = texColor.rgb * clubBlockColor * violence_flash_level(clubLightLevel);
+    }
     // VIOLENCE: 카메라가 있는 구역에 따라 클럽 조명 / 벅샷 룰렛 색감
     if (club_active(CameraBlockPos)) {
         color.rgb = club_light(color.rgb, texColor.rgb * clubBlockColor, clubWorldPos, GameTime * 1200.0);
     } else if (grim_active(CameraBlockPos)) {
         color.rgb = grim_grade(color.rgb, texColor.rgb * clubBlockColor, clubLightLevel, sphericalVertexDistance,
                 gl_FragCoord.xy, ScreenSize, GameTime * 1200.0);
-    }
-    // VIOLENCE: 처치 흑백 깜빡임 (GTA 처치 연출). 야간 투시로 밝아진 라이트맵 대신 블록·하늘 밝기로 다시 비추고 흑백으로
-    if (violenceFlash > 0.5) {
-        vec3 lit = texColor.rgb * clubBlockColor * (0.22 + 0.78 * max(clubLightLevel.x, clubLightLevel.y * 0.6));
-        float g = dot(lit, vec3(0.299, 0.587, 0.114));
-        color.rgb = vec3(clamp((g - 0.45) * 1.35 + 0.5, 0.0, 1.0));
     }
     #endif
     #ifndef OIT_ALPHA_ONLY
@@ -70,6 +69,6 @@ void main() {
     executeAlphaOnlyPhase(gl_FragCoord.z, color.a);
     #else
     fragColor = calculateFinalColor(color);
-    if (violenceFlash > 0.5) fragColor.rgb = vec3(dot(fragColor.rgb, vec3(0.299, 0.587, 0.114)));  // VIOLENCE: 안개까지 흑백
+    if (violenceFlash > 0.5) fragColor.rgb = violence_flash(fragColor.rgb);  // VIOLENCE: 안개까지 회색
     #endif
 }

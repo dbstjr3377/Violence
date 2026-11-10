@@ -45,6 +45,22 @@ public final class PackServer {
         int port = plugin.getConfig().getInt("resource-pack.port", 8163);
         try {
             http = HttpServer.create(new InetSocketAddress(port), 0);
+            http.createContext("/skin/", ex -> {
+                // /skin/<uuid>-<sha1>.zip : 플레이어마다 1인칭 팔 스킨 팩
+                String path = ex.getRequestURI().getPath();
+                String key = path.substring(path.lastIndexOf('/') + 1).replace(".zip", "");
+                byte[] data = skinPacks.get(key.contains("-") ? key.substring(0, 36) : key);
+                if (data == null) {
+                    ex.sendResponseHeaders(404, -1);
+                    ex.close();
+                    return;
+                }
+                ex.getResponseHeaders().add("Content-Type", "application/zip");
+                ex.sendResponseHeaders(200, data.length);
+                try (OutputStream os = ex.getResponseBody()) {
+                    os.write(data);
+                }
+            });
             http.createContext("/violence.zip", ex -> {
                 byte[] data = zip;
                 if (data == null) {
@@ -97,6 +113,70 @@ public final class PackServer {
         }
     }
 
+    private final java.util.Map<String, byte[]> skinPacks = new java.util.concurrent.ConcurrentHashMap<>();
+    private final UUID skinPackId = UUID.nameUUIDFromBytes("violence-skin".getBytes());
+
+    /**
+     * 1인칭 팔에 자기 스킨: 스킨을 받아 작은 팩을 만들어 본 리소스팩 위에 덮어 보냄 (비동기).
+     * file 이 있으면 그 PNG 를, 없으면 플레이어 프로필의 스킨 주소를 쓴다 (오프라인 서버는 스킨이 없어 기본 팔).
+     */
+    public void sendSkin(Player p, File file) {
+        if (!plugin.getConfig().getBoolean("resource-pack.enabled", true) || http == null || zip == null || p == null) return;
+        java.net.URL skinUrl = null;
+        boolean slim = false;
+        if (file == null) {
+            var tex = p.getPlayerProfile().getTextures();
+            skinUrl = tex.getSkin();
+            slim = tex.getSkinModel() == org.bukkit.profile.PlayerTextures.SkinModel.SLIM;
+            if (skinUrl == null) return;
+        }
+        final java.net.URL url0 = skinUrl;
+        final boolean slim0 = slim;
+        final byte[] main = zip;
+        UUID id = p.getUniqueId();
+        plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
+            try {
+                java.awt.image.BufferedImage img;
+                if (file != null) {
+                    img = javax.imageio.ImageIO.read(file);
+                } else {
+                    java.net.HttpURLConnection c = (java.net.HttpURLConnection) url0.openConnection();
+                    c.setConnectTimeout(5000);
+                    c.setReadTimeout(5000);
+                    try (java.io.InputStream in = c.getInputStream()) {
+                        img = javax.imageio.ImageIO.read(in);
+                    }
+                }
+                if (img == null) throw new IOException("PNG 가 아님");
+                byte[] pack = SkinPack.build(main, SkinPack.normalize(img, slim0));
+                String hash = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-1").digest(pack));
+                skinPacks.put(id.toString(), pack);
+                plugin.getServer().getScheduler().runTask(plugin, () -> {
+                    Player q = plugin.getServer().getPlayer(id);
+                    if (q == null || !q.isOnline()) return;
+                    String u = baseUrl() + "/skin/" + id + "-" + hash.substring(0, 8) + ".zip";
+                    sendPacks(q, ResourcePackInfo.resourcePackInfo(skinPackId, URI.create(u), hash));
+                });
+            } catch (Exception e) {
+                plugin.getLogger().warning("스킨 팩 만들기 실패 (" + p.getName() + "): " + e.getMessage());
+                plugin.getServer().getScheduler().runTask(plugin, () -> { if (p.isOnline()) sendPacks(p, null); });
+            }
+        });
+    }
+
+    public void forgetSkin(Player p) {
+        skinPacks.remove(p.getUniqueId().toString());
+    }
+
+    private String baseUrl() {
+        String host = plugin.getConfig().getString("resource-pack.public-host", "");
+        if (host == null || host.isBlank()) {
+            host = plugin.getServer().getIp();
+            if (host == null || host.isBlank()) host = "127.0.0.1";
+        }
+        return "http://" + host + ":" + plugin.getConfig().getInt("resource-pack.port", 8163);
+    }
+
     private String url() {
         String external = plugin.getConfig().getString("resource-pack.url", "");
         if (external != null && !external.isBlank()) return external;
@@ -108,7 +188,21 @@ public final class PackServer {
         return "http://" + host + ":" + plugin.getConfig().getInt("resource-pack.port", 8163) + "/violence.zip";
     }
 
+    /** 접속: 스킨이 있으면 받아서 [스킨 팩, 본 팩] 을 함께, 없으면 본 팩만 보냄 */
     public void send(Player p) {
+        if (p == null) return;
+        if (http != null && zip != null && p.getPlayerProfile().getTextures().getSkin() != null) {
+            sendSkin(p, null);
+        } else {
+            sendPacks(p, null);
+        }
+    }
+
+    /**
+     * 본 팩과 스킨 팩을 한 요청으로 [본 팩, 스킨 팩] 순서로 보냄 → 스킨 팩이 위에 놓여 본 팩의 기본 팔 스킨을 덮는다
+     * (26.3 클라이언트에서 확인한 순서).
+     */
+    private void sendPacks(Player p, ResourcePackInfo skin) {
         if (!plugin.getConfig().getBoolean("resource-pack.enabled", true) || sha1 == null) return;
         String external = plugin.getConfig().getString("resource-pack.url", "");
         boolean usingExternal = external != null && !external.isBlank();
@@ -116,8 +210,9 @@ public final class PackServer {
         if (p == null || !p.isOnline()) return;
         try {
             ResourcePackInfo info = ResourcePackInfo.resourcePackInfo(packId, URI.create(url()), sha1);
+            java.util.List<ResourcePackInfo> packs = skin == null ? java.util.List.of(info) : java.util.List.of(info, skin);
             p.sendResourcePacks(ResourcePackRequest.resourcePackRequest()
-                    .packs(info)
+                    .packs(packs)
                     .required(plugin.getConfig().getBoolean("resource-pack.required", true))
                     .prompt(Component.text("VIOLENCE 전용 리소스팩이 필요합니다"))
                     .replace(true)

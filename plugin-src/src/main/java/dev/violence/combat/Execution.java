@@ -12,6 +12,8 @@ public final class Execution {
     /** AUTO 처형이 끝나는 틱 */
     public long finishTick;
     public long nextHitReady;
+    /** 다음 타격을 기다리는 클릭이 있음 (빨리 누른 클릭은 버리지 않고 가능한 틱에 바로 침) */
+    public boolean clickQueued;
     /** 피처형자의 쓰러짐 남은 시간 (취소 시 복원) */
     public long victimDownedRemaining;
     public boolean fast;
@@ -19,6 +21,8 @@ public final class Execution {
     public String anim;
     /** 왼클릭 처형을 자동으로 연달아 침 (토니, 바이커 중식도) */
     public boolean autoHits;
+    /** 처형자가 올라탄 자리와 바라본 방향 (끝나면 이 자리에서 1블록 뒤로 물러남) */
+    public org.bukkit.Location mountAt;
     /** 처치된 순간의 머리 위치 (처형 뒤 추가 피) */
     public dev.violence.math.Vec3 lastHead;
 

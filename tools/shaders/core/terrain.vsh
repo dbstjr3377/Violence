@@ -50,10 +50,10 @@ void main() {
     clubWorldPos = Position + vec3(ChunkPosition);  // VIOLENCE
     clubBlockColor = Color.rgb;                     // VIOLENCE
     clubLightLevel = clamp(vec2(UV2) / 240.0, 0.0, 1.0);  // VIOLENCE
-    // VIOLENCE: 빛이 없는 칸(0,0)의 라이트맵이 밝으면 야간 투시 중 = 처치 깜빡임 신호 (평소에는 최대 밝기 설정에서도 0.4 아래)
+    // VIOLENCE: 빛이 없는 칸(0,0)의 라이트맵이 밝으면 야간 투시 중 = 처치 깜빡임 신호 (평소에는 최대 밝기 설정에서도 0.4 아래, 어둠 효과로 조금 어두워져도 0.6 위)
     #ifndef OIT_ALPHA_ONLY
     vec3 darkest = texture(Sampler2, vec2(0.5 / 16.0)).rgb;
-    violenceFlash = max(max(darkest.r, darkest.g), darkest.b) > 0.72 ? 1.0 : 0.0;
+    violenceFlash = max(max(darkest.r, darkest.g), darkest.b) > 0.6 ? 1.0 : 0.0;
     #else
     violenceFlash = 0.0;
     #endif

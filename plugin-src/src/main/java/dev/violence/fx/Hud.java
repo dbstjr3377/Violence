@@ -140,21 +140,33 @@ public final class Hud {
 
     private final java.util.Map<java.util.UUID, Long> flashUntil = new java.util.HashMap<>();
 
+    /** 처치 회색 깜빡임 길이 (틱). 어둠 효과 블렌드가 22틱에 다 차므로 12틱이면 회색이 2% 남짓만 남음 */
+    public static final int FLASH_TICKS = 12;
+
     /**
-     * 처치: GTA 처럼 화면이 잠깐 흑백으로 깜빡임 (0.3초).
-     * 보이지 않는 야간 투시를 잠깐 주면 리소스팩 terrain 쉐이더가 라이트맵으로 알아채고 흑백으로 그린다.
+     * 처치: 화면이 잠깐 조금 밝은 회색이 됐다가 easeOutExpo 로 원래 색으로 돌아옴. 화면 확대 없음.
+     * 보이지 않는 효과 두 개를 주면 리소스팩 쉐이더(violence_flash.glsl)가 알아챈다.
+     *  - 야간 투시: 깜빡임 중이라는 신호
+     *  - 어둠: 클라이언트가 22틱 동안 부드럽게 올리는 블렌드 값이 경과 시간 (쉐이더가 안개 거리로 읽음)
      */
     public void killFlash(Player p) {
         org.bukkit.potion.PotionEffectType nv = org.bukkit.potion.PotionEffectType.NIGHT_VISION;
+        org.bukkit.potion.PotionEffectType dark = org.bukkit.potion.PotionEffectType.DARKNESS;
         // 지속 시간을 길게 줘야 끝날 때 깜빡이지 않음 → 직접 지움
         p.addPotionEffect(new org.bukkit.potion.PotionEffect(nv, 20 * 60, 0, true, false, false));
-        long until = plugin.now() + 6;
+        // 어둠은 새로 붙어야 블렌드가 0부터 다시 시작 (이미 있으면 갱신만 되어 바로 1이 됨)
+        p.removePotionEffect(dark);
+        p.addPotionEffect(new org.bukkit.potion.PotionEffect(dark, 20 * 60, 0, true, false, false));
+        long until = plugin.now() + FLASH_TICKS;
         flashUntil.put(p.getUniqueId(), until);
-        plugin.later(6, () -> {
+        plugin.later(FLASH_TICKS, () -> {
             Long u = flashUntil.get(p.getUniqueId());
             if (u != null && u == until) {
                 flashUntil.remove(p.getUniqueId());
-                if (p.isOnline()) p.removePotionEffect(nv);
+                if (p.isOnline()) {
+                    p.removePotionEffect(nv);
+                    p.removePotionEffect(dark);
+                }
             }
         });
     }

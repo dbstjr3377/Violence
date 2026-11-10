@@ -96,6 +96,31 @@ plain = []
 FPV.puppet_polys({"pitch": 0, "feet": [0, 0]}, plain)
 check("미리보기 처형 인형 가면", "mask" in inspect.signature(FPV.puppet_polys).parameters and len(p) > len(plain), f"가면 면 {len(p) - len(plain) + 18}개")
 
+# 8. 레드스톤(DUST) 입자를 쓰지 않음
+JAVA = os.path.join(ROOT, "plugin-src", "src", "main", "java")
+dust = [os.path.relpath(p, JAVA) for p in glob.glob(os.path.join(JAVA, "**", "*.java"), recursive=True)
+        if "Particle.DUST" in open(p, encoding="utf-8").read()]
+check("레드스톤 입자 없음", not dust, ", ".join(dust) or "없음")
+
+# 9. 맨손 처형 내려치기가 예전(9프레임)보다 2.5배 빠름
+fist = ex["anims"]["fist"]["strike"]
+check("맨손 처형 2.5배 빠름", len(fist["exec"]) <= 4 and fist["impact"] <= 2, f"{len(fist['exec'])}프레임, 닿는 프레임 {fist['impact']}")
+
+# 10. 1인칭 무기 팔 = 플레이어 스킨 (violence:skin/self) 두 마디, 장갑 모델 없음
+fp_models = [p for p in glob.glob(os.path.join(NS, "models", "item", "weapon", "*_fp*.json")) if "fist_fp" not in p]
+bad_arm = []
+for p in fp_models:
+    m = json.load(open(p, encoding="utf-8"))
+    skin = [e for e in m.get("elements", []) if any(f.get("texture") == "#skin" for f in e["faces"].values())]
+    if m.get("textures", {}).get("skin") != "violence:skin/self" or len(skin) not in (4, 8):
+        bad_arm.append(os.path.basename(p))
+check("1인칭 팔이 스킨 두 마디", fp_models and not bad_arm, f"{len(fp_models)}개 모델" + (", 문제: " + ", ".join(bad_arm[:4]) if bad_arm else ""))
+
+# 11. 처치 회색 깜빡임: easeOutExpo, 화면 확대(속도 FOV) 없음
+flash = open(os.path.join(ROOT, "tools", "shaders", "include", "violence_flash.glsl"), encoding="utf-8").read()
+speed = open(os.path.join(JAVA, "dev", "violence", "player", "PlayerSpeed.java"), encoding="utf-8").read()
+check("처치 깜빡임 easeOutExpo + 확대 없음", "exp2(-10.0" in flash and "setWalkSpeed" in speed, "1 - easeOutExpo, 걷기 속도로 시야 고정")
+
 w = max(len(i) for i, _, _ in results)
 fail = 0
 for issue, ok, detail in results:

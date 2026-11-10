@@ -79,40 +79,50 @@ public final class Fx {
     }
 
     /** 총알 궤적: 노란(매그넘은 주황) 선이 총알처럼 빠르게 날아간다. */
+    /**
+     * 탄 궤적: 총구에서 4블록 줄기로 나타나(1틱) 2틱 동안 맞은 곳까지 날아가며 가늘어지고 사라짐.
+     * 쏜 사람 시선과 거의 같은 방향이라 너무 가늘면 안 보이므로 굵게, 낮은 프레임에서도 보이게 4틱 동안 남김.
+     */
     public void tracer(Arena a, Vec3 from, Vec3 to, String color) {
         Vec3 diff = to.sub(from);
         double len = diff.length();
         if (len < 0.5) return;
         Vec3 dir = diff.mul(1 / len);
         String model = "orange".equals(color) ? "violence:fx/tracer_orange" : "violence:fx/tracer";
-        float width = "orange".equals(color) ? 0.05f : 0.035f;
-        double streak = Math.min(len, 3.0);
+        float width = "orange".equals(color) ? 0.07f : 0.055f;
+        double streak = Math.min(len, 4.0);
         ItemDisplay d = spawnDisplay(a, from, model, true);
-        d.setTransformation(segment(dir, 0, streak, width));
-        int travel = (int) Math.max(1, Math.ceil(len / 45.0));
+        d.setViewRange(4.0f);
+        d.setTransformation(segment(dir, 0.15, streak - 0.15, width));
         plugin.later(1, () -> {
             if (!d.isValid()) return;
             d.setInterpolationDelay(0);
-            d.setInterpolationDuration(travel);
-            double tail = Math.min(1.2, len);
-            d.setTransformation(segment(dir, len - tail, tail, width * 0.6f));
+            d.setInterpolationDuration(2);
+            double tail = Math.min(1.6, len);
+            d.setTransformation(segment(dir, len - tail, tail, width * 0.5f));
         });
-        removeLater(a, d, travel + 2);
+        removeLater(a, d, 4);
     }
 
-    public void muzzle(Arena a, Vec3 eye, Vec3 dir, boolean silenced) {
-        muzzle(a, eye, dir, silenced, null);
-    }
-
-    public void muzzle(Arena a, Vec3 eye, Vec3 dir, boolean silenced, org.bukkit.entity.Player shooter) {
-        Vec3 right = dir.cross(Vec3.UP).normalize();
-        Vec3 at = eye.add(dir.mul(0.85)).add(right.mul(0.22)).add(0, -0.18, 0);
+    /**
+     * 총구 화염: at(총구) 에 밝은 불꽃이 확 커졌다가 줄어듦. 쏜 사람에게도 보임 (1인칭 총구 자리).
+     * @param big 산탄총 등 큰 화염
+     */
+    public void muzzle(Arena a, Vec3 at, Vec3 dir, boolean silenced, boolean big) {
         ItemDisplay d = spawnDisplay(a, at, silenced ? "violence:fx/muzzle_small" : "violence:fx/muzzle", true);
         d.setBillboard(Display.Billboard.CENTER);
-        float s = silenced ? 0.25f : 0.45f + rnd.nextFloat() * 0.2f;
-        d.setTransformation(new Transformation(new Vector3f(), new Quaternionf().rotateZ(rnd.nextFloat() * 6.28f), new Vector3f(s, s, s), new Quaternionf()));
-        if (shooter != null) shooter.hideEntity(plugin, d);
-        removeLater(a, d, 2);
+        d.setViewRange(4.0f);
+        float s = silenced ? 0.22f : (big ? 0.62f : 0.42f) + rnd.nextFloat() * 0.12f;
+        float roll = rnd.nextFloat() * 6.28f;
+        d.setTransformation(new Transformation(new Vector3f(), new Quaternionf().rotateZ(roll), new Vector3f(s, s, s), new Quaternionf()));
+        plugin.later(1, () -> {
+            if (!d.isValid()) return;
+            d.setInterpolationDelay(0);
+            d.setInterpolationDuration(2);
+            float e = s * 0.35f;
+            d.setTransformation(new Transformation(new Vector3f(), new Quaternionf().rotateZ(roll + 0.6f), new Vector3f(e, e, e), new Quaternionf()));
+        });
+        removeLater(a, d, 3);
     }
 
     /**

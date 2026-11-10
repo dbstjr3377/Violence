@@ -72,7 +72,7 @@ public final class LobbyService {
         set(p, Attribute.BLOCK_INTERACTION_RANGE, 4.5);
         set(p, Attribute.ENTITY_INTERACTION_RANGE, 3.0);
         set(p, Attribute.BLOCK_BREAK_SPEED, 1.0);
-        set(p, Attribute.MOVEMENT_SPEED, 0.1);
+        dev.violence.player.PlayerSpeed.set(p, 0.1);
         set(p, Attribute.ATTACK_SPEED, 4.0);
         set(p, Attribute.FALL_DAMAGE_MULTIPLIER, 1.0);
         p.setPose(Pose.STANDING, false);

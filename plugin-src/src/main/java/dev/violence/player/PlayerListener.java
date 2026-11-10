@@ -246,6 +246,7 @@ public final class PlayerListener implements Listener {
 
     @EventHandler
     public void onQuit(PlayerQuitEvent e) {
+        plugin.pack().forgetSkin(e.getPlayer());
         if (plugin.dialog().isViewer(e.getPlayer())) plugin.dialog().removeViewer(e.getPlayer());
         plugin.game().onPlayerQuit(e.getPlayer());
         plugin.shake().remove(e.getPlayer());

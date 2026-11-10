@@ -76,7 +76,7 @@ public final class PlayerCombatant extends Combatant {
         setAttr(Attribute.BLOCK_INTERACTION_RANGE, 4.5);
         setAttr(Attribute.ENTITY_INTERACTION_RANGE, 3.0);
         setAttr(Attribute.BLOCK_BREAK_SPEED, 1.0);
-        setAttr(Attribute.MOVEMENT_SPEED, 0.1);
+        PlayerSpeed.set(player, 0.1);
         setAttr(Attribute.ATTACK_SPEED, 4.0);
         setAttr(Attribute.FALL_DAMAGE_MULTIPLIER, 1.0);
         setAttr(Attribute.CAMERA_DISTANCE, 4.0);
@@ -96,9 +96,8 @@ public final class PlayerCombatant extends Combatant {
     @Override
     public void refreshEquipment() {
         PlayerInventory inv = player.getInventory();
-        // 맨손: 1인칭에서만 보이는 장갑 낀 두 주먹 (3인칭에서는 보이지 않음)
-        WeaponType held = weapon == null ? plugin().weapons().fist() : weapon.type();
-        inv.setItem(0, WeaponItems.create(held, weapon == null ? 0 : weapon.ammo(), backhand));
+        inv.setItem(0, handItem());
+        rehideHands();
         inv.setItemInOffHand(offhand != null ? WeaponItems.create(offhand.type(), offhand.ammo()) : null);
         if (inv.getHeldItemSlot() != 0) inv.setHeldItemSlot(0);
         plugin().game().syncHeld(this);
@@ -125,7 +124,7 @@ public final class PlayerCombatant extends Combatant {
     @Override
     public void applyStateVisuals() {
         long now = plugin().now();
-        setAttr(Attribute.MOVEMENT_SPEED, speedValue(now));
+        PlayerSpeed.set(player, speedValue(now));
         switch (state) {
             case DOWNED, BEING_EXECUTED -> {
                 dev.violence.fx.Poses.lying(player);
@@ -196,8 +195,19 @@ public final class PlayerCombatant extends Combatant {
     public void setBackhand(boolean b) {
         if (b == backhand) return;
         backhand = b;
-        WeaponType held = weapon == null ? plugin().weapons().fist() : weapon.type();
-        player.getInventory().setItem(0, WeaponItems.create(held, weapon == null ? 0 : weapon.ammo(), b));
+        player.getInventory().setItem(0, handItem());
+        rehideHands();
+    }
+
+    /** 처형·사망 카메라 중에 손 아이템이 바뀌면 동기화 뒤에 다시 숨김 */
+    private void rehideHands() {
+        if (!plugin().camera().isViewing(player)) return;
+        plugin().later(1, () -> { if (player.isOnline()) plugin().camera().hideHands(player); });
+    }
+
+    /** 주 손 아이템. 맨손이면 비워 둬서 1인칭에 플레이어 스킨의 팔이 그대로 보이게 함 */
+    private org.bukkit.inventory.ItemStack handItem() {
+        return weapon == null ? null : WeaponItems.create(weapon.type(), weapon.ammo(), backhand);
     }
 
     /** 1인칭 키프레임 애니메이션 재생 (해당 쿨다운 그룹에 짧은 쿨다운) */
@@ -208,6 +218,11 @@ public final class PlayerCombatant extends Combatant {
     @Override
     public void feelImpact(double amount) {
         plugin().shake().add(player, amount);
+    }
+
+    @Override
+    public void feelRecoil(double degrees) {
+        plugin().shake().recoil(player, degrees);
     }
 
     @Override

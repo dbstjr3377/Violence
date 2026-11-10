@@ -133,7 +133,8 @@ public final class CombatService {
             if (r.door != null) plugin.doors().bulletHit(r.door, d, c);
             else if (r.wallNormal != null && i < 6) plugin.fx().bulletHole(a, r.end, r.wallNormal);
         }
-        plugin.fx().muzzle(a, eye, dir, silenced, c instanceof PlayerCombatant shooter ? shooter.player() : null);
+        // 총구 화염: 쏜 사람에게도 보이게 궤적 시작점(1인칭 총구)에 띄움
+        plugin.fx().muzzle(a, muzzle, dir, silenced, pellets > 1);
         if (c instanceof PlayerCombatant pcs && !leftHand) {
             // 1인칭: 총구 화염 → 반동 → 반동 잡기 키프레임 (조준점은 움직이지 않음)
             pcs.playAnim(WeaponItems.GUNFIRE, t.fireAnimTicks());
@@ -141,12 +142,19 @@ public final class CombatService {
         float vol = silenced ? 0.35f : (pellets > 1 ? 3.2f : 2.6f);
         plugin.fx().sound(c.world(), eye, silenced ? "violence:gun.silenced" : t.sound(), vol, 0.95f + plugin.random().nextFloat() * 0.1f);
         if (!silenced && plugin.npcs() != null) plugin.npcs().hearNoise(eye, pellets > 1 ? 45 : 40);
+        // 화면 흔들림: 발마다 위로 튀는 반동(제자리로 돌아옴) + 떨림
         if (t.automatic()) {
-            // 연사: 발마다 쌓지 않고 일정한 잔떨림만 유지 (조준이 크게 흔들리지 않게)
-            c.feelSustained(0.3);
+            c.feelRecoil(0.9);
+            c.feelSustained(0.42);
+        } else if (pellets > 1) {
+            c.feelRecoil(4.0);
+            c.feelImpact(0.6);
+        } else if (t.pierce()) {
+            c.feelRecoil(4.5);
+            c.feelImpact(0.5);
         } else {
-            double kick = pellets > 1 ? 0.45 : (t.pierce() ? 0.4 : 0.12);
-            c.feelImpact(kick);
+            c.feelRecoil(silenced ? 1.4 : 2.2);
+            c.feelImpact(silenced ? 0.22 : 0.32);
         }
     }
 
@@ -284,7 +292,7 @@ public final class CombatService {
         // 3인칭: 두 손 대기 자세에서 무기를 옆으로 크게 휘두름 (연속 공격은 좌우를 번갈아, 늘 오른팔이 휘두름)
         if (swings) plugin.game().tpSwing(c, t, backhand, now);
         else c.entity().swingMainHand();
-        int animTicks = Math.max(6, Math.min(9, t.meleeCooldown()));
+        int animTicks = Math.max(8, Math.min(10, t.meleeCooldown() + 2));   // 1인칭 휘두르기가 프레임이 낮아도 보이게 조금 길게
         if (c instanceof PlayerCombatant pcm) {
             if (swings) {
                 pcm.setBackhand(backhand);
@@ -807,6 +815,7 @@ public final class CombatService {
             }
         }
         ex.teleport(exAt);
+        e.mountAt = exAt.clone();
         ex.history.clear();   // 순간 이동한 앞쪽 위치로 판정되지 않게
         ex.refreshEquipment();
         // 인형은 장비를 다시 보낸 뒤에 시작 (실제 몸과 손 아이템을 숨김)
@@ -852,7 +861,7 @@ public final class CombatService {
             }
         } else if (e.anim != null && e.autoHits) {
             for (int k = 0; k < e.hitsLeft; k++) {
-                plugin.laterIn(arena(), 3 + k * Math.max(4, fa.strikeLength() - 2), () -> {
+                plugin.laterIn(arena(), 3 + k * (Math.max(1, fa.impact()) + 1), () -> {
                     if (ex.execution == e) executionClick(ex, plugin.now(), true);
                 });
             }
@@ -872,20 +881,31 @@ public final class CombatService {
     private void executionClick(Combatant ex, long now, boolean auto) {
         Execution e = ex.execution;
         if (e == null || e.executor != ex) return;
-        if (e.style != ExecutionStyle.HITS || (e.autoHits && !auto) || now < e.nextHitReady || e.hitsLeft <= 0) return;
+        if (e.style != ExecutionStyle.HITS || (e.autoHits && !auto) || e.hitsLeft <= 0) return;
+        if (now < e.nextHitReady) {
+            // 동작 사이 대기 없음: 앞 타격이 머리에 닿자마자 다음 타격 (미리 누른 클릭은 그 틱에 처리)
+            if (!e.clickQueued) {
+                e.clickQueued = true;
+                plugin.laterIn(arena(), (int) (e.nextHitReady - now), () -> {
+                    e.clickQueued = false;
+                    if (ex.execution == e) executionClick(ex, plugin.now(), auto);
+                });
+            }
+            return;
+        }
         e.hitsLeft--;
         boolean last = e.hitsLeft <= 0;
         int impact = e.anim != null ? plugin.falls().strike(ex) : -1;
         if (impact < 0) {
             // 인형 없이: 바로 타격
-            e.nextHitReady = now + (e.fast ? 3 : 6);
+            e.nextHitReady = now + 2;
             executionStrike(e, last);
             if (last) finishExecution(e);
             return;
         }
         // 인형이 한 번 치는 동작을 하고, 머리에 닿는 틱에 피·소리 → 마지막이면 그다음 틱에 처치
-        dev.violence.fx.ExecutionAnims.Anim anim = plugin.falls().execAnims().get(e.anim);
-        e.nextHitReady = now + Math.max(3, anim.strikeLength() - (e.fast ? 3 : 1));
+        // 다음 클릭은 닿는 틱부터 받음 (돌아오는 프레임은 다음 타격이 시작되면 생략)
+        e.nextHitReady = now + Math.max(1, impact) + 1;
         plugin.laterIn(arena(), Math.max(1, impact), () -> {
             if (ex.execution != e) return;
             executionImpact(e, last);
@@ -1012,7 +1032,8 @@ public final class CombatService {
         if (e.style == ExecutionStyle.GUN_SHOT && ex.weapon != null) {
             ex.weapon.consume(now);
             plugin.fx().sound(ex.world(), v.eye(), ex.weapon.type().sound(), 2.5f, 0.9f);
-            plugin.fx().muzzle(arena(), ex.eye(), v.feet().sub(ex.eye()).normalize(), false);
+            Vec3 md = v.feet().sub(ex.eye()).normalize();
+            plugin.fx().muzzle(arena(), ex.eye().add(md.mul(0.85)), md, false, false);
         }
         if (e.anim == null && e.style != ExecutionStyle.HITS && e.style != ExecutionStyle.WALL_KICK) executionStrike(e, true);
         e.lastHead = headPoint(v);
@@ -1027,9 +1048,41 @@ public final class CombatService {
             plugin.falls().finishExec(ex);
         }
         ex.setState(CombatState.ALIVE, now);
+        stepBack(ex, e);
         ex.onExecutionEnd(e);
         kill(v, ex, KillType.EXECUTION, new Vec3(0, -1, 0), false);
         ex.refreshEquipment();
+    }
+
+    /** 처형이 끝나면 올라탔던 자리에서 바라보던 반대쪽으로 1블록 물러남 (벽에 막히면 덜 물러남) */
+    private void stepBack(Combatant ex, Execution e) {
+        if (e.mountAt == null || e.style == ExecutionStyle.WALL_KICK) return;
+        Location m = e.mountAt;
+        Vec3 back = Vec3.fromYawPitch(m.getYaw(), 0).mul(-1);
+        for (double d : new double[]{1.0, 0.75, 0.5, 0.25}) {
+            Location to = m.clone().add(back.x() * d, 0, back.z() * d);
+            if (!standable(to)) continue;
+            to.setPitch(10);
+            ex.teleport(to);
+            ex.history.clear();
+            return;
+        }
+    }
+
+    /** 이 자리에 몸(폭 0.6, 높이 1.8)이 들어감 */
+    private static boolean standable(Location at) {
+        org.bukkit.World w = at.getWorld();
+        org.bukkit.util.BoundingBox box = org.bukkit.util.BoundingBox.of(at.toVector().add(new org.bukkit.util.Vector(0, 0.9, 0)), 0.3, 0.9, 0.3);
+        for (int x = (int) Math.floor(box.getMinX()); x <= (int) Math.floor(box.getMaxX()); x++)
+            for (int y = (int) Math.floor(box.getMinY()); y <= (int) Math.floor(box.getMaxY()); y++)
+                for (int z = (int) Math.floor(box.getMinZ()); z <= (int) Math.floor(box.getMaxZ()); z++) {
+                    org.bukkit.block.Block b = w.getBlockAt(x, y, z);
+                    if (b.isPassable()) continue;
+                    for (org.bukkit.util.BoundingBox bb : b.getCollisionShape().getBoundingBoxes()) {
+                        if (bb.shift(x, y, z).overlaps(box)) return false;
+                    }
+                }
+        return true;
     }
 
     /** 처형 취소 (우클릭으로 내림 / 처형자가 공격받음) */

@@ -221,10 +221,11 @@ def anims():
     v_lift = pose(v_hold, head=[48, 0, 0])
     v_slam = pose(v_hold, head=[-8, 0, 0], arm_r=[-35, 0, -25], arm_l=[-35, 0, 25])
     ready_e, ready_v = run([(0, hold)], [(0, v_hold)], an)
-    se, sv = run([(0, hold), (2, lift), (4, slam), (5, slam), (8, hold)],
-                 [(0, v_hold), (2, v_lift), (4, v_slam), (5, v_slam), (8, v_hold)], an)
+    # 예전(0·2·4·5·8틱)보다 2.5배 빠르게: 들기 1틱, 박기 2틱, 돌아오기 3틱
+    se, sv = run([(0, hold), (1, lift), (2, slam), (3, hold)],
+                 [(0, v_hold), (1, v_lift), (2, v_slam), (3, v_hold)], an)
     A["fist"] = {"anchor": an, "weapon": "none", "style": "hits",
-                 "ready": {"exec": ready_e[0], "victim": ready_v[0]}, "strike": {"exec": se, "victim": sv, "impact": 4}}
+                 "ready": {"exec": ready_e[0], "victim": ready_v[0]}, "strike": {"exec": se, "victim": sv, "impact": 2}}
 
     # 1-1. 코브라·돼지·곰 가면 맨손: 서서 한쪽 다리를 머리 위로 높이 들고(무릎 굽힘) 힘껏 밟음 (자동)
     an = 1.1

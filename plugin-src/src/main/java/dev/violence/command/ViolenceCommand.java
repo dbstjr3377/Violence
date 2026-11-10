@@ -57,6 +57,16 @@ public final class ViolenceCommand implements TabExecutor {
         }
         String sub = args[0].toLowerCase();
         switch (sub) {
+            case "as" -> {
+                // 관리자/콘솔: /vio as <플레이어> <명령...> = 그 플레이어가 친 것처럼 (테스트 자동화용)
+                if (!(sender instanceof ConsoleCommandSender) && !sender.isOp()) return true;
+                Player target = args.length > 2 ? Bukkit.getPlayerExact(args[1]) : null;
+                if (target == null) {
+                    msg(sender, "사용법: /vio as <플레이어> <명령...>");
+                    return true;
+                }
+                return onCommand(target, command, label, java.util.Arrays.copyOfRange(args, 2, args.length));
+            }
             case "start" -> plugin.game().start(sender, args.length > 1 ? args[1] : null, intArg(args, 2, -1), intArg(args, 3, -1), intArg(args, 4, -1));
             case "stop" -> plugin.game().stop(sender);
             case "cutscene" -> cutscene(sender, args);
@@ -110,6 +120,17 @@ public final class ViolenceCommand implements TabExecutor {
             }
             case "test" -> {
                 // 테스트용 (관리자): /vio test down = 가장 가까운 NPC 를 내 앞 1.2칸에 데려와 쓰러뜨림 → Space 로 처형 확인
+                if (sender instanceof Player sp && args.length > 2 && args[1].equalsIgnoreCase("skin")) {
+                    // /vio test skin <파일>: 플러그인 폴더의 PNG 를 내 1인칭 팔 스킨으로 (오프라인 서버 확인용)
+                    java.io.File f = new java.io.File(plugin.getDataFolder(), args[2]);
+                    if (!f.isFile()) {
+                        msg(sender, "파일 없음: " + f);
+                        return true;
+                    }
+                    plugin.pack().sendSkin(sp, f);
+                    msg(sender, "스킨 팩을 보냅니다: " + f.getName());
+                    return true;
+                }
                 if (!(sender instanceof Player p) || plugin.arena() == null) return true;
                 Arena a = plugin.arena();
                 PlayerCombatant pc = a.players.get(p.getUniqueId());
@@ -137,11 +158,14 @@ public final class ViolenceCommand implements TabExecutor {
                     msg(sender, g.weapon.type().displayName() + " 을(를) 봅니다.");
                     return true;
                 }
+                boolean aim = args.length > 1 && args[1].equalsIgnoreCase("aim");
+                boolean near = args.length > 1 && args[1].equalsIgnoreCase("near");
                 dev.violence.npc.NpcCombatant best = null;
                 double bd = Double.MAX_VALUE;
                 for (dev.violence.npc.NpcCombatant n : a.npcs) {
-                    if (n.state != dev.violence.combat.CombatState.ALIVE || n.execution != null) continue;
+                    if (aim ? n.state == dev.violence.combat.CombatState.DEAD : (n.state != dev.violence.combat.CombatState.ALIVE || n.execution != null)) continue;
                     double d = n.feet().distanceSq(pc.feet());
+                    if (near && n.weapon != null && n.weapon.type().isGun()) d += 1e6;   // 총 든 NPC 는 나중에
                     if (d < bd) {
                         bd = d;
                         best = n;
@@ -151,7 +175,42 @@ public final class ViolenceCommand implements TabExecutor {
                     msg(sender, "쓰러뜨릴 NPC 가 없습니다.");
                     return true;
                 }
+                if (aim) {
+                    // 가장 가까운 NPC 의 가슴(쓰러져 있으면 몸)을 바라봄 (자리는 그대로, 시선만)
+                    dev.violence.math.Vec3 tgt = best.state.isDownedLike() ? best.feet().add(0, 0.2, 0) : best.feet().add(0, 1.2 * best.scale(), 0);
+                    dev.violence.math.Vec3 d = tgt.sub(pc.eye()).normalize();
+                    org.bukkit.Location me = p.getLocation().clone();
+                    me.setYaw((float) d.yaw());
+                    me.setPitch((float) d.pitch());
+                    p.teleport(me);
+                    return true;
+                }
                 dev.violence.math.Vec3 dir = pc.look().horizontal().normalize();
+                if (near) {
+                    // 가장 가까운 NPC 를 3칸 앞에 나를 보게 세움 (쓰러뜨리지 않음) → 직접 싸워서 확인
+                    org.bukkit.Location l = p.getLocation().clone().add(dir.x() * 3, 0, dir.z() * 3);
+                    l.setYaw(p.getLocation().getYaw() + 180);
+                    l.setPitch(0);
+                    best.teleport(l);
+                    best.actionLockUntil = plugin.now() + 60;   // 3초 동안 공격하지 않음 (촬영용)
+                    org.bukkit.Location me = p.getLocation().clone();
+                    me.setPitch(5);
+                    if (args.length > 2) {
+                        // /vio test near <무기>: 무기를 쥐고, NPC 는 3초 동안 제자리 (촬영용), 가슴을 겨눔
+                        WeaponType wt = plugin.weapons().get(args[2]);
+                        if (wt != null) {
+                            pc.weapon = wt.isFist() ? null : new WeaponInstance(wt);
+                            pc.refreshEquipment();
+                        }
+                        best.moveLockUntil = plugin.now() + 60;
+                        dev.violence.math.Vec3 d = best.feet().add(0, 1.2 * best.scale(), 0).sub(pc.eye()).normalize();
+                        me.setYaw((float) d.yaw());
+                        me.setPitch((float) d.pitch());
+                    }
+                    p.teleport(me);
+                    msg(sender, best.name() + " 를 앞에 세웠습니다.");
+                    return true;
+                }
                 org.bukkit.Location l = p.getLocation().clone().add(dir.x() * 1.2, 0, dir.z() * 1.2);
                 l.setYaw(p.getLocation().getYaw() + 180);
                 l.setPitch(0);

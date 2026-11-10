@@ -70,7 +70,7 @@ vec4 calculateFinalColor(vec4 color) {
     vec4 fogColor = FogColor;
     #endif
 
-    return apply_fog(color, sphericalVertexDistance, cylindricalVertexDistance, FogEnvironmentalStart, FogEnvironmentalEnd, FogRenderDistanceStart, FogRenderDistanceEnd, fogColor);
+    return apply_fog(color, sphericalVertexDistance, cylindricalVertexDistance, violence_env_start(violenceFlash.x), violence_env_end(violenceFlash.x),  /* VIOLENCE */ FogRenderDistanceStart, FogRenderDistanceEnd, fogColor);
 }
 
 void main() {
@@ -110,6 +110,6 @@ void main() {
     executeAlphaOnlyPhase(gl_FragCoord.z, color.a);
     #else
     fragColor = calculateFinalColor(color);
-    if (violenceFlash.x > 0.5) fragColor.rgb = violence_gray(fragColor.rgb);  // VIOLENCE
+    if (violenceFlash.x > 0.5) fragColor.rgb = violence_flash(fragColor.rgb);  // VIOLENCE
     #endif
 }
