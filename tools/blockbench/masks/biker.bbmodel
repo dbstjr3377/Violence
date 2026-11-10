@@ -1,0 +1,394 @@
+{
+ "meta": {
+  "format_version": "4.10",
+  "model_format": "java_block",
+  "box_uv": false
+ },
+ "name": "biker",
+ "parent": "",
+ "ambientocclusion": true,
+ "front_gui_light": false,
+ "visible_box": [
+  1,
+  1,
+  0
+ ],
+ "resolution": {
+  "width": 128,
+  "height": 128
+ },
+ "elements": [
+  {
+   "name": "head",
+   "box_uv": false,
+   "rescale": false,
+   "locked": false,
+   "from": [
+    -0.5,
+    -0.5,
+    -0.5
+   ],
+   "to": [
+    16.5,
+    16.5,
+    16.5
+   ],
+   "autouv": 0,
+   "color": 0,
+   "origin": [
+    8,
+    8,
+    8
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      0.0,
+      0.0,
+      34.0,
+      34.0
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      34.0,
+      0.0,
+      68.0,
+      34.0
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      68.0,
+      0.0,
+      102.0,
+      34.0
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      0.0,
+      34.0,
+      34.0,
+      68.0
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      34.0,
+      34.0,
+      68.0,
+      68.0
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      68.0,
+      34.0,
+      102.0,
+      68.0
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "86d833f7-2993-5719-902a-354aa820d7ce"
+  },
+  {
+   "name": "visor",
+   "box_uv": false,
+   "rescale": false,
+   "locked": false,
+   "from": [
+    -1.2,
+    4.0,
+    -1.2
+   ],
+   "to": [
+    17.2,
+    12.2,
+    -0.5
+   ],
+   "autouv": 0,
+   "color": 1,
+   "origin": [
+    8,
+    8,
+    8
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      0.0,
+      68.0,
+      37.0,
+      84.0
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      37.0,
+      68.0,
+      74.0,
+      84.0
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      74.0,
+      68.0,
+      75.0,
+      84.0
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      75.0,
+      68.0,
+      76.0,
+      84.0
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      39.0,
+      84.0,
+      76.0,
+      85.0
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      76.0,
+      84.0,
+      113.0,
+      85.0
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "b49ccfc4-2a2c-558f-ab31-10a48e505116"
+  },
+  {
+   "name": "chin",
+   "box_uv": false,
+   "rescale": false,
+   "locked": false,
+   "from": [
+    -1.2,
+    -1.2,
+    -1.2
+   ],
+   "to": [
+    17.2,
+    4.0,
+    -0.5
+   ],
+   "autouv": 0,
+   "color": 2,
+   "origin": [
+    8,
+    8,
+    8
+   ],
+   "faces": {
+    "north": {
+     "uv": [
+      76.0,
+      68.0,
+      113.0,
+      78.0
+     ],
+     "texture": 0
+    },
+    "south": {
+     "uv": [
+      0.0,
+      84.0,
+      37.0,
+      94.0
+     ],
+     "texture": 0
+    },
+    "east": {
+     "uv": [
+      37.0,
+      84.0,
+      38.0,
+      94.0
+     ],
+     "texture": 0
+    },
+    "west": {
+     "uv": [
+      38.0,
+      84.0,
+      39.0,
+      94.0
+     ],
+     "texture": 0
+    },
+    "up": {
+     "uv": [
+      0.0,
+      94.0,
+      37.0,
+      95.0
+     ],
+     "texture": 0
+    },
+    "down": {
+     "uv": [
+      37.0,
+      94.0,
+      74.0,
+      95.0
+     ],
+     "texture": 0
+    }
+   },
+   "type": "cube",
+   "uuid": "ca5ec06f-1139-5cbd-8811-9f9c659b5a3b"
+  }
+ ],
+ "outliner": [
+  "86d833f7-2993-5719-902a-354aa820d7ce",
+  "b49ccfc4-2a2c-558f-ab31-10a48e505116",
+  "ca5ec06f-1139-5cbd-8811-9f9c659b5a3b"
+ ],
+ "textures": [
+  {
+   "path": "",
+   "name": "biker.png",
+   "folder": "item/mask",
+   "namespace": "violence",
+   "id": "0",
+   "width": 128,
+   "height": 128,
+   "uv_width": 128,
+   "uv_height": 128,
+   "particle": true,
+   "render_mode": "default",
+   "visible": true,
+   "internal": true,
+   "saved": true,
+   "uuid": "c13b1674-5b0b-551f-b7b7-caccb87ae1e0",
+   "source": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAIAAAACACAYAAADDPmHLAAABp0lEQVR4nO3dvU3DQACAUYwyQCpESUnBABSMwABMwTBMkQEYgYIBKDIComIDqJCABmJDOPG911nyxS4+XeS7/Ex3p5uXg5nO7i8/HD+c3859qUVGuY+fdLG9mvZxncN9XIRxCSBOAHECiBNAnADiBBAngDgBxK3eH1w+Xu82+mTH8z+5Pb5ZNJ7lzABxAogTQJwA4gQQJ4A4AcQJIE4AcQKIE0CcAOIEEPdhN9DuXI8ZIE4AcQKIE0CcAOIEECeAOAHECSBOAHECiBNAnADiBBAngDgBxAkgTgBxAogTQJwA4gQQJ4A4AcQJIE4AcQKIE0CcAOIEECeAOAHECSBOAHECiBNAnADiBBAngDgBxAkgTgBxAoib7k43L399E5/t/A+mezTi7ylfbK+muWPNAHECiFuNPN3y+8wAcQKIE0CcAOIEECeAuGm9PhpuJXBkz89Ps1fdRmQGiBNAnADiBBAngLghPw/wxkbV9yx5Mll9fcrf+W+PXCPyFhAngDgBxAkgTgBxAogTQJwA4oZeCRzJkm/fAAAAAAAAAAAAAAAAAAAAAMBsr9N3Khvm/SzeAAAAAElFTkSuQmCC"
+  }
+ ],
+ "display": {
+  "head": {
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "translation": [
+    0,
+    0,
+    0
+   ],
+   "scale": [
+    1,
+    1,
+    1
+   ]
+  },
+  "gui": {
+   "rotation": [
+    25,
+    45,
+    0
+   ],
+   "translation": [
+    0,
+    -1,
+    0
+   ],
+   "scale": [
+    0.55,
+    0.55,
+    0.55
+   ]
+  },
+  "ground": {
+   "rotation": [
+    0,
+    0,
+    0
+   ],
+   "translation": [
+    0,
+    3,
+    0
+   ],
+   "scale": [
+    0.4,
+    0.4,
+    0.4
+   ]
+  },
+  "fixed": {
+   "rotation": [
+    0,
+    180,
+    0
+   ],
+   "translation": [
+    0,
+    0,
+    0
+   ],
+   "scale": [
+    0.6,
+    0.6,
+    0.6
+   ]
+  },
+  "thirdperson_righthand": {
+   "rotation": [
+    75,
+    45,
+    0
+   ],
+   "translation": [
+    0,
+    2.5,
+    0
+   ],
+   "scale": [
+    0.375,
+    0.375,
+    0.375
+   ]
+  },
+  "firstperson_righthand": {
+   "rotation": [
+    0,
+    45,
+    0
+   ],
+   "translation": [
+    0,
+    0,
+    0
+   ],
+   "scale": [
+    0.4,
+    0.4,
+    0.4
+   ]
+  }
+ }
+}

@@ -16,7 +16,7 @@ public final class BuildingA implements MapGenerator {
     public GameMap generate(BlockAccess world, Random rnd) {
         Theme t = Theme.of("minecraft:light_gray_concrete", "minecraft:gray_concrete", "minecraft:gray_wool",
                 "minecraft:polished_andesite", "minecraft:smooth_quartz", "minecraft:sea_lantern",
-                "minecraft:light_blue_stained_glass", "minecraft:smooth_quartz_slab[type=top]", "minecraft:white_concrete",
+                "minecraft:light_blue_stained_glass", "minecraft:smooth_quartz_slab[type=top]", "minecraft:smooth_quartz",
                 "minecraft:polished_blackstone", "minecraft:stone");
         MapBuilder m = new MapBuilder(world, rnd, t);
         Rect outer = new Rect(-32, -26, 32, 26);

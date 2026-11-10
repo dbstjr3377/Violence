@@ -121,6 +121,29 @@ flash = open(os.path.join(ROOT, "tools", "shaders", "include", "violence_flash.g
 speed = open(os.path.join(JAVA, "dev", "violence", "player", "PlayerSpeed.java"), encoding="utf-8").read()
 check("처치 깜빡임 easeOutExpo + 확대 없음", "exp2(-10.0" in flash and "setWalkSpeed" in speed, "1 - easeOutExpo, 걷기 속도로 시야 고정")
 
+# 12. 가면: 잡티 없음 (외톨이 픽셀·4픽셀 미만 조각 0), 검은 눈 (개구리·중절모·헬멧 제외), Blockbench 프로젝트
+import mask_kit  # noqa: E402
+import masks_v3  # noqa: E402
+spk, no_eye = [], []
+for mid, make in masks_v3.MASKS.items():
+    mdl, atlas, placed = mask_kit.build(make(), {})
+    n, _ = mask_kit.check_speckles(placed)
+    if n or mask_kit.check_fragments(placed):
+        spk.append(mid)
+    if mid not in ("zack", "detective", "biker"):
+        head = next(img for part, face, img, _ in placed if part.name == "head" and face == "north")
+        if mask_kit.BLACK + (255,) not in set(_pixels(head)):
+            no_eye.append(mid)
+bb = [m for m in masks_v3.MASKS if not os.path.isfile(os.path.join(ROOT, "tools", "blockbench", "masks", m + ".bbmodel"))]
+check("가면 잡티 없음 + 검은 눈", not spk and not no_eye and not bb,
+      f"{len(masks_v3.MASKS)}종" + (f", 잡티 {spk}" if spk else "") + (f", 눈 없음 {no_eye}" if no_eye else "") + (f", bbmodel 없음 {bb}" if bb else ""))
+
+# 13. 맵 블록: 맵이 쓰는 블록의 텍스처를 전부 이 게임 재질로 덮음 (바닐라 겉모습 없음)
+import block_textures  # noqa: E402
+need = json.load(open(os.path.join(ROOT, "tools", "block_texture_map.json"), encoding="utf-8"))
+miss = sorted({t for ts in need.values() if ts for t in ts} - set(block_textures.BLOCK_TEXTURES))
+check("맵 블록 텍스처 전부 교체", not miss, f"{len(block_textures.BLOCK_TEXTURES)}장" + (", 빠짐: " + ", ".join(miss[:6]) if miss else ""))
+
 w = max(len(i) for i, _, _ in results)
 fail = 0
 for issue, ok, detail in results:

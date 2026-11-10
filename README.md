@@ -286,15 +286,67 @@ Violence/
 
 ![근접](docs/images/melee_preview.png)
 
-**가면 21종 (복셀)**
+**가면 21종 (새로 만듦, Blockbench 형식)**
 
-![가면](docs/images/masks_preview.png)
+![가면](docs/images/masks_v3.png)
+
+게임 안 모습 (3인칭 정면, 교도소 맵):
+
+![가면 게임 안](docs/images/masks_ingame_v8.png)
+
+- 예전 모델은 참고하지 않고 처음부터 다시 만들었습니다(`tools/masks_v3.py`). 머리를 덮는 껍데기에 주둥이·부리·귀·뿔·볏 같은 상자를 붙이고, 면마다 단색으로 칠합니다(`tools/mask_kit.py`, 1블록 = 32px).
+- 눈: 실제 가면처럼 검은 구멍입니다. 큰 눈이 특징인 개구리만 노란 눈알에 검은 동공입니다. 한 줄짜리 가는 눈은 쓰지 않습니다(높이 2칸 이상). 눈가가 올라간 가면(늑대·여우·흑표범·코브라·쥐·돼지·호랑이)은 바깥 눈꼬리를 올리고 위를 비스듬히 잘랐습니다.
+- 잡티 없음: 무작위 노이즈를 쓰지 않습니다. 빌드할 때 면마다 외톨이 픽셀과 4픽셀 미만 조각을 세어 하나라도 있으면 빌드를 멈춥니다. 만들면서 세 번 평가해 고쳤습니다. (1) 얼룩말·호랑이 줄무늬 굴곡과 바다코끼리 수염 점 → 곧은 줄·수염 선 (2) 뾰족 이빨 계단·가장자리에 걸린 반점 조각 → 네모 이빨·반점 위치 (3) 화난 눈이 너무 가늘어 일자처럼 보임 → 쐐기 모양으로 두껍게.
+- 같은 모델을 Blockbench 프로젝트로도 씁니다: `tools/blockbench/masks/<id>.bbmodel` (Java 블록/아이템 형식, 텍스처 포함). Blockbench 에서 열어 고칠 수 있습니다.
 
 **1인칭 플레이 (줍기 → 연사 → 던지기)**
 
 ![1인칭 플레이](docs/images/gameplay.png)
 
 교도소 맵(벅샷 룰렛 쉐이더)에서 바닥의 M16을 조준해 줍고, NPC에게 연사한 뒤 다른 NPC에게 던지는 장면입니다. 리소스팩 모델·쿨다운 프레임·연사 속도·탄 궤적·흔들림을 게임과 같은 규칙으로 계산한 시뮬레이션입니다(`python3 tools/gameplay_preview.py` → `build-out/gameplay/gameplay.gif`). 게임 캡처가 아닙니다.
+
+## 맵 재질 (바닐라 블록 겉모습 없음)
+
+맵은 바닐라 블록을 틀로만 쓰고, 리소스팩이 맵에 쓰이는 블록 텍스처 132장을 모두 이 게임 분위기의 재질로 덮습니다(`tools/block_textures.py`, 32x32 픽셀 아트, 무작위 노이즈 없음). 80년대 마이애미 뒷골목 느낌으로 바랜 분홍·청록 벽지, 체크무늬 타일, 기름때 낀 나무, 형광등·네온, 젖은 하수도 벽돌을 그렸습니다.
+
+| 맵 | 재질 |
+|---|---|
+| 아파트 A동 | 분홍 마름모 벽지, 나무 바닥 |
+| 아파트 B동 | 붉은 벽돌, 줄무늬 벽지, 마당 타일 |
+| 빌딩 A | 연회색 콘크리트 벽, 청록 격자 카펫, 분홍 대리석 카운터 |
+| 빌딩 B | 분홍 대리석, 검은 타일, 흑백 체크 바닥 |
+| 클럽 | 검은 타일 벽, 보라 네온 지그재그, 분홍 체크 |
+| 교도소 | 녹회색 페인트 블록, 연한 타일 바닥 |
+| 식당 | 나무 벽판, 붉은 줄무늬 벽지, 빨강·크림 체크 바닥 |
+| 하수도 | 젖은 녹색 벽돌, 어두운 벽돌, 진흙 벽돌 물길 |
+
+![재질](docs/images/block_materials.png)
+
+게임 안 모습 (식당, 클럽, 아파트 A·B, 하수도, 빌딩 B):
+
+![맵](docs/images/maps_ingame_v8.png)
+
+- 한 블록은 모든 맵에서 같은 재질이므로, 맵마다 뜻이 다른 재질은 다른 블록에 맡겼습니다(예: 식당 바닥은 체크무늬 블록으로, 교도소 페인트 블록을 다른 맵에서 쓰지 않음).
+- 생성기 버전(`Generators.VERSION = 2`)이 올라가면 저장된 내장 맵을 자동으로 새로 생성합니다(예전 맵은 `maps/<id>.bak-*` 으로 보관).
+- `tools/block_texture_map.json` 은 블록 → 바닐라 텍스처 이름 목록이고, `tools/check_regressions.py` 가 빠진 텍스처가 없는지 검사합니다.
+
+## Blockbench MCP · 스킬
+
+- 스킬: [blockbench-mcp-project](https://github.com/jasonjgardner/blockbench-mcp-project)의 `blockbench-use`, `blockbench-mcp-overview`, `blockbench-modeling`, `blockbench-texturing`, `blockbench-vanilla-textures` 를 `.claude/skills/` 에 넣었습니다(Apache 2.0, `.claude/skills/LICENSE-blockbench-skills`).
+- MCP 서버: [blockbench-mcp-plugin](https://github.com/jasonjgardner/blockbench-mcp-plugin) 의 headless 서버(stdio)를 프로젝트에 등록하면 `.bbmodel` 을 만들고·검사하고·Java 모델로 내보내고·렌더할 수 있습니다. 아래 내용을 저장소 루트의 `.mcp.json` 으로 저장하세요(외부 코드를 실행하므로 직접 추가하도록 남겨 둠).
+
+```json
+{
+  "mcpServers": {
+    "blockbench-headless": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "github:jasonjgardner/blockbench-mcp-plugin#v1.9.1", "--root", "tools/blockbench"]
+    },
+    "blockbench": { "type": "http", "url": "http://localhost:3000/bb-mcp" }
+  }
+}
+```
 
 ## 클럽 조명 쉐이더
 
@@ -434,5 +486,6 @@ tools/verify_all.sh
 ## 라이선스와 출처
 
 - 폰트: [Black Han Sans](https://github.com/zesstype/Black-Han-Sans), [Bungee](https://github.com/djrrb/Bungee) — SIL Open Font License 1.1 (`resourcepack/assets/violence/font/*_OFL.txt`)
-- 모든 모델·텍스처는 `tools/build_pack.py`가 직접 생성한 것입니다.
+- 모든 모델·텍스처는 `tools/build_pack.py`가 직접 생성한 것입니다. 맵 블록 텍스처도 직접 그린 것으로 바닐라 텍스처를 덮습니다.
+- Blockbench 스킬: jasonjgardner/blockbench-mcp-project (Apache License 2.0)
 - 사운드는 바닐라 효과음을 피치·볼륨만 조정해 씁니다(`sounds.json`). 같은 이름으로 ogg 파일을 넣으면 교체됩니다.

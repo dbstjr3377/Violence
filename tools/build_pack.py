@@ -80,6 +80,12 @@ def fit_bitmap_glyphs():
                 save_png(img.convert("RGBA").resize((nw, nh), Image.LANCZOS), img_path)
 
 
+def block_textures():
+    """맵 블록 겉모습: 맵이 쓰는 바닐라 블록 텍스처를 전부 이 게임 분위기의 재질로 덮음 (tools/block_textures.py)"""
+    import block_textures as BT
+    return BT.write_all(os.path.join(PACK, "assets", "minecraft", "textures", "block"), save_png)
+
+
 def default_skin():
     """1인칭 팔 기본 스킨 (64x64 표준 배치). 플러그인이 접속한 사람마다 자기 스킨으로 덮는 리소스팩을 따로 보낸다."""
     from PIL import Image
@@ -301,7 +307,6 @@ def weapons():
     import models_flash
     import models_guns
     import models_hands
-    import models_masks
     import models_melee
     from voxel import Model
     count = 0
@@ -386,9 +391,18 @@ def weapons():
     write(os.path.join(NS, "items", "weapon", "fist.json"),
           select_by_context(dispatch([(0.25, "fist_fp_half"), (0.6, "fist_fp_jab")], "fist_fp"), ref("violence:misc/blank")))
     count += 1
-    # ── 가면 ──
-    for mid, make in models_masks.MASKS.items():
-        save_model("mask", mid, make(), M.MASK_DISPLAY)
+    # ── 가면 (tools/masks_v3.py, Blockbench 프로젝트도 tools/blockbench/masks/ 에 씀) ──
+    import mask_kit
+    import masks_v3
+    for mid, make in masks_v3.MASKS.items():
+        model, atlas, placed = mask_kit.build(make(), M.MASK_DISPLAY)
+        n, _ = mask_kit.check_speckles(placed)
+        if n or mask_kit.check_fragments(placed):
+            raise SystemExit(f"가면 {mid}: 잡티 {n}")
+        mask_kit.write_outputs(make(), model, atlas, "violence:item/mask/" + mid,
+                               os.path.join(NS, "models", "item", "mask", mid + ".json"),
+                               os.path.join(NS, "textures", "item", "mask", mid + ".png"),
+                               os.path.join(ROOT, "tools", "blockbench", "masks", mid + ".bbmodel"))
         write(os.path.join(NS, "items", "mask", mid + ".json"), item_def("violence:item/mask/" + mid))
         count += 1
     return count
@@ -1111,6 +1125,7 @@ def main():
     mcmeta()
     atlases()
     default_skin()
+    block_textures()
     n = weapons()
     puppet()
     crosshair()

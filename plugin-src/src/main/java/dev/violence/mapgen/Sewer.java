@@ -21,8 +21,8 @@ public final class Sewer implements MapGenerator {
 
     @Override
     public GameMap generate(BlockAccess world, Random rnd) {
-        Theme t = Theme.of("minecraft:mossy_stone_bricks", "minecraft:stone_bricks", "minecraft:stone_bricks",
-                "minecraft:cracked_stone_bricks", "minecraft:deepslate_bricks", "minecraft:verdant_froglight",
+        Theme t = Theme.of("minecraft:mossy_stone_bricks", "minecraft:deepslate_bricks", "minecraft:stone",
+                "minecraft:gravel", "minecraft:deepslate_bricks", "minecraft:verdant_froglight",
                 "minecraft:glass_pane", "minecraft:spruce_slab[type=top]", "minecraft:polished_deepslate",
                 "minecraft:iron_block", "minecraft:mud");
         MapBuilder m = new MapBuilder(world, rnd, t);
@@ -42,7 +42,7 @@ public final class Sewer implements MapGenerator {
             if (rnd.nextBoolean()) edges.add(new int[]{cx, cz, cx + 1, cz});
             else if (cz < GRID - 1) edges.add(new int[]{cx, cz, cx, cz + 1});
         }
-        String water = "minecraft:stone_brick_slab[type=bottom,waterlogged=true]";
+        String water = "minecraft:mud_brick_slab[type=bottom,waterlogged=true]";
         for (int[] e : edges) {
             int ax = origin + e[0] * CELL + CELL / 2, az = origin + e[1] * CELL + CELL / 2;
             int bx = origin + e[2] * CELL + CELL / 2, bz = origin + e[3] * CELL + CELL / 2;

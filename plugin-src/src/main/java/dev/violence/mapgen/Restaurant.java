@@ -14,15 +14,15 @@ public final class Restaurant implements MapGenerator {
 
     @Override
     public GameMap generate(BlockAccess world, Random rnd) {
-        Theme t = Theme.of("minecraft:stripped_dark_oak_wood", "minecraft:red_terracotta", "minecraft:dark_oak_planks",
-                "minecraft:white_concrete", "minecraft:dark_oak_planks", "minecraft:shroomlight",
+        Theme t = Theme.of("minecraft:stripped_dark_oak_wood", "minecraft:red_terracotta", "minecraft:polished_granite",
+                "minecraft:black_glazed_terracotta", "minecraft:dark_oak_planks", "minecraft:shroomlight",
                 "minecraft:orange_stained_glass", "minecraft:dark_oak_slab[type=top]", "minecraft:polished_deepslate",
                 "minecraft:gold_block", "minecraft:stone");
         MapBuilder m = new MapBuilder(world, rnd, t);
         int y = 64, yb = 64 - MapBuilder.H;
         Rect outer = new Rect(-34, -26, 34, 26);
         m.shell(outer, y, t.wall, t.floor, t.ceiling);
-        m.shell(outer, yb, "minecraft:bricks", "minecraft:stone_bricks", t.floor);
+        m.shell(outer, yb, "minecraft:bricks", "minecraft:deepslate_bricks", t.floor);
 
         // ── 1층 ──
         // 홀: z 0..25 (남쪽), 주방/뒤쪽: z -25..-1
@@ -31,7 +31,7 @@ public final class Restaurant implements MapGenerator {
         m.door(10, y, -1, true);
         m.door(-20, y, -1, true);
         Rect hall = new Rect(-33, 0, 33, 25);
-        m.checker(hall, y, "minecraft:black_concrete", "minecraft:white_concrete");
+        m.checker(hall, y, "minecraft:polished_granite", "minecraft:black_glazed_terracotta");
         // 테이블 (2x2) + 의자
         for (int x = -28; x <= 16; x += 6) {
             for (int z = 4; z <= 20; z += 6) {
@@ -96,9 +96,9 @@ public final class Restaurant implements MapGenerator {
         m.exteriorWindows(outer, y, 6, 2);
 
         // ── 지하 ── (주방에서 계단으로)
-        String slab = "minecraft:stone_brick_slab";
+        String slab = "minecraft:deepslate_brick_slab";
         // 계단: 지하(yb) → 1층(y). 1층 바닥 z -4..-3, x 0→9
-        m.stairs(0, yb, -4, 1, 0, 2, "minecraft:stone_bricks", slab);
+        m.stairs(0, yb, -4, 1, 0, 2, "minecraft:deepslate_bricks", slab);
         Rect cellar = new Rect(-33, -25, 33, 25);
         List<MapBuilder.Room> rooms = m.subdivide(cellar, yb, 6, 14, "minecraft:bricks", 0.5, 0.0);
         for (MapBuilder.Room r : rooms) {
@@ -114,7 +114,7 @@ public final class Restaurant implements MapGenerator {
         // 지하 계단 주변 공간 확보
         m.clearBox(-2, yb + 1, -6, 11, yb + 3, -1);
         // 분할 벽이 계단을 덮었을 수 있으므로 다시 배치
-        m.stairs(0, yb, -4, 1, 0, 2, "minecraft:stone_bricks", slab);
+        m.stairs(0, yb, -4, 1, 0, 2, "minecraft:deepslate_bricks", slab);
         m.floor(outer, y + MapBuilder.H, "minecraft:dark_oak_planks");
         return m.finish(id(), displayName());
     }

@@ -166,10 +166,10 @@ def portrait_strip(src):
 
 
 def portraits(NS, T):
-    import models_masks
+    import masks_v3
     ids = []
     images = {}
-    for mid in models_masks.MASKS:
+    for mid in masks_v3.MASKS:
         images[mid] = _mask_portrait(NS, mid)
         ids.append(mid)
     for kind in ("npc", "unknown"):

@@ -23,13 +23,13 @@ public final class ApartmentB implements MapGenerator {
         // 안뜰 바닥 (지붕 없음)
         Rect yard = new Rect(-21, -13, 21, 33);
         m.floor(yard, y0, "minecraft:grass_block");
-        for (int x = -2; x <= 2; x++) m.fill(x, y0, -12, x, y0, 33, "minecraft:stone_bricks");
-        for (int z = 8; z <= 12; z++) m.fill(-20, y0, z, 20, y0, z, "minecraft:stone_bricks");
+        for (int x = -2; x <= 2; x++) m.fill(x, y0, -12, x, y0, 33, "minecraft:smooth_stone");
+        for (int z = 8; z <= 12; z++) m.fill(-20, y0, z, 20, y0, z, "minecraft:smooth_stone");
         // 분수
-        m.fill(-3, y0 + 1, 7, 3, y0 + 1, 13, "minecraft:stone_brick_slab");
-        m.fill(-2, y0 + 1, 8, 2, y0 + 1, 12, "minecraft:stone_brick_slab[type=bottom,waterlogged=true]");
+        m.fill(-3, y0 + 1, 7, 3, y0 + 1, 13, "minecraft:smooth_stone_slab");
+        m.fill(-2, y0 + 1, 8, 2, y0 + 1, 12, "minecraft:smooth_stone_slab[type=bottom,waterlogged=true]");
         m.set(0, y0 + 1, 10, "minecraft:chiseled_stone_bricks");
-        m.set(0, y0 + 2, 10, "minecraft:stone_brick_wall");
+        m.set(0, y0 + 2, 10, "minecraft:quartz_pillar");
         // 나무와 벤치
         int[][] trees = {{-15, -6}, {15, -6}, {-15, 26}, {15, 26}, {-15, 10}, {15, 10}};
         for (int[] tr : trees) {

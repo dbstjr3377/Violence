@@ -83,7 +83,7 @@ public final class Furnish {
     }
 
     public static void bathroom(MapBuilder m, Rect r, int y) {
-        alongWalls(m, r, y, 3, b("minecraft:cauldron"), b("minecraft:white_concrete"), b("minecraft:quartz_slab"));
+        alongWalls(m, r, y, 3, b("minecraft:cauldron"), b("minecraft:quartz_block"), b("minecraft:quartz_slab"));
         m.populate(r, y, 1, 1);
     }
 

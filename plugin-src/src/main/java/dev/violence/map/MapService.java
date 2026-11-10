@@ -106,6 +106,11 @@ public final class MapService {
         } catch (RuntimeException e) {
             plugin.getLogger().log(Level.WARNING, "map.yml 확인 실패: " + id, e);
         }
+        // 내장 맵 생성기가 바뀌면(블록 팔레트 등) 예전에 저장된 맵도 새로 생성
+        if (!stale && hasSaved(id) && Generators.get(id) != null && savedGenVersion(id) < Generators.VERSION) {
+            stale = true;
+            plugin.getLogger().info(id + " 맵 생성기가 바뀌어(v" + Generators.VERSION + ") 다시 생성합니다");
+        }
         if (stale) {
             plugin.getLogger().info(id + " 맵을 쉐이더 구역 높이(y=" + baseY + ")로 다시 생성합니다");
             backup(id);   // 직접 편집한 내용이 있을 수 있으니 지우지 않고 보관
@@ -128,6 +133,7 @@ public final class MapService {
             }
             try {
                 saveMap(w, m);
+                Files.writeString(new File(mapDir(id), "generator.version").toPath(), String.valueOf(Generators.VERSION));
             } catch (IOException e) {
                 plugin.getLogger().log(Level.WARNING, "맵 저장 실패", e);
             }
@@ -145,6 +151,15 @@ public final class MapService {
             return;
         }
         paste(w, store, () -> done.accept(w, m), () -> done.accept(w, null));
+    }
+
+    /** 저장된 내장 맵을 만든 생성기 버전 (파일이 없으면 0 = 예전 버전) */
+    private int savedGenVersion(String id) {
+        try {
+            return Integer.parseInt(Files.readString(new File(mapDir(id), "generator.version").toPath()).trim());
+        } catch (IOException | NumberFormatException e) {
+            return 0;
+        }
     }
 
     /** 맵 폴더를 maps/<id>.bak-<시각> 으로 복사해 둔다 */
