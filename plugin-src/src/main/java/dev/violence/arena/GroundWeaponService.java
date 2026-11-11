@@ -243,9 +243,9 @@ public final class GroundWeaponService {
         String ammo = WeaponLabels.ammo(w);
         var bottom = Component.text();
         if (ammo != null) {
-            int aw = WeaponLabels.defaultFontWidth(ammo);
+            int aw = WeaponLabels.cardFontWidth(ammo);
             bottom.append(Glyphs.space(Math.max(0, CARD_WIDTH - aw)))
-                    .append(Component.text(ammo).color(TextColor.color(emptyGun(w) ? EMPTY_RED : Glyphs.WHITE))
+                    .append(Component.text(ammo).font(Glyphs.CARD).color(TextColor.color(emptyGun(w) ? EMPTY_RED : Glyphs.WHITE))
                             .decoration(TextDecoration.BOLD, false))
                     .append(Glyphs.space(-Math.max(CARD_WIDTH, aw)));
         }

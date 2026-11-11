@@ -12,14 +12,11 @@ public final class WeaponLabels {
             "uzi", "기관단총", "silenced_uzi", "기관단총", "mp5", "기관단총", "mp5_dual", "기관단총",
             "silenced_pistol", "권총", "magnum", "권총");
 
-    private static final Map<String, String> MELEE_KIND = Map.of(
-            "blunt", "둔기", "heavy", "무거운 무기", "light", "가벼운 무기", "blade", "날붙이");
-
-    /** 무기 종류 이름. meleeGroup = 처형 묶음 (blunt / heavy / light / blade, 없으면 null) */
+    /** 무기 종류 이름. 근접 무기는 세분하지 않고 모두 "근접 무기" (meleeGroup 은 예전 호출 호환용) */
     public static String kind(WeaponType t, String meleeGroup) {
         return switch (t.category()) {
             case GUN -> GUN_KIND.getOrDefault(t.id(), t.pelletsMax() > 1 ? "샷건" : "총기");
-            case MELEE -> meleeGroup != null ? MELEE_KIND.getOrDefault(meleeGroup, "근접 무기") : "근접 무기";
+            case MELEE -> "근접 무기";
             case THROWABLE -> "투척 무기";
             case FIST -> "맨손";
         };
@@ -29,6 +26,27 @@ public final class WeaponLabels {
     public static String ammo(WeaponInstance w) {
         if (!w.type().isGun()) return null;
         return w.ammo() + " / " + w.type().ammo();
+    }
+
+    private static Map<Character, Double> cardWidths;
+
+    /** 카드 글꼴(violence:card, Bungee)로 그린 글자 폭 (px). 폭표는 tools/build_pack.py 가 만든 card_widths.json */
+    public static int cardFontWidth(String s) {
+        if (cardWidths == null) {
+            Map<Character, Double> m = new java.util.HashMap<>();
+            try (var in = WeaponLabels.class.getResourceAsStream("/card_widths.json")) {
+                if (in != null) {
+                    var o = com.google.gson.JsonParser.parseReader(new java.io.InputStreamReader(in, java.nio.charset.StandardCharsets.UTF_8)).getAsJsonObject();
+                    for (var e : o.entrySet()) m.put(e.getKey().charAt(0), e.getValue().getAsDouble());
+                }
+            } catch (java.io.IOException ignored) {
+                // 폭표가 없으면 아래 기본값
+            }
+            cardWidths = m;
+        }
+        double w = 0;
+        for (int i = 0; i < s.length(); i++) w += cardWidths.getOrDefault(s.charAt(i), 5.0);
+        return (int) Math.round(w);
     }
 
     /**

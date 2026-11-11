@@ -901,6 +901,11 @@ def fonts():
     write(os.path.join(F, "popup.json"), {"providers": ttf_pair(14)})
     # 바닥 무기 정보 카드 (글자 표시 엔티티: 줄 높이 10px). 작은 글자를 1px 내려 카드 위 테두리에 잘리지 않게
     write(os.path.join(F, "card.json"), {"providers": icons + ttf_pair(9, 1.0)})
+    # 카드 글꼴(Bungee 9×0.92)의 탄수 글자 폭표 → 플러그인이 탄수를 카드 오른쪽 끝에 맞출 때 씀
+    # (마인크래프트 TTF: 크기×oversample 로 그린 글자 진행 폭 ÷ oversample, 글자 사이 1px 없음)
+    bf = ImageFont.truetype(FONT_EN, int(round(9 * 0.92 * 4)))
+    widths = {ch: round(bf.getlength(ch) / 4, 2) for ch in "0123456789 /"}
+    write(os.path.join(ROOT, "plugin-src", "src", "main", "resources", "card_widths.json"), widths)
     write(os.path.join(F, "prompt.json"), {"providers": [
         {"type": "bitmap", "file": "violence:font/prompt_mask.png", "ascent": -38, "height": 12, "chars": [""]},
     ] + ttf_pair(11)})
