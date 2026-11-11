@@ -422,6 +422,12 @@ public final class FallService {
         if (act != null) endExec(act);
     }
 
+    /** 벽 발차기 인형이 남은 틱 수 */
+    public int kickRemaining(Combatant ex) {
+        Lying l = acting.get(ex.id);
+        return l == null ? 0 : Math.max(0, l.pose.holdTicks() - l.tick);
+    }
+
     /** 처형 인형이 남은 틱 수 (처형자 행동 잠금용) */
     public int execRemaining(Combatant ex) {
         ExecAct act = execs.get(ex.id);

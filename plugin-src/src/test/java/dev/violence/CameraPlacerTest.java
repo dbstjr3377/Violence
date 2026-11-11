@@ -53,4 +53,17 @@ class CameraPlacerTest {
         assertTrue(cam.distance(look) >= 1.5 - 1e-6, "인형 머리 속이 아니라 떨어진 자리 " + cam);
         assertTrue(Math.abs(cam.x()) <= 1.5 && cam.y() <= 3, "복도 안 " + cam);
     }
+
+    @Test
+    void rejectsASpotHuggingTheWall() {
+        // 벽에서 0.1블록 떨어진 자리는 시야가 트였어도 쓰지 않음 (화면이 벽 속으로 들어가 어두워짐)
+        Vec3 look = new Vec3(0, 1, 0);
+        Vec3 hugging = new Vec3(1.4, 2.0, 0);
+        Vec3 inside = new Vec3(0, 2.4, -1.8);
+        assertEquals(inside, CameraPlacer.place(look, List.of(hugging, inside), CameraPlacerTest::roomRay));
+        // 다른 후보가 없으면 둘레에서 벽과 떨어진 자리를 찾음
+        Vec3 cam = CameraPlacer.place(look, List.of(hugging), CameraPlacerTest::roomRay);
+        assertTrue(1.5 - Math.abs(cam.x()) >= CameraPlacer.CLEARANCE - 1e-6 && 2.5 - Math.abs(cam.z()) >= CameraPlacer.CLEARANCE - 1e-6
+                && 3 - cam.y() >= CameraPlacer.CLEARANCE - 1e-6, "벽과 떨어짐 " + cam);
+    }
 }

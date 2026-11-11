@@ -8,6 +8,7 @@ import java.util.List;
  * 후보를 차례로 보고 바라보는 곳(look)에서 후보까지 시야가 트였으면 그 자리를 쓴다.
  * 모두 막혔으면 바라보는 곳 둘레(16방향 × 높이 3단 × 거리 4단)에서 트인 자리를 찾고,
  * 그래도 없으면 가장 많이 트인 후보 쪽으로 벽 바로 앞(0.35블록 안쪽)까지만 카메라를 둔다.
+ * 시야가 트였어도 카메라가 벽·천장에 0.4블록보다 가까우면 화면 가장자리가 벽 속으로 들어가 어두워지므로 쓰지 않는다.
  */
 public final class CameraPlacer {
     private CameraPlacer() {}
@@ -19,6 +20,21 @@ public final class CameraPlacer {
 
     public static final double WALL_MARGIN = 0.35;
     public static final double MIN_DIST = 0.8;
+    /** 카메라 자리 둘레(앞뒤·좌우·위아래)로 이만큼은 비어 있어야 함 */
+    public static final double CLEARANCE = 0.4;
+
+    private static final Vec3[] AXES = {
+            new Vec3(1, 0, 0), new Vec3(-1, 0, 0), new Vec3(0, 1, 0), new Vec3(0, -1, 0), new Vec3(0, 0, 1), new Vec3(0, 0, -1)};
+
+    /** look 에서 c 까지 트였고, c 둘레도 벽에서 CLEARANCE 이상 떨어짐 */
+    static boolean open(Vec3 look, Vec3 c, Ray ray) {
+        double len = c.sub(look).length();
+        if (ray.clear(look, c) < len - 1e-3) return false;
+        for (Vec3 ax : AXES) {
+            if (ray.clear(c, c.add(ax.mul(CLEARANCE))) < CLEARANCE - 1e-3) return false;
+        }
+        return true;
+    }
 
     public static Vec3 place(Vec3 look, List<Vec3> candidates, Ray ray) {
         Vec3 best = null;
@@ -28,7 +44,8 @@ public final class CameraPlacer {
             double len = c.sub(look).length();
             if (len < 1e-6) continue;
             double clear = ray.clear(look, c);
-            if (clear >= len - 1e-3) return c;
+            if (open(look, c, ray)) return c;
+            if (clear >= len - 1e-3) clear = Math.max(0, len - CLEARANCE);   // 트였지만 벽에 붙음
             double frac = clear / len;
             if (frac > bestFrac) {
                 bestFrac = frac;
@@ -57,7 +74,7 @@ public final class CameraPlacer {
                 for (int k : order) {
                     double az = baseAz + k * Math.PI / 8;
                     Vec3 c = look.add(new Vec3(Math.cos(az) * Math.cos(e), Math.sin(e), Math.sin(az) * Math.cos(e)).mul(dist));
-                    if (ray.clear(look, c) >= dist - 1e-3) return c;
+                    if (open(look, c, ray)) return c;
                 }
             }
         }

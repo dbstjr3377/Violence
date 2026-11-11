@@ -1040,6 +1040,9 @@ public final class CombatService {
         v.feelImpact(0.9);
     }
 
+    /** 벽 발차기 처형 뒤 처형 카메라로 더 보는 틱 수 */
+    private static final int WALL_KICK_AFTER = 22;
+
     private void finishExecution(Execution e) {
         long now = plugin.now();
         executions.remove(e);
@@ -1063,6 +1066,11 @@ public final class CombatService {
             ex.actionLockUntil = now + Math.max(4, rest);
             ex.moveLockUntil = now + rest;
             plugin.falls().finishExec(ex, rest > 2);
+        } else if (e.style == ExecutionStyle.WALL_KICK) {
+            // 발차기가 닿는 순간 끝나므로, 다리를 거두고 벽에 기댄 몸이 무너지는 것까지 처형 카메라로 봄
+            rest = Math.max(WALL_KICK_AFTER, plugin.falls().kickRemaining(ex));
+            ex.actionLockUntil = now + rest;
+            ex.moveLockUntil = now + rest;
         }
         ex.setState(CombatState.ALIVE, now);
         kill(v, ex, KillType.EXECUTION, new Vec3(0, -1, 0), false);
