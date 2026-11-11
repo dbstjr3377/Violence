@@ -87,8 +87,12 @@ def main():
         paths = []
         for ext in (".vsh", ".fsh"):
             for base in (core, os.path.join(REF, "core")):
-                if os.path.isfile(os.path.join(base, stem + ext)):
-                    paths.append(os.path.join(base, stem + ext))
+                p = os.path.join(base, stem + ext)
+                if os.path.isfile(p):
+                    # 바닐라 원본이 Vulkan 식 내장 변수(gl_VertexIndex)를 쓰면 glslang(OpenGL)으로는 못 읽으므로 바꾼 쪽만 검사
+                    if base != core and "gl_VertexIndex" in open(p, encoding="utf-8").read():
+                        break
+                    paths.append(p)
                     break
         for defs in variants(stem):
             ok, log = compile_one(paths, defs)

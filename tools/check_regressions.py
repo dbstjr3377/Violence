@@ -166,6 +166,14 @@ bl = open(os.path.join(JAVA, "dev", "violence", "fx", "BloodService.java"), enco
 check("피 v10", "addDrop" in bl and "SPLAT_LIFE = 200" in bl and "headFlow" not in bl and "addPassenger" in bl,
       "핏방울 보임 · 10초 · 흐르는 피 없음 · 웅덩이 부착")
 
+# 18. 연사 무기로 적을 겨누고 꾹 누르면 계속 발사 (클라이언트가 인물을 겨누면 휘두르기를 한 번만 보내던 문제)
+hf = os.path.join(JAVA, "dev", "violence", "player", "HoldFireBlock.java")
+cs = open(os.path.join(JAVA, "dev", "violence", "combat", "CombatService.java"), encoding="utf-8").read()
+pk = os.path.join(ROOT, "resourcepack", "assets", "minecraft", "models", "block", "powder_snow.json")
+ln = os.path.join(ROOT, "tools", "shaders", "core", "rendertype_lines.fsh")
+check("연사 꾹 누르기 (적 조준 중)", os.path.isfile(hf) and "holdFire.tick" in cs and os.path.isfile(pk) and os.path.isfile(ln),
+      "보이지 않는 가짜 블록 + 테두리 안 그림")
+
 w = max(len(i) for i, _, _ in results)
 fail = 0
 for issue, ok, detail in results:

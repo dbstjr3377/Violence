@@ -26,6 +26,9 @@ import org.bukkit.util.Vector;
 
 /** 플레이어 개체. */
 public final class PlayerCombatant extends Combatant {
+    /** 연사 무기로 적을 겨눈 채 누르기 (HoldFireBlock) */
+    public final HoldFireBlock holdFire = new HoldFireBlock();
+
     public static final double BASE_SPEED = 0.135;
 
     private final Player player;

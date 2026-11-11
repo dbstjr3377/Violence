@@ -172,7 +172,9 @@ public final class ViolenceCommand implements TabExecutor {
                         if (k >= n) break;
                         if (npc.state != dev.violence.combat.CombatState.ALIVE || npc.execution != null) continue;
                         // 좁은 복도에서도 벽에 묻히지 않게: 앞쪽으로 1.6칸 간격, 좌우로 조금씩 엇갈림
-                        double side = (k % 2 == 0 ? -0.55 : 0.55);
+                        // "col": 한 줄로 (조준을 옮기지 않고 연사로 차례로 쓰러뜨리기), 아니면 좌우로 조금씩 엇갈림
+                        boolean col = args.length > 3 && args[3].equalsIgnoreCase("col");
+                        double side = col ? 0 : (k % 2 == 0 ? -0.55 : 0.55);
                         dev.violence.math.Vec3 at = pc.feet().add(f.mul(4.0 + k * 1.6)).add(rt.mul(side));
                         org.bukkit.Location l = new org.bukkit.Location(a.world, at.x(), at.y(), at.z(), p.getLocation().getYaw() + 180, 0);
                         npc.teleport(l);

@@ -86,6 +86,18 @@ def block_textures():
     return BT.write_all(os.path.join(PACK, "assets", "minecraft", "textures", "block"), save_png)
 
 
+def hold_fire_block():
+    """연사 보조 가짜 블록(가루눈, HoldFireBlock): 모양·입자·소리를 모두 지움 (맵에는 가루눈을 쓰지 않음)"""
+    from PIL import Image as _I
+    save_png(_I.new("RGBA", (16, 16), (0, 0, 0, 0)), os.path.join(PACK, "assets", "minecraft", "textures", "block", "powder_snow.png"))
+    write(os.path.join(PACK, "assets", "minecraft", "models", "block", "powder_snow.json"),
+          {"textures": {"particle": "minecraft:block/powder_snow"}, "elements": []})
+    silent = {"replace": True, "sounds": []}
+    write(os.path.join(PACK, "assets", "minecraft", "sounds.json"),
+          {k: silent for k in ("block.powder_snow.hit", "block.powder_snow.break", "block.powder_snow.step",
+                               "block.powder_snow.place", "block.powder_snow.fall")})
+
+
 def default_skin():
     """1인칭 팔 기본 스킨 (64x64 표준 배치). 플러그인이 접속한 사람마다 자기 스킨으로 덮는 리소스팩을 따로 보낸다."""
     from PIL import Image
@@ -1137,6 +1149,7 @@ def main():
     atlases()
     default_skin()
     block_textures()
+    hold_fire_block()
     n = weapons()
     puppet()
     crosshair()

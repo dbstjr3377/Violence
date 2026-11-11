@@ -1203,6 +1203,11 @@ public final class CombatService {
         if (a == null) return;
         for (Combatant c : new ArrayList<>(a.combatants.values())) {
             if (c.state != CombatState.DEAD) c.history.record(c.feet(), c.state.isDownedLike());
+            if (c instanceof PlayerCombatant hp && hp.player().isOnline()) {
+                boolean auto = c.state == CombatState.ALIVE && c.weapon != null && c.weapon.type().automatic()
+                        && !plugin.camera().isViewing(hp.player());
+                hp.holdFire.tick(hp.player(), auto);
+            }
             switch (c.state) {
                 case DOWNED -> {
                     if (now >= c.downedUntil) standUp(c, now);
