@@ -35,4 +35,22 @@ class CameraPlacerTest {
         assertTrue(Math.abs(cam.x()) < 1.5 && cam.y() < 3 && cam.y() > 0, "방 안 " + cam);
         assertTrue(cam.distance(look) >= CameraPlacer.MIN_DIST - 1e-9, "너무 가깝지 않게");
     }
+
+    @Test
+    void narrowCorridorFindsAClearSpotAwayFromTheTarget() {
+        // 복도: 가로 3칸, 높이 3칸, 길이 방향으로만 트임 → 옆·위 후보는 모두 막힘
+        Vec3 look = new Vec3(0, 1, 0);
+        CameraPlacer.Ray corridor = (from, to) -> {
+            Vec3 d = to.sub(from);
+            double len = d.length();
+            for (double t = 0; t <= len; t += 0.01) {
+                Vec3 p = from.add(d.mul(t / len));
+                if (Math.abs(p.x()) > 1.5 || p.y() < 0 || p.y() > 3) return t;
+            }
+            return len;
+        };
+        Vec3 cam = CameraPlacer.place(look, List.of(new Vec3(2.6, 3.1, -0.5), new Vec3(-2.6, 3.1, -0.5), new Vec3(0, 4.2, 0)), corridor);
+        assertTrue(cam.distance(look) >= 1.5 - 1e-6, "인형 머리 속이 아니라 떨어진 자리 " + cam);
+        assertTrue(Math.abs(cam.x()) <= 1.5 && cam.y() <= 3, "복도 안 " + cam);
+    }
 }
