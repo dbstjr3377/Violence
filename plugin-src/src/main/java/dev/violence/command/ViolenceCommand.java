@@ -38,7 +38,7 @@ public final class ViolenceCommand implements TabExecutor {
 
     public MapEditor editor() { return editor; }
 
-    private static void msg(CommandSender s, String text) { s.sendMessage(Component.text(text, NamedTextColor.LIGHT_PURPLE)); }
+    private static void msg(CommandSender s, String text) { dev.violence.chat.NoChat.tell(s, Component.text(text, NamedTextColor.LIGHT_PURPLE)); }
 
     private static int intArg(String[] a, int i, int def) {
         if (a.length <= i) return def;
@@ -85,7 +85,7 @@ public final class ViolenceCommand implements TabExecutor {
             case "maps" -> {
                 msg(sender, "맵 목록:");
                 for (String id : plugin.maps().mapIds()) {
-                    sender.sendMessage(Component.text(" - " + id + "  " + plugin.maps().displayName(id)
+                    dev.violence.chat.NoChat.tell(sender, Component.text(" - " + id + "  " + plugin.maps().displayName(id)
                             + (plugin.maps().hasSaved(id) ? "" : "  (첫 게임 때 자동 생성)"), NamedTextColor.WHITE));
                 }
             }
@@ -339,11 +339,11 @@ public final class ViolenceCommand implements TabExecutor {
 
     private void help(CommandSender s) {
         msg(s, "VIOLENCE 명령어");
-        s.sendMessage(Component.text(" /게임시작 [맵] [목표킬] [제한시간(초)]  /게임중단", NamedTextColor.WHITE));
-        s.sendMessage(Component.text(" /vio start [맵] [NPC수] [목표킬] [초] · stop · maps · info · reloadpack", NamedTextColor.WHITE));
-        s.sendMessage(Component.text(" /vio map generate [맵|all] · edit <맵> · weapon add [무기] · weapon remove", NamedTextColor.WHITE));
-        s.sendMessage(Component.text("   · spawn add|remove · door add|remove · bounds · save · close", NamedTextColor.WHITE));
-        s.sendMessage(Component.text(" /vio give <무기> · mask <가면> · offer (테스트용)", NamedTextColor.WHITE));
+        dev.violence.chat.NoChat.tell(s, Component.text(" /게임시작 [맵] [목표킬] [제한시간(초)]  /게임중단", NamedTextColor.WHITE));
+        dev.violence.chat.NoChat.tell(s, Component.text(" /vio start [맵] [NPC수] [목표킬] [초] · stop · maps · info · reloadpack", NamedTextColor.WHITE));
+        dev.violence.chat.NoChat.tell(s, Component.text(" /vio map generate [맵|all] · edit <맵> · weapon add [무기] · weapon remove", NamedTextColor.WHITE));
+        dev.violence.chat.NoChat.tell(s, Component.text("   · spawn add|remove · door add|remove · bounds · save · close", NamedTextColor.WHITE));
+        dev.violence.chat.NoChat.tell(s, Component.text(" /vio give <무기> · mask <가면> · offer (테스트용)", NamedTextColor.WHITE));
     }
 
     /**

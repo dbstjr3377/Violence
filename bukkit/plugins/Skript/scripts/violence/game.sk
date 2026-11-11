@@ -29,7 +29,7 @@ command /게임시작 [<text>] [<integer>] [<integer>]:
 		set {_map} to arg-1 ? "random"
 		set {_kills} to arg-2 ? -1
 		set {_time} to arg-3 ? -1
-		send "{@prefix} &f플레이어 &e%{_players}%&f명 + NPC &e%{_npcs}%&f명으로 게임을 준비합니다." to sender
+		send "{@prefix} &f플레이어 &e%{_players}%&f명 + NPC &e%{_npcs}%&f명으로 게임을 준비합니다." to console
 		execute console command "violence start %{_map}% %{_npcs}% %{_kills}% %{_time}%"
 
 command /게임중단:
@@ -63,4 +63,4 @@ command /vhook <text>:
 		else if {_event} is "gameend":
 			violenceAnnounceEnd({_a::2}, {_a::3})
 		else if {_event} is "gamestop":
-			broadcast "{@prefix} &c게임이 중단되었습니다."
+			send "{@prefix} &c게임이 중단되었습니다." to console

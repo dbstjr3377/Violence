@@ -40,7 +40,7 @@ command /컷씬 [<text>]:
 			execute console command "violence cutscene end"
 			stop
 		if {_name} is not "intro":
-			send "{@prefix} &c없는 컷씬입니다: &e%{_name}% &7(사용 가능: intro)" to player
+			send "{@prefix} &c없는 컷씬입니다: &e%{_name}% &7(사용 가능: intro)" to console
 			stop
 		execute console command "violence cutscene begin %player%"
 		violenceCutsceneIntro(player)

@@ -130,7 +130,7 @@ public final class DialogService {
     public ItemDisplay camera() { return cam; }
 
     private static void msg(CommandSender s, String text, NamedTextColor c) {
-        s.sendMessage(Component.text("[컷씬] " + text, c));
+        dev.violence.chat.NoChat.tell(s, Component.text("[컷씬] " + text, c));
     }
 
     // ───────────────────────── 시작 / 대사 / 넘기기 / 종료 ─────────────────────────

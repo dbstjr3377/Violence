@@ -174,6 +174,16 @@ ln = os.path.join(ROOT, "tools", "shaders", "core", "rendertype_lines.fsh")
 check("연사 꾹 누르기 (적 조준 중)", os.path.isfile(hf) and "holdFire.tick" in cs and os.path.isfile(pk) and os.path.isfile(ln),
       "보이지 않는 가짜 블록 + 테두리 안 그림")
 
+# 19. 시스템 채팅 없음: 플러그인·Skript 가 플레이어 채팅에 글을 쓰지 않음 (콘솔·액션바로만), 바닐라 알림 끔
+import re  # noqa: E402
+chat = [os.path.relpath(p, JAVA) for p in glob.glob(os.path.join(JAVA, "**", "*.java"), recursive=True)
+        if not p.endswith("NoChat.java") and re.search(r"\.sendMessage\(|Bukkit\.broadcast|sendRichMessage", open(p, encoding="utf-8").read())]
+sk_chat = [os.path.basename(p) for p in glob.glob(os.path.join(ROOT, "bukkit", "plugins", "Skript", "scripts", "**", "*.sk"), recursive=True)
+           if re.search(r"^\s*(broadcast |message |send (?!.* to console$))", open(p, encoding="utf-8").read(), re.M)]
+nc = open(os.path.join(JAVA, "dev", "violence", "chat", "NoChat.java"), encoding="utf-8").read()
+check("시스템 채팅 없음", not chat and not sk_chat and all(r in nc for r in ("SEND_COMMAND_FEEDBACK", "LOG_ADMIN_COMMANDS", "joinMessage(null)")),
+      ", ".join(chat + sk_chat) or "플러그인·Skript → 콘솔, 바닐라 알림 끔")
+
 w = max(len(i) for i, _, _ in results)
 fail = 0
 for issue, ok, detail in results:

@@ -112,6 +112,7 @@ public final class ViolencePlugin extends JavaPlugin {
         }
         pack.start();
 
+        getServer().getPluginManager().registerEvents(new dev.violence.chat.NoChat(this), this);   // 시스템 채팅 없음
         getServer().getPluginManager().registerEvents(new PlayerListener(this), this);
         command = new ViolenceCommand(this);
         PluginCommand pc = getCommand("violence");

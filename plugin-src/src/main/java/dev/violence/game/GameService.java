@@ -73,18 +73,18 @@ public final class GameService {
      */
     public boolean start(CommandSender sender, String map, int npcCount, int kills, int seconds) {
         if (state != State.IDLE) {
-            sender.sendMessage(Component.text("이미 게임이 진행 중입니다.", NamedTextColor.RED));
+            dev.violence.chat.NoChat.tell(sender, Component.text("이미 게임이 진행 중입니다.", NamedTextColor.RED));
             return false;
         }
         if (plugin.dialog().active()) {
-            sender.sendMessage(Component.text("컷씬이 진행 중입니다. 컷씬이 끝난 뒤 시작하세요.", NamedTextColor.RED));
+            dev.violence.chat.NoChat.tell(sender, Component.text("컷씬이 진행 중입니다. 컷씬이 끝난 뒤 시작하세요.", NamedTextColor.RED));
             return false;
         }
         List<Player> players = new ArrayList<>(plugin.lobby().participants());
         int total = plugin.getConfig().getInt("game.total-entities", 50);
         int minPlayers = plugin.getConfig().getInt("game.min-players", 1);
         if (players.size() < minPlayers) {
-            sender.sendMessage(Component.text("참가 플레이어가 부족합니다 (최소 " + minPlayers + "명).", NamedTextColor.RED));
+            dev.violence.chat.NoChat.tell(sender, Component.text("참가 플레이어가 부족합니다 (최소 " + minPlayers + "명).", NamedTextColor.RED));
             return false;
         }
         List<String> ids = plugin.maps().mapIds();
@@ -92,11 +92,11 @@ public final class GameService {
             map = ids.get(plugin.random().nextInt(ids.size()));
         }
         if (!ids.contains(map)) {
-            sender.sendMessage(Component.text("알 수 없는 맵: " + map + "  (" + String.join(", ", ids) + ")", NamedTextColor.RED));
+            dev.violence.chat.NoChat.tell(sender, Component.text("알 수 없는 맵: " + map + "  (" + String.join(", ", ids) + ")", NamedTextColor.RED));
             return false;
         }
         if (plugin.command() != null && plugin.command().editor().active()) {
-            sender.sendMessage(Component.text("맵 편집 중에는 게임을 시작할 수 없습니다. /vio map close 후 시작하세요.", NamedTextColor.RED));
+            dev.violence.chat.NoChat.tell(sender, Component.text("맵 편집 중에는 게임을 시작할 수 없습니다. /vio map close 후 시작하세요.", NamedTextColor.RED));
             return false;
         }
         // NPC 수 상한: 테스트용으로 직접 지정해도 서버가 멈추지 않게
@@ -109,12 +109,12 @@ public final class GameService {
             display = plugin.maps().displayName(map);   // 손으로 고친 map.yml 이 깨져 있으면 여기서 실패
         } catch (RuntimeException ex) {
             plugin.getLogger().log(java.util.logging.Level.WARNING, "맵 정보를 읽지 못했습니다: " + map, ex);
-            sender.sendMessage(Component.text("맵 정보(map.yml)를 읽지 못했습니다: " + map, NamedTextColor.RED));
+            dev.violence.chat.NoChat.tell(sender, Component.text("맵 정보(map.yml)를 읽지 못했습니다: " + map, NamedTextColor.RED));
             return false;
         }
         this.mapId = map;
         state = State.PREPARING;
-        Bukkit.broadcast(Component.text("[VIOLENCE] ", NamedTextColor.LIGHT_PURPLE)
+        dev.violence.chat.NoChat.log(Component.text("[VIOLENCE] ", NamedTextColor.LIGHT_PURPLE)
                 .append(Component.text(display + " 맵을 준비합니다... (플레이어 " + players.size() + " + NPC " + npcs + ")", NamedTextColor.WHITE)));
         int finalNpcs = npcs;
         final String finalMap = map;
@@ -127,7 +127,7 @@ public final class GameService {
                     return;
                 }
                 if (world == null || gm == null) {
-                    Bukkit.broadcast(Component.text("맵 준비에 실패했습니다. 서버 로그를 확인하세요.", NamedTextColor.RED));
+                    dev.violence.chat.NoChat.log(Component.text("맵 준비에 실패했습니다. 서버 로그를 확인하세요.", NamedTextColor.RED));
                     World w = world != null ? world : preparingWorld;
                     if (w != null) {
                         for (Player p : w.getPlayers()) plugin.lobby().sendToLobby(p);
@@ -141,7 +141,7 @@ public final class GameService {
                     setupArena(world, gm, players, finalNpcs, finalMap);
                 } catch (RuntimeException ex) {
                     plugin.getLogger().log(java.util.logging.Level.SEVERE, "게임 시작 실패", ex);
-                    Bukkit.broadcast(Component.text("게임 시작 중 오류가 발생했습니다: " + ex.getMessage(), NamedTextColor.RED));
+                    dev.violence.chat.NoChat.log(Component.text("게임 시작 중 오류가 발생했습니다: " + ex.getMessage(), NamedTextColor.RED));
                     forceCleanup();
                 }
             });
@@ -546,18 +546,18 @@ public final class GameService {
         titleAll(Component.text("GAME OVER").font(Glyphs.HUD_BIG).color(net.kyori.adventure.text.format.TextColor.color(Glyphs.PINK)),
                 Component.text("우승: " + wname + " (" + wk + "킬)").font(Glyphs.PROMPT), 5, 100, 20);
         if (!bridge.call("gameend", wname, wk)) {
-            Bukkit.broadcast(Component.text("[VIOLENCE] 게임 종료! 우승: " + wname + " (" + wk + "킬)", NamedTextColor.LIGHT_PURPLE));
+            dev.violence.chat.NoChat.log(Component.text("[VIOLENCE] 게임 종료! 우승: " + wname + " (" + wk + "킬)", NamedTextColor.LIGHT_PURPLE));
         }
         int rank = 1;
         for (Combatant c : ranking) {
             if (rank > 10) break;
-            Bukkit.broadcast(Component.text(String.format(" %2d. %-16s %3d킬  %,d점", rank, c.name(), c.kills, c.score),
+            dev.violence.chat.NoChat.log(Component.text(String.format(" %2d. %-16s %3d킬  %,d점", rank, c.name(), c.kills, c.score),
                     c.isPlayer() ? NamedTextColor.YELLOW : NamedTextColor.GRAY));
             rank++;
         }
         for (PlayerCombatant pc : a.players.values()) {
             if (pc.isPlayer() && !ranking.subList(0, Math.min(10, ranking.size())).contains(pc)) {
-                pc.player().sendMessage(Component.text(String.format(" 내 순위: %d위  %d킬  %,d점", ranking.indexOf(pc) + 1, pc.kills, pc.score), NamedTextColor.YELLOW));
+                dev.violence.chat.NoChat.log(String.format("%s 순위: %d위  %d킬  %,d점", pc.name(), ranking.indexOf(pc) + 1, pc.kills, pc.score));
             }
         }
         // 모두 정지
@@ -576,11 +576,11 @@ public final class GameService {
     /** /게임중단: 결과 없이 즉시 종료 */
     public boolean stop(CommandSender sender) {
         if (state == State.IDLE) {
-            sender.sendMessage(Component.text("진행 중인 게임이 없습니다.", NamedTextColor.RED));
+            dev.violence.chat.NoChat.tell(sender, Component.text("진행 중인 게임이 없습니다.", NamedTextColor.RED));
             return false;
         }
         // Skript 가 있으면 game.sk 가 알림을 보내므로 한 번만
-        if (!bridge.call("gamestop")) Bukkit.broadcast(Component.text("[VIOLENCE] 게임이 중단되었습니다.", NamedTextColor.RED));
+        if (!bridge.call("gamestop")) dev.violence.chat.NoChat.log(Component.text("[VIOLENCE] 게임이 중단되었습니다.", NamedTextColor.RED));
         forceCleanup();
         return true;
     }

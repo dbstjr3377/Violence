@@ -41,7 +41,7 @@ public final class MapEditor {
 
     public boolean active() { return world != null; }
 
-    private void msg(Player p, String s) { p.sendMessage(Component.text("[맵 편집] " + s, NamedTextColor.AQUA)); }
+    private void msg(Player p, String s) { dev.violence.chat.NoChat.tell(p, Component.text("[맵 편집] " + s, NamedTextColor.AQUA)); }
 
     public void edit(Player p, String id) {
         if (plugin.arena() != null || plugin.game().state() != dev.violence.game.GameService.State.IDLE) {
