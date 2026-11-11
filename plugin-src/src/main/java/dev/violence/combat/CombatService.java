@@ -410,7 +410,8 @@ public final class CombatService {
                 v.moveLockUntil = plugin.now() + 4;
                 v.feelImpact(0.3);
             } else {
-                plugin.fx().blood(arena(), point, dir, 1);
+                // 주먹으로 쓰러뜨릴 때는 피 없이 맞은 사람 화면만 흔들림
+                v.feelImpact(0.55);
                 knockdown(v, dir, attacker, true);
             }
             attacker.feelImpact(0.15);
@@ -621,7 +622,8 @@ public final class CombatService {
             plugin.fx().blood(arena(), point, dir, 3);
             kill(v, thrower, KillType.THROW, dir, false);
         } else {
-            plugin.fx().blood(arena(), point, dir, 1);
+            // 던져서 쓰러뜨릴 때는 피 없이 맞은 사람 화면만 흔들림
+            v.feelImpact(0.55);
             knockdown(v, dir, thrower, false);
         }
     }
@@ -934,7 +936,8 @@ public final class CombatService {
         switch (name) {
             case "fist" -> {
                 plugin.fx().sound(ex.world(), head, last ? "violence:melee.blunt_hit" : "violence:melee.punch_hit", 1.4f, last ? 0.7f : 0.9f);
-                plugin.blood().spray(a, head, new Vec3(0, 0.7, 0).add(out.mul(0.3)), last ? 4 : 2);
+                // 맨손: 두 갈래 흩뿌림을 동시에 세 번
+                for (int k = 0; k < 3; k++) plugin.blood().twinSpray(a, head, last ? 3 : 2);
                 plugin.blood().floorSplat(a, head, last ? 0.8f : 0.45f);
             }
             case "stomp" -> {
@@ -960,11 +963,8 @@ public final class CombatService {
             default -> {   // blunt, light
                 boolean light = "light".equals(name);
                 plugin.fx().sound(ex.world(), head, sharp(t) ? "violence:melee.slash_hit" : "violence:melee.blunt_hit", 1.4f, last ? 0.75f : 0.95f);
-                // 바깥(머리 너머)으로 + 안쪽(몸 쪽, 머리 기준 130°·230°)으로도 튐. 멀리 가지 않게 거리 배율을 줄임
-                int n = last ? 4 : (light ? 2 : 3);
-                plugin.blood().spray(a, head, out.mul(0.8).add(0, 0.45, 0), n, 0.6);
-                plugin.blood().spray(a, head, turn(out, 130).mul(0.8).add(0, 0.45, 0), Math.max(1, n - 1), 0.5);
-                plugin.blood().spray(a, head, turn(out, 230).mul(0.8).add(0, 0.45, 0), Math.max(1, n - 1), 0.5);
+                // 때릴 때마다 머리에서 사이각 22~30° 인 두 방향으로: 한쪽은 길게, 한쪽은 0.7 만큼
+                plugin.blood().twinSpray(a, head, last ? 4 : (light ? 2 : 3));
                 plugin.blood().floorSplat(a, head, light ? 0.45f : 0.6f);
             }
         }
@@ -980,12 +980,6 @@ public final class CombatService {
             default -> 1.2;     // 날붙이: 긋기
         };
         if (e.camera != null) plugin.camera().shake(e.camera, deg * (last ? 1.4 : 1.0), last ? 8 : 5);
-    }
-
-    /** 수평으로 deg 도 돌린 방향 */
-    private static Vec3 turn(Vec3 v, double deg) {
-        double r = Math.toRadians(deg), c = Math.cos(r), sn = Math.sin(r);
-        return new Vec3(v.x() * c - v.z() * sn, v.y(), v.x() * sn + v.z() * c);
     }
 
     /** 처형 동작 중 추가 피: 무거운 무기를 흔들어 뽑음(tug), 뽑아 올림(pull) */
@@ -1062,18 +1056,30 @@ public final class CombatService {
         ex.execution = null;
         v.execution = null;
         ex.actionLockUntil = now + 4;
+        int rest = 0;
         if (e.anim != null) {
-            // 처형 동작을 마저 하는 동안 (무거운 무기 뽑기 등) 움직이지 못함
-            int rest = plugin.falls().execRemaining(ex);
+            // 처형 동작을 마저 하는 동안 (무거운 무기 뽑기 등) 움직이지 못하고, 처형 카메라로 끝까지 봄
+            rest = plugin.falls().execRemaining(ex);
             ex.actionLockUntil = now + Math.max(4, rest);
             ex.moveLockUntil = now + rest;
-            plugin.falls().finishExec(ex);
+            plugin.falls().finishExec(ex, rest > 2);
         }
         ex.setState(CombatState.ALIVE, now);
-        stepBack(ex, e);
-        ex.onExecutionEnd(e);
         kill(v, ex, KillType.EXECUTION, new Vec3(0, -1, 0), false);
         ex.refreshEquipment();
+        if (rest > 2) {
+            // 후딜레이: 남은 동작이 끝나면 카메라를 돌려주고 1블록 물러남
+            final Arena a = arena();
+            plugin.laterIn(a, rest, () -> {
+                if (!a.combatants.containsKey(ex.id) || ex.state == CombatState.DEAD || ex.execution != null) return;
+                stepBack(ex, e);
+                ex.onExecutionEnd(e);
+                ex.refreshEquipment();
+            });
+        } else {
+            stepBack(ex, e);
+            ex.onExecutionEnd(e);
+        }
     }
 
     /** 처형이 끝나면 올라탔던 자리에서 바라보던 반대쪽으로 1블록 물러남 (벽에 막히면 덜 물러남) */

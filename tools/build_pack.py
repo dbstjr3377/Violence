@@ -657,6 +657,21 @@ def fx():
         write(os.path.join(NS, "models", "fx", f"blood_decal_{i}.json"), plane_model(f"violence:fx/blood_decal_{i}"))
     write(os.path.join(NS, "models", "fx", "blood_mist.json"), plane_model("violence:fx/blood_mist", axis="z"))
     solid(os.path.join(T, "blood_drop.png"), (150, 8, 14, 255))
+    # 날아가는 핏방울: 속도 방향(+Z)으로 늘어난 방울. 십자로 교차한 두 판 (어느 쪽에서 봐도 방울 모양)
+    fly = Image.new("RGBA", (32, 32), (0, 0, 0, 0))
+    fd = ImageDraw.Draw(fly)
+    fd.ellipse([0, 5, 31, 26], fill=(200, 10, 16, 255))      # 혈흔과 같은 단색
+    fly.putalpha(fly.getchannel("A").point(lambda v: 255 if v > 127 else 0))
+    save_png(fly, os.path.join(T, "blood_fly.png"))
+    tex = "violence:fx/blood_fly"
+    write(os.path.join(NS, "models", "fx", "blood_fly.json"), {
+        "textures": {"t": tex, "particle": tex},
+        "elements": [
+            {"from": [8, 0, 0], "to": [8, 16, 16], "shade": False,
+             "faces": {"east": {"uv": [0, 0, 16, 16], "texture": "#t"}, "west": {"uv": [0, 0, 16, 16], "texture": "#t"}}},
+            {"from": [0, 8, 0], "to": [16, 8, 16], "shade": False,
+             "faces": {"up": {"uv": [0, 0, 16, 16], "texture": "#t", "rotation": 90}, "down": {"uv": [0, 0, 16, 16], "texture": "#t", "rotation": 90}}},
+        ]})
     write(os.path.join(NS, "models", "fx", "blood_drop.json"), cube_model("violence:fx/blood_drop"))
     # 탄흔
     img = Image.new("RGBA", (16, 16), (0, 0, 0, 0))
@@ -788,7 +803,7 @@ def misc():
     write(os.path.join(NS, "items", "misc", "blank.json"), item_def("violence:misc/blank"))
     # FX 아이템 정의
     for name in ["tracer", "tracer_orange", "muzzle", "muzzle_small", "blood_decal_0", "blood_decal_1", "blood_decal_2",
-                 "blood_decal_3", "blood_mist", "blood_drop", "bullet_hole", "impact", "glass_shard", "slash", "disco_ball", "laser_green", "laser_red"] + [f"beam_{c}" for c in CLUB_COLORS]:
+                 "blood_decal_3", "blood_mist", "blood_drop", "blood_fly", "bullet_hole", "impact", "glass_shard", "slash", "disco_ball", "laser_green", "laser_red"] + [f"beam_{c}" for c in CLUB_COLORS]:
         write(os.path.join(NS, "items", "fx", name + ".json"), item_def("violence:fx/" + name))
     _ = uvf
 

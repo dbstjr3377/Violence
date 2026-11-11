@@ -140,7 +140,7 @@ public final class Hud {
     }
 
     /** 처치 회색 깜빡임 길이 (틱) */
-    public static final int FLASH_TICKS = 20;
+    public static final int FLASH_TICKS = 27;   // 0.75배 속도 (쉐이더 violence_flash.glsl 과 같이)
 
     private final Map<UUID, Long> flashUntil = new HashMap<>();
 

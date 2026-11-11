@@ -47,12 +47,14 @@ layout(location = 5) out vec4 overlayColor;
 
 layout(location = 6) out vec2 texCoord0;
 layout(location = 9) flat out int violenceSkinPart;  // VIOLENCE: 스킨 인형 부위 (0 = 아님)
+layout(location = 10) flat out float violencePersp;  // VIOLENCE: 월드(원근)면 1, GUI(정사영)면 0
 layout(location = 8) out vec2 violenceFlash;  // VIOLENCE: (깜빡임 여부, 대신 쓸 밝기)
 #ifdef GLINT
 layout(location = 7) out vec2 texCoordGlint;
 #endif
 
 void main() {
+    violencePersp = ProjMat[2][3] < -0.5 ? 1.0 : 0.0;  // VIOLENCE
     gl_Position = ProjMat * ModelViewMat * vec4(Position, 1.0);
 
     sphericalVertexDistance = fog_spherical_distance(Position);

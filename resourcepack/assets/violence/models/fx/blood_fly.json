@@ -1,0 +1,76 @@
+{
+ "textures": {
+  "t": "violence:fx/blood_fly",
+  "particle": "violence:fx/blood_fly"
+ },
+ "elements": [
+  {
+   "from": [
+    8,
+    0,
+    0
+   ],
+   "to": [
+    8,
+    16,
+    16
+   ],
+   "shade": false,
+   "faces": {
+    "east": {
+     "uv": [
+      0,
+      0,
+      16,
+      16
+     ],
+     "texture": "#t"
+    },
+    "west": {
+     "uv": [
+      0,
+      0,
+      16,
+      16
+     ],
+     "texture": "#t"
+    }
+   }
+  },
+  {
+   "from": [
+    0,
+    8,
+    0
+   ],
+   "to": [
+    16,
+    8,
+    16
+   ],
+   "shade": false,
+   "faces": {
+    "up": {
+     "uv": [
+      0,
+      0,
+      16,
+      16
+     ],
+     "texture": "#t",
+     "rotation": 90
+    },
+    "down": {
+     "uv": [
+      0,
+      0,
+      16,
+      16
+     ],
+     "texture": "#t",
+     "rotation": 90
+    }
+   }
+  }
+ ]
+}

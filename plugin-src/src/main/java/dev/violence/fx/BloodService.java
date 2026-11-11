@@ -105,7 +105,7 @@ public final class BloodService {
     /** reach: 날아가는 거리 배율 (1 = 보통, 작을수록 가까이 떨어짐) */
     public void spray(Arena a, Vec3 point, Vec3 dir, int intensity, double reach) {
         Vec3 bias = dir.lengthSq() < 1e-6 ? Vec3.UP : dir.normalize();
-        int n = 5 + intensity * 4;
+        int n = Math.max(2, (5 + intensity * 4) / 2);   // 피 효과 0.5배
         for (int i = 0; i < n; i++) {
             Vec3 r = new Vec3(rnd.nextGaussian(), rnd.nextGaussian() * 0.6, rnd.nextGaussian()).normalize();
             Vec3 d = bias.mul(1.4 + intensity * 0.2).add(r).add(0, 0.25, 0).normalize();
@@ -116,17 +116,41 @@ public final class BloodService {
         }
     }
 
-    /** 핏방울 추가: 날아가는 동안 작은 붉은 상자로 보임 (닿으면 혈흔으로 바뀜) */
+    /**
+     * 두 갈래 흩뿌림 (둔기·가벼운 무기 처형, 맨손은 세 번 동시에): 머리에서 사이각 22~30° 인 두 방향을 정해
+     * 한 방향으로 길게, 다른 방향으로 0.7 만큼 핏방울을 좁게 흩뿌림. 방향은 위쪽으로 20~40° 들림.
+     */
+    public void twinSpray(Arena a, Vec3 head, int intensity) {
+        double az = rnd.nextDouble() * Math.PI * 2;
+        double gap = Math.toRadians(22 + rnd.nextDouble() * 8) * (rnd.nextBoolean() ? 1 : -1);
+        int n = Math.max(2, (2 + intensity * 2) / 2 + 1);
+        fan(a, head, az, n, 1.0);
+        fan(a, head, az + gap, Math.max(2, (int) Math.round(n * 0.7)), 0.7);
+    }
+
+    private void fan(Arena a, Vec3 head, double az, int n, double reach) {
+        double el = Math.toRadians(20 + rnd.nextDouble() * 20);
+        Vec3 d0 = new Vec3(Math.cos(az) * Math.cos(el), Math.sin(el), Math.sin(az) * Math.cos(el));
+        for (int i = 0; i < n; i++) {
+            Vec3 d = d0.add(new Vec3(rnd.nextGaussian(), rnd.nextGaussian(), rnd.nextGaussian()).mul(0.09)).normalize();
+            // 앞쪽 핏방울일수록 멀리 (줄지어 흩뿌려짐)
+            double speed = (0.13 + 0.17 * (i + 1) / n + rnd.nextDouble() * 0.04) * reach;
+            float size = 0.2f + rnd.nextFloat() * 0.18f;
+            addDrop(new Drop(a, head.add(d.mul(0.05)), d.mul(speed), size, false));
+        }
+    }
+
+    /** 핏방울 추가: 날아가는 동안 속도 방향으로 늘어난 핏방울로 보임 (닿으면 혈흔으로 바뀜) */
     private void addDrop(Drop d) {
         drops.add(d);
         if (visibleDrops >= MAX_VISIBLE_DROPS) return;
         try {
-            float s = 0.045f + d.size * 0.07f;
             d.vis = d.arena.track(d.arena.world.spawn(Fx.loc(d.arena.world, d.pos), ItemDisplay.class, e -> {
                 e.setPersistent(false);
-                e.setItemStack(item("violence:fx/blood_drop", 0));
-                e.setTransformation(new Transformation(new Vector3f(-s / 2, -s / 2, -s / 2), new Quaternionf(), new Vector3f(s, s, s), new Quaternionf()));
+                e.setItemStack(item("violence:fx/blood_fly", 0));
+                e.setTransformation(flyShape(d));
                 e.setTeleportDuration(1);
+                e.setInterpolationDuration(1);
                 e.setViewRange(1.0f);
                 e.setShadowRadius(0);
             }));
@@ -134,6 +158,17 @@ public final class BloodService {
         } catch (RuntimeException ex) {
             d.vis = null;
         }
+    }
+
+    /** 날아가는 핏방울 모양: 속도 방향으로 늘어난 방울 (빠를수록 길게, 클수록 굵게) */
+    private static Transformation flyShape(Drop d) {
+        double sp = d.vel.length();
+        Vector3f dir = sp < 1e-5 ? new Vector3f(0, -1, 0) : new Vector3f((float) (d.vel.x() / sp), (float) (d.vel.y() / sp), (float) (d.vel.z() / sp));
+        // 굵고 짧은 방울 (가는 바늘처럼 보이지 않게): 폭 0.09~0.13, 길이는 폭의 1.2배 ~ 0.26
+        float w = 0.075f + d.size * 0.11f;
+        float len = (float) Math.max(w * 1.2, Math.min(0.26, sp * 0.85));
+        Quaternionf q = new Quaternionf().rotationTo(new Vector3f(0, 0, 1), dir);
+        return new Transformation(new Vector3f(), q, new Vector3f(w, w, len), new Quaternionf());
     }
 
     private void dropGone(Drop d) {
@@ -145,10 +180,11 @@ public final class BloodService {
     }
 
     /**
-     * 시체의 피 웅덩이: 맞은 부위(at, 처형이면 머리) 밑 바닥에서 2초에 걸쳐 퍼짐.
+     * 시체의 피 웅덩이: 맞은 부위(at, 처형이면 머리) 밑 바닥에서 2.5초에 걸쳐 퍼짐.
      * 시체(body)에 태워서 붙이므로 시체가 사라지면 함께 사라짐 (시체가 없으면 그 자리에 18초).
      */
-    public void pool(Arena a, Vec3 at, float size, org.bukkit.entity.Entity body) {
+    public void pool(Arena a, Vec3 at, float size0, org.bukkit.entity.Entity body) {
+        float size = size0 * 1.8f;   // 웅덩이 1.8배
         Vec3 floor = floorBelow(a, at.add(0, 0.5, 0), 3);
         if (floor == null) return;
         ItemDisplay d = decal(a, floor, Vec3.UP, null, "violence:fx/blood_pool", size, size, 18 * 20);
@@ -159,7 +195,7 @@ public final class BloodService {
             decals.removeIf(c -> c.display == d);   // 시체와 함께 사라짐 (따로 흐려지지 않음)
             body.addPassenger(d);
         }
-        // 처음엔 거의 안 보이게 → 다음 틱에 (태운 자리에서 웅덩이 자리까지 옮긴 뒤) 2초에 걸쳐 퍼짐
+        // 처음엔 거의 안 보이게 → 다음 틱에 (태운 자리에서 웅덩이 자리까지 옮긴 뒤) 2.5초에 걸쳐 퍼짐
         d.setTransformation(new Transformation(new Vector3f(), full.getLeftRotation(), new Vector3f(0.001f, 1, 0.001f), full.getRightRotation()));
         Vec3 target = floor.add(0, 0.012, 0);
         plugin.later(1, () -> {
@@ -173,7 +209,7 @@ public final class BloodService {
             plugin.later(1, () -> {
                 if (!d.isValid()) return;
                 d.setInterpolationDelay(0);
-                d.setInterpolationDuration(40);
+                d.setInterpolationDuration(50);   // 커지는 속도 0.8배 (40 → 50틱)
                 d.setTransformation(new Transformation(new Vector3f(off), full.getLeftRotation(), full.getScale(), full.getRightRotation()));
             });
         });
@@ -202,7 +238,7 @@ public final class BloodService {
             final int k = t;
             plugin.laterIn(a, t, () -> {
                 double pulse = (k % 4 < 2 ? 1.0 : 0.55) * (1.0 - k / (double) (ticks + 4));
-                for (int i = 0; i < 2; i++) {
+                for (int i = 0; i < 1; i++) {   // 피 효과 0.5배 (틱마다 2 → 1방울)
                     Vec3 r = new Vec3(rnd.nextGaussian(), rnd.nextGaussian(), rnd.nextGaussian()).mul(0.12);
                     Vec3 v = d.add(r).normalize().mul(0.16 + 0.14 * pulse);
                     addDrop(new Drop(a, from, v, 0.24f + rnd.nextFloat() * 0.12f, false));
@@ -235,7 +271,11 @@ public final class BloodService {
                     }
                 }
                 d.pos = d.pos.add(d.vel);
-                if (d.vis != null && d.vis.isValid()) d.vis.teleport(Fx.loc(w, d.pos));
+                if (d.vis != null && d.vis.isValid()) {
+                    d.vis.teleport(Fx.loc(w, d.pos));
+                    d.vis.setInterpolationDelay(0);
+                    d.vis.setTransformation(flyShape(d));
+                }
                 d.vel = d.vel.mul(0.98).add(0, -GRAVITY, 0);
             }
         }

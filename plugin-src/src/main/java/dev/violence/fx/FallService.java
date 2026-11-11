@@ -395,6 +395,11 @@ public final class FallService {
 
     /** 처형이 끝남: 지금 동작(치기/전체)을 마저 하고 실제 몸으로 */
     public void finishExec(Combatant ex) {
+        finishExec(ex, false);
+    }
+
+    /** keepCamera: 처형자가 처형 카메라로 남은 동작을 끝까지 봄 (자기 인형을 숨기지 않음) */
+    public void finishExec(Combatant ex, boolean keepCamera) {
         ExecAct act = execs.get(ex.id);
         if (act == null) return;
         act.ending = true;
@@ -403,7 +408,7 @@ public final class FallService {
             return;
         }
         // 처형 카메라가 끝나 1인칭으로 돌아온 처형자 눈에는 자기 인형이 바로 아래에 보이므로 숨김 (다른 사람은 마저 봄)
-        if (ex instanceof PlayerCombatant pc && pc.player().isOnline()) {
+        if (!keepCamera && ex instanceof PlayerCombatant pc && pc.player().isOnline()) {
             Player p = pc.player();
             for (ItemDisplay d : act.exPuppet.parts.values()) if (d != null && d.isValid()) p.hideEntity(plugin, d);
             if (act.exPuppet.mask != null && act.exPuppet.mask.isValid()) p.hideEntity(plugin, act.exPuppet.mask);

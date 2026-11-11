@@ -120,36 +120,39 @@ public final class CameraService {
     private final Map<ItemDisplay, Long> shakeUntil = new HashMap<>();
 
     /**
-     * 카메라 흔들림: 카메라 엔티티의 시선을 degrees 만큼 흔들었다가 ticks 동안 줄이며 제자리로.
+     * 카메라 흔들림: ticks 동안 카메라 자리와 시선을 무작위로 흔들며 줄였다가 제자리로.
+     * 회전만 바꾸면 클라이언트에 1.4° 단위로만 전해져 작은 흔들림이 사라지므로 위치(degrees × 0.035블록)도 함께 흔든다.
      * 이 카메라로 보는 모든 사람(처형자·피처형자)의 화면이 흔들린다.
      */
     public void shake(ItemDisplay cam, double degrees, int ticks) {
         if (cam == null || !cam.isValid()) return;
+        Location base = cam.getLocation();
         Long prev = shakeUntil.get(cam);
-        float baseYaw = cam.getLocation().getYaw();
-        float basePitch = cam.getLocation().getPitch();
         if (prev != null && prev >= plugin.now()) {
-            // 흔들리는 중이면 기준 시선은 처음 것을 그대로 씀
             float[] b = shakeBase.get(cam);
-            if (b != null) { baseYaw = b[0]; basePitch = b[1]; }
+            if (b != null) base = new Location(base.getWorld(), b[2], b[3], b[4], b[0], b[1]);
         }
         long end = plugin.now() + ticks;
         shakeUntil.put(cam, end);
-        shakeBase.put(cam, new float[] {baseYaw, basePitch});
+        shakeBase.put(cam, new float[] {base.getYaw(), base.getPitch(), (float) base.getX(), (float) base.getY(), (float) base.getZ()});
         cam.setTeleportDuration(1);
-        final float by = baseYaw, bp = basePitch;
+        final Location b0 = base.clone();
         for (int k = 0; k <= ticks; k++) {
             final int i = k;
             plugin.later(k, () -> {
                 if (!cam.isValid() || shakeUntil.getOrDefault(cam, -1L) != end) return;
                 if (i == ticks) {
-                    cam.setRotation(by, bp);
+                    cam.teleport(b0);
                     shakeUntil.remove(cam);
                     shakeBase.remove(cam);
                     return;
                 }
                 double amp = degrees * (1.0 - (double) i / ticks);
-                cam.setRotation((float) (by + (rnd.nextDouble() * 2 - 1) * amp), (float) (bp + (rnd.nextDouble() * 2 - 1) * amp * 0.8));
+                double m = amp * 0.035;
+                Location l = b0.clone().add((rnd.nextDouble() * 2 - 1) * m, (rnd.nextDouble() * 2 - 1) * m, (rnd.nextDouble() * 2 - 1) * m);
+                l.setYaw((float) (b0.getYaw() + (rnd.nextDouble() * 2 - 1) * amp));
+                l.setPitch((float) (b0.getPitch() + (rnd.nextDouble() * 2 - 1) * amp * 0.8));
+                cam.teleport(l);
             });
         }
     }

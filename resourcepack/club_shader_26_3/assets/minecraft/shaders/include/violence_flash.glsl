@@ -20,9 +20,9 @@ float violence_flash_dark(sampler2D lightMap) {
     return float((b.r << 4) | (b.g << 2) | b.b) / 63.0;
 }
 
-// 회색 정도 = 1 - easeOutExpo(t), t = 끈 뒤 지난 시간 / 20틱 (값이 1 → 0.75 로 줄어드는 동안)
+// 회색 정도 = 1 - easeOutExpo(t), t = 끈 뒤 지난 시간 / 27틱 (값이 1 → 0.667 로 줄어드는 동안)
 float violence_flash_amount_of(float dark) {
-    float t = clamp((1.0 - dark) * 4.0, 0.0, 1.0);
+    float t = clamp((1.0 - dark) * 3.0, 0.0, 1.0);   // 속도 0.75배: 27틱
     return exp2(-10.0 * t);
 }
 
