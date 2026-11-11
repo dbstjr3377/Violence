@@ -133,8 +133,9 @@ public final class CombatService {
             if (r.door != null) plugin.doors().bulletHit(r.door, d, c);
             else if (r.wallNormal != null && i < 6) plugin.fx().bulletHole(a, r.end, r.wallNormal);
         }
-        // 총구 화염: 쏜 사람에게도 보이게 궤적 시작점(1인칭 총구)에 띄움
-        plugin.fx().muzzle(a, muzzle, dir, silenced, pellets > 1);
+        // 총구 화염: 다른 사람에게는 3인칭 총구 자리에 1틱 (쏜 사람은 1인칭 총 모델의 화염 프레임)
+        Vec3 tpMuzzle = eye.add(dir.mul(0.95)).add(right.mul(leftHand ? -0.3 : 0.3)).add(0, -0.32, 0);
+        plugin.fx().muzzle(a, tpMuzzle, dir, silenced, pellets > 1, c instanceof PlayerCombatant shooter ? shooter.player() : null);
         if (c instanceof PlayerCombatant pcs && !leftHand) {
             // 1인칭: 총구 화염 → 반동 → 반동 잡기 키프레임 (조준점은 움직이지 않음)
             pcs.playAnim(WeaponItems.GUNFIRE, t.fireAnimTicks());
@@ -834,6 +835,7 @@ public final class CombatService {
             cl.setYaw((float) lookDir.yaw());
             cl.setPitch((float) lookDir.pitch());
             cam = plugin.camera().spawnCamera(cl, 3);
+            e.camera = cam;
         }
         ex.onExecutionStart(e, cam);
         victim.onExecutionStart(e, cam);
@@ -958,12 +960,32 @@ public final class CombatService {
             default -> {   // blunt, light
                 boolean light = "light".equals(name);
                 plugin.fx().sound(ex.world(), head, sharp(t) ? "violence:melee.slash_hit" : "violence:melee.blunt_hit", 1.4f, last ? 0.75f : 0.95f);
-                plugin.blood().spray(a, head, out.mul(0.8).add(0, 0.45, 0), last ? 4 : (light ? 2 : 3));
+                // 바깥(머리 너머)으로 + 안쪽(몸 쪽, 머리 기준 130°·230°)으로도 튐. 멀리 가지 않게 거리 배율을 줄임
+                int n = last ? 4 : (light ? 2 : 3);
+                plugin.blood().spray(a, head, out.mul(0.8).add(0, 0.45, 0), n, 0.6);
+                plugin.blood().spray(a, head, turn(out, 130).mul(0.8).add(0, 0.45, 0), Math.max(1, n - 1), 0.5);
+                plugin.blood().spray(a, head, turn(out, 230).mul(0.8).add(0, 0.45, 0), Math.max(1, n - 1), 0.5);
                 plugin.blood().floorSplat(a, head, light ? 0.45f : 0.6f);
             }
         }
         ex.feelImpact(last ? 0.7 : 0.4);
         v.feelImpact(last ? 0.8 : 0.5);
+        // 처형 카메라 흔들림: 무기가 무거울수록 크게 (도), 마지막 일격은 1.4배
+        double deg = switch (name) {
+            case "heavy" -> 5.0;
+            case "stomp" -> 4.0;
+            case "blunt" -> 3.0;
+            case "light" -> 2.0;
+            case "fist" -> 1.6;
+            default -> 1.2;     // 날붙이: 긋기
+        };
+        if (e.camera != null) plugin.camera().shake(e.camera, deg * (last ? 1.4 : 1.0), last ? 8 : 5);
+    }
+
+    /** 수평으로 deg 도 돌린 방향 */
+    private static Vec3 turn(Vec3 v, double deg) {
+        double r = Math.toRadians(deg), c = Math.cos(r), sn = Math.sin(r);
+        return new Vec3(v.x() * c - v.z() * sn, v.y(), v.x() * sn + v.z() * c);
     }
 
     /** 처형 동작 중 추가 피: 무거운 무기를 흔들어 뽑음(tug), 뽑아 올림(pull) */
@@ -1139,9 +1161,10 @@ public final class CombatService {
         v.respawnAt = now + RESPAWN_TICKS;
         Vec3 deathPos = v.feet();
         v.setState(CombatState.DEAD, now);
-        plugin.fx().bloodPool(a, deathPos, type == KillType.EXECUTION || headshot ? 1.6f : 1.1f);
         plugin.fx().sound(v.world(), deathPos, "violence:hit.death", 1.2f, 0.9f + plugin.random().nextFloat() * 0.2f);
-        plugin.corpses().spawn(a, v, dir, type == KillType.EXECUTION);
+        // 피 웅덩이는 시체에 붙여 맞은 부위(처형·헤드샷 = 머리)에서 퍼지게
+        boolean headWound = type == KillType.EXECUTION || headshot;
+        plugin.corpses().spawn(a, v, dir, type == KillType.EXECUTION, headWound ? 1.6f : 1.1f, headWound);
         v.onDeath(killer, dir, now);
         v.refreshEquipment();
         if (killer != null && killer != v) plugin.game().onKill(killer, v, type, headshot, deathPos);

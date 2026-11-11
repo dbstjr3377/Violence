@@ -237,6 +237,16 @@ def save_model(kind, name, vm, display):
     save_png(img, os.path.join(NS, "textures", "item", kind, name + ".png"))
 
 
+def fire_anim_ticks(gid):
+    """WeaponType.fireAnimTicks 와 같은 계산 (weapons.yml 의 rpm·automatic)"""
+    import yaml
+    w = yaml.safe_load(open(os.path.join(ROOT, "plugin-src", "src", "main", "resources", "weapons.yml"), encoding="utf-8"))["weapons"].get(gid, {})
+    if not w.get("automatic"):
+        return 6
+    interval = 1200.0 / max(1.0, float(w.get("rpm", 600)))
+    return int(max(2, min(6, round(interval * 2))))
+
+
 def save_model_arms(kind, name, vm, display, arms):
     """1인칭 모델 + 스킨 팔. arms: [(손 모델 좌표, 'r'/'l', 위팔, 아래팔, 굵기)]. 무기 원소(JSON)를 돌려줌 (프레임에서 재사용)"""
     tex_ref = f"violence:item/{kind}/{name}"
@@ -324,8 +334,13 @@ def weapons():
         hands = {"r": right} if gid in ("magnum", "silenced_pistol") else {"r": right, "l": left}
         arms = arm_specs([base] + recoil, hands)
         fp_mj = save_model_arms("weapon", gid + "_fp", make(), rest_disp, arms)
+        # 화염 프레임은 쏜 뒤 정확히 1틱만 (쿨다운 T틱 중 첫 틱), 반동 프레임은 그 아래로 비율을 맞춤
+        T = fire_anim_ticks(gid)
+        fire_th = round((T - 1) / T - 0.01, 3)
+        ths = [fire_th, round(fire_th * 0.62, 3), round(fire_th * 0.3, 3)]
         frames = []
-        for i, (th, dr, dt) in enumerate(anim.RECOIL):
+        for i, (_, dr, dt) in enumerate(anim.RECOIL):
+            th = ths[i]
             d = recoil[i]
             if i == 0:
                 fire = make()
@@ -811,7 +826,7 @@ def fonts():
     black = Image.new("RGBA", (32, 16), (0, 0, 0, 255))
     save_png(black, os.path.join(T, "black.png"))
     # 히트마커 (총으로 맞히면 조준점에 잠깐): 흰색 단색 4획. 처치는 같은 흰색에 획이 조금 더 굵고 김
-    for name, width, reach in (("hitmarker", 0.26, 1.6), ("hitmarker_kill", 0.36, 1.8)):
+    for name, width, reach in (("hitmarker", 0.13, 1.6), ("hitmarker_kill", 0.19, 1.8)):
         S = 48
         hm = Image.new("RGBA", (S * 4, S * 4), (0, 0, 0, 0))
         d = ImageDraw.Draw(hm)
@@ -891,9 +906,9 @@ def fonts():
     ] + ttf_pair(11)})
     write(os.path.join(F, "overlay.json"), {"providers": [
         {"type": "bitmap", "file": "violence:font/black.png", "ascent": 128, "height": 256, "chars": [""]},
-        # 제목(4배) 글자 기준 중앙: 위 = -10 + 7 - ascent, 높이 6 → ascent 0 이면 화면 정중앙
-        {"type": "bitmap", "file": "violence:font/hitmarker.png", "ascent": 0, "height": 6, "chars": ["\ue201"]},
-        {"type": "bitmap", "file": "violence:font/hitmarker_kill.png", "ascent": 0, "height": 6, "chars": ["\ue202"]},
+        # 제목(4배) 글자 기준 중앙: 위 = -10 + 7 - ascent, 높이 4 → ascent -1 이면 화면 정중앙
+        {"type": "bitmap", "file": "violence:font/hitmarker.png", "ascent": -1, "height": 4, "chars": ["\ue201"]},
+        {"type": "bitmap", "file": "violence:font/hitmarker_kill.png", "ascent": -1, "height": 4, "chars": ["\ue202"]},
     ]})
     adv = {}
     for i in range(9):

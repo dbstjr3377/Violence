@@ -141,6 +141,11 @@ public final class FallService {
         boolean corpse;
         boolean execution;
         boolean revealed;
+        /** 시체 피 웅덩이 크기 (0 = 없음)와 나오는 부위 (맞은 곳) */
+        float poolSize;
+        /** 대역을 마지막으로 옮긴 틱 (밀려나며 미끄러짐), 없으면 -1 */
+        int lastMove = -1;
+        FallPose.Part poolPart = FallPose.Part.BODY;
         int tick;
 
         Lying(Combatant victim, Arena arena, FallPose.Kind kind, FallPose pose, float startYaw, float yaw) {
@@ -268,6 +273,11 @@ public final class FallService {
      * execution 이면 자리를 잡은 뒤 머리에서 피가 흐른다.
      */
     public Mannequin corpse(Arena a, Combatant v, Vec3 push, boolean strong, boolean execution) {
+        return corpse(a, v, push, strong, execution, 0f, false);
+    }
+
+    /** poolSize > 0 이면 자리를 잡은 뒤 맞은 부위(head = 머리, 아니면 몸통) 밑에서 피 웅덩이가 퍼짐 (시체에 붙음) */
+    public Mannequin corpse(Arena a, Combatant v, Vec3 push, boolean strong, boolean execution, float poolSize, boolean head) {
         // 처형 중에 죽으면 피처형자 인형을 치우고 누운 대역(=시체)을 다시 보임 (처형자 인형은 동작을 마저 함)
         for (ExecAct act : execs.values()) {
             if (act.victim == v) releaseVictim(act);
@@ -285,6 +295,8 @@ public final class FallService {
                 d.end = d.start.clone().add(forward(l.yaw).multiply(0));
                 d.corpse = true;
                 d.execution = execution;
+                d.poolSize = poolSize;
+                d.poolPart = head ? FallPose.Part.HEAD : FallPose.Part.BODY;
                 if (spawnPuppet(a, v, d)) {
                     end(l, false);
                     d.body = spawnDouble(a, v, d);
@@ -296,9 +308,11 @@ public final class FallService {
             l.corpse = true;
             l.follow = false;
             l.execution = execution;
+            l.poolSize = poolSize;
+            l.poolPart = head ? FallPose.Part.HEAD : FallPose.Part.BODY;
             l.start = l.end = l.anchor(l.pose.frameCount() - 1);
             if (l.revealed) {
-                if (execution) headFlow(l);
+                bleed(l);
             } else {
                 falling.add(l);
             }
@@ -310,6 +324,8 @@ public final class FallService {
         if (l == null) return null;
         l.corpse = true;
         l.execution = execution;
+        l.poolSize = poolSize;
+        l.poolPart = head ? FallPose.Part.HEAD : FallPose.Part.BODY;
         falling.add(l);
         return l.body;
     }
@@ -601,6 +617,8 @@ public final class FallService {
                 var s = m.getAttribute(org.bukkit.attribute.Attribute.SCALE);
                 if (s != null) s.setBaseValue(c.scale());
             }
+            // 머리 방향도 같이: 머리 방향이 0 으로 남으면 클라이언트가 몸을 머리 쪽으로 돌려 누운 몸이 비뚤어짐
+            m.setRotation(loc.getYaw(), 0f);
             m.setBodyYaw(loc.getYaw());
             if (l.pose.end() == FallPose.End.FACE_UP) {
                 try {
@@ -660,10 +678,22 @@ public final class FallService {
                     if (now.distanceSquared(l.end) > 1e-4) {
                         l.start = now;
                         l.end = now;
-                        if (l.body != null && l.body.isValid()) l.body.teleport(doubleLocation(l));
+                        if (l.body != null && l.body.isValid()) {
+                            Location dl = doubleLocation(l);
+                            l.body.teleport(dl);
+                            l.body.setRotation(dl.getYaw(), 0f);
+                            l.body.setBodyYaw(dl.getYaw());
+                            l.lastMove = l.tick;
+                        }
                     }
                 }
                 advance(l);
+                // 미끄러짐이 멈추면 대역을 새로 만듦: 움직이는 동안 클라이언트가 몸을 움직이는 방향으로 돌려
+                // 누운 몸이 비뚤어진 채 남기 때문 (새 개체는 몸 방향이 처음부터 맞음)
+                if (l.revealed && l.lastMove >= 0 && l.tick - l.lastMove >= 3 && l.victim.state == CombatState.DOWNED && l.seat == null) {
+                    l.lastMove = -1;
+                    respawnDouble(l);
+                }
                 if (l.revealed && l.tick % 10 == 0) sendEquipment(l.arena, l.victim, true);
             }
         }
@@ -700,17 +730,24 @@ public final class FallService {
         if (l.tick < hold) place(l, l.pose.frameAt(l.tick), true);
         if (!l.revealed && l.tick >= hold - 1) {
             reveal(l);
-            if (l.corpse && l.execution) headFlow(l);
+            if (l.corpse) bleed(l);
         }
         if (l.tick == hold) removePuppet(l);
     }
 
-    /** 처형당한 시체: 머리에서 바닥으로 피가 흐름 */
-    private void headFlow(Lying l) {
+    /** 시체가 자리를 잡으면 맞은 부위 밑에서 피 웅덩이가 퍼짐 (시체에 붙어 함께 사라짐) */
+    private void bleed(Lying l) {
+        if (l.poolSize <= 0) return;
+        float size = l.poolSize;
+        l.poolSize = 0;
         int last = l.pose.frameCount() - 1;
-        Vec3 head = headWorld(l, last, l.anchor(last));
-        Vector f = forward(l.yaw).multiply(-1);    // 머리가 있는 쪽 (발 → 머리)
-        plugin.fx().headFlow(l.arena, head, new Vec3(f.getX(), 0, f.getZ()));
+        plugin.fx().bloodPool(l.arena, partWorld(l, l.poolPart, last, l.anchor(last)), size, l.body);
+    }
+
+    private Vec3 partWorld(Lying l, FallPose.Part part, int frame, Location anchor) {
+        FallPose.Placement p = l.pose.place(frame, part, l.scale);
+        Vector3d c = FallPose.toWorld(p.center(), l.yawAt(frame));
+        return new Vec3(anchor.getX() + c.x, anchor.getY() + c.y, anchor.getZ() + c.z);
     }
 
     private Vec3 headWorld(Lying l, int frame, Location anchor) {
@@ -719,10 +756,25 @@ public final class FallService {
         return new Vec3(anchor.getX() + c.x, anchor.getY() + c.y, anchor.getZ() + c.z);
     }
 
+    private void respawnDouble(Lying l) {
+        Mannequin old = l.body;
+        if (old == null || !old.isValid()) return;
+        l.body = spawnDouble(l.arena, l.victim, l);
+        l.revealed = false;
+        reveal(l);
+        l.arena.tracked.remove(old);
+        old.remove();
+    }
+
     private void reveal(Lying l) {
         l.revealed = true;
         Mannequin m = l.body;
         if (m == null || !m.isValid()) return;
+        if (l.seat == null) {
+            float y = doubleLocation(l).getYaw();
+            m.setRotation(y, 0f);   // 머리·몸 방향을 다시 맞춤 (보이기 직전)
+            m.setBodyYaw(y);
+        }
         EntityEquipment eq = m.getEquipment();
         Combatant c = l.victim;
         if (c instanceof NpcCombatant n) n.copyOutfitTo(eq);

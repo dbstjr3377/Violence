@@ -44,7 +44,7 @@ public final class GroundWeaponService {
 
     /** 정보 카드 크기: 글자 폭(px) 기준 가로, 표시 배율 */
     static final int CARD_WIDTH = 104;
-    static final float CARD_SCALE = 0.36f;
+    static final float CARD_SCALE = 0.648f;   // 0.36 × 1.8
     private static final int CARD_BG = 0xE0141416;   // 거의 불투명한 검정 (단색)
     private static final int EMPTY_RED = 0xFF3030;
 

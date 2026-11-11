@@ -23,6 +23,8 @@ public final class Execution {
     public boolean autoHits;
     /** 처형자가 올라탄 자리와 바라본 방향 (끝나면 이 자리에서 1블록 뒤로 물러남) */
     public org.bukkit.Location mountAt;
+    /** 처형 카메라 (흔들림용), 없으면 null */
+    public org.bukkit.entity.ItemDisplay camera;
     /** 처치된 순간의 머리 위치 (처형 뒤 추가 피) */
     public dev.violence.math.Vec3 lastHead;
 

@@ -161,6 +161,11 @@ ent = open(os.path.join(ROOT, "tools", "shaders", "core", "entity.fsh"), encodin
 fall = open(os.path.join(JAVA, "dev", "violence", "fx", "FallService.java"), encoding="utf-8").read()
 check("인형에 실제 스킨", "violence_skin_uv" in ent and "PLAYER_HEAD" in fall and "puppet/" not in fall, "플레이어 머리 10조각, 부위별 스킨 영역")
 
+# 17. 피: 날아가는 핏방울이 보임, 혈흔 10초, 얇게 흐르는 피 없음, 웅덩이는 시체에 붙음
+bl = open(os.path.join(JAVA, "dev", "violence", "fx", "BloodService.java"), encoding="utf-8").read()
+check("피 v10", "addDrop" in bl and "SPLAT_LIFE = 200" in bl and "headFlow" not in bl and "addPassenger" in bl,
+      "핏방울 보임 · 10초 · 흐르는 피 없음 · 웅덩이 부착")
+
 w = max(len(i) for i, _, _ in results)
 fail = 0
 for issue, ok, detail in results:

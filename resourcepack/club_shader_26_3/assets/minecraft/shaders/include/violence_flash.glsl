@@ -32,14 +32,15 @@ vec2 violence_flash_state(sampler2D lightMap, mat4 proj) {
     return vec2(1.0, violence_flash_amount_of(violence_flash_dark(lightMap)));
 }
 
+// 흑백: 어둡게(중간 밝기를 0.36 으로) + 대비 2배
 vec3 violence_gray(vec3 c) {
     float g = dot(c, vec3(0.299, 0.587, 0.114));
-    return vec3(clamp((g - 0.45) * 1.35 + 0.5, 0.0, 1.0));
+    return vec3(clamp((g - 0.42) * 2.0 + 0.36, 0.0, 1.0));
 }
 
-// 깜빡임 색: 처음엔 조금 밝은 회색, 시간이 지나며 원래 색으로. a = 회색 정도
+// 깜빡임 색: 처음엔 어둡고 대비 강한 흑백(살짝 밝게 번쩍), 시간이 지나며 원래 색으로. a = 흑백 정도
 vec3 violence_flash(vec3 c, float a) {
-    return mix(c, clamp((violence_gray(c) + 0.06 * a) * (1.0 + 0.35 * a), 0.0, 1.0), a);
+    return mix(c, clamp(violence_gray(c) * (1.0 + 0.12 * a), 0.0, 1.0), a);
 }
 
 // 깜빡임 중에는 보스바 안개를 무시

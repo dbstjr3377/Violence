@@ -116,6 +116,46 @@ public final class CameraService {
         p.sendEquipmentChange(p, eq);
     }
 
+    private final java.util.Random rnd = new java.util.Random();
+    private final Map<ItemDisplay, Long> shakeUntil = new HashMap<>();
+
+    /**
+     * 카메라 흔들림: 카메라 엔티티의 시선을 degrees 만큼 흔들었다가 ticks 동안 줄이며 제자리로.
+     * 이 카메라로 보는 모든 사람(처형자·피처형자)의 화면이 흔들린다.
+     */
+    public void shake(ItemDisplay cam, double degrees, int ticks) {
+        if (cam == null || !cam.isValid()) return;
+        Long prev = shakeUntil.get(cam);
+        float baseYaw = cam.getLocation().getYaw();
+        float basePitch = cam.getLocation().getPitch();
+        if (prev != null && prev >= plugin.now()) {
+            // 흔들리는 중이면 기준 시선은 처음 것을 그대로 씀
+            float[] b = shakeBase.get(cam);
+            if (b != null) { baseYaw = b[0]; basePitch = b[1]; }
+        }
+        long end = plugin.now() + ticks;
+        shakeUntil.put(cam, end);
+        shakeBase.put(cam, new float[] {baseYaw, basePitch});
+        cam.setTeleportDuration(1);
+        final float by = baseYaw, bp = basePitch;
+        for (int k = 0; k <= ticks; k++) {
+            final int i = k;
+            plugin.later(k, () -> {
+                if (!cam.isValid() || shakeUntil.getOrDefault(cam, -1L) != end) return;
+                if (i == ticks) {
+                    cam.setRotation(by, bp);
+                    shakeUntil.remove(cam);
+                    shakeBase.remove(cam);
+                    return;
+                }
+                double amp = degrees * (1.0 - (double) i / ticks);
+                cam.setRotation((float) (by + (rnd.nextDouble() * 2 - 1) * amp), (float) (bp + (rnd.nextDouble() * 2 - 1) * amp * 0.8));
+            });
+        }
+    }
+
+    private final Map<ItemDisplay, float[]> shakeBase = new HashMap<>();
+
     public ItemDisplay cameraOf(Player p) {
         return cameras.get(p.getUniqueId());
     }

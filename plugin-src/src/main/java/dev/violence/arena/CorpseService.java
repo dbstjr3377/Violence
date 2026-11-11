@@ -24,8 +24,13 @@ public final class CorpseService {
     }
 
     public void spawn(Arena a, Combatant v, Vec3 dir, boolean execution) {
+        spawn(a, v, dir, execution, 0f, false);
+    }
+
+    /** poolSize: 시체 피 웅덩이 크기, head: 웅덩이가 머리에서 나옴 (처형·헤드샷) */
+    public void spawn(Arena a, Combatant v, Vec3 dir, boolean execution, float poolSize, boolean head) {
         // 맞은 방향으로 밀려나며 뒤로 넘어지는 동작 → 같은 자세의 마네킹이 시체가 됨 (쓰러져 있던 대역이면 그대로)
-        Mannequin fallen = plugin.falls().corpse(a, v, dir, plugin.now() - v.strongHitTick <= 1, execution);
+        Mannequin fallen = plugin.falls().corpse(a, v, dir, plugin.now() - v.strongHitTick <= 1, execution, poolSize, head);
         if (fallen != null) {
             keep(a, fallen);
             return;
@@ -57,6 +62,7 @@ public final class CorpseService {
             }
         }));
         dev.violence.fx.Poses.lying(m);
+        if (poolSize > 0) plugin.fx().bloodPool(a, v.feet(), poolSize, m);
         keep(a, m);
     }
 
@@ -78,6 +84,10 @@ public final class CorpseService {
     /** 시체와 (벽에 기대 앉은 시체면) 앉힌 디스플레이까지 치움 */
     private static void discard(Arena a, Mannequin m) {
         org.bukkit.entity.Entity seat = m.getVehicle();
+        for (org.bukkit.entity.Entity p : m.getPassengers()) {   // 붙어 있는 피 웅덩이
+            a.tracked.remove(p);
+            if (p.isValid()) p.remove();
+        }
         a.tracked.remove(m);
         if (m.isValid()) m.remove();
         if (seat != null) {

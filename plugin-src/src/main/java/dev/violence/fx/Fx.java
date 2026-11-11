@@ -105,24 +105,23 @@ public final class Fx {
     }
 
     /**
-     * 총구 화염: at(총구) 에 밝은 불꽃이 확 커졌다가 줄어듦. 쏜 사람에게도 보임 (1인칭 총구 자리).
+     * 총구 화염: 3인칭 총구 자리에 한 틱만 보였다가 사라짐 (작아지는 전환 없음).
+     * 쏜 사람에게는 숨김: 1인칭 손 모델은 화면 FOV 와 상관없는 고정 시야로 그려져 월드에 놓은 판으로는 총구에 맞출 수 없으므로,
+     * 쏜 사람의 화염은 1인칭 총 모델의 화염 프레임(쏜 뒤 정확히 1틱, tools/build_pack.py)이 총구에 붙어 나온다.
      * @param big 산탄총 등 큰 화염
      */
-    public void muzzle(Arena a, Vec3 at, Vec3 dir, boolean silenced, boolean big) {
+    public void muzzle(Arena a, Vec3 at, Vec3 dir, boolean silenced, boolean big, org.bukkit.entity.Player shooter) {
         ItemDisplay d = spawnDisplay(a, at, silenced ? "violence:fx/muzzle_small" : "violence:fx/muzzle", true);
         d.setBillboard(Display.Billboard.CENTER);
         d.setViewRange(4.0f);
         float s = silenced ? 0.22f : (big ? 0.62f : 0.42f) + rnd.nextFloat() * 0.12f;
-        float roll = rnd.nextFloat() * 6.28f;
-        d.setTransformation(new Transformation(new Vector3f(), new Quaternionf().rotateZ(roll), new Vector3f(s, s, s), new Quaternionf()));
-        plugin.later(1, () -> {
-            if (!d.isValid()) return;
-            d.setInterpolationDelay(0);
-            d.setInterpolationDuration(2);
-            float e = s * 0.35f;
-            d.setTransformation(new Transformation(new Vector3f(), new Quaternionf().rotateZ(roll + 0.6f), new Vector3f(e, e, e), new Quaternionf()));
-        });
-        removeLater(a, d, 3);
+        d.setTransformation(new Transformation(new Vector3f(), new Quaternionf().rotateZ(rnd.nextFloat() * 6.28f), new Vector3f(s, s, s), new Quaternionf()));
+        if (shooter != null) shooter.hideEntity(plugin, d);
+        removeLater(a, d, 1);
+    }
+
+    public void muzzle(Arena a, Vec3 at, Vec3 dir, boolean silenced, boolean big) {
+        muzzle(a, at, dir, silenced, big, null);
     }
 
     /**
@@ -202,14 +201,9 @@ public final class Fx {
         removeLater(a, mist, 7);
     }
 
-    /** 시체 밑 피 웅덩이 */
-    public void bloodPool(Arena a, Vec3 feet, float size) {
-        plugin.blood().pool(a, feet, size);
-    }
-
-    /** 처형당한 시체의 머리에서 흐르는 피 */
-    public void headFlow(Arena a, Vec3 head, Vec3 dir) {
-        plugin.blood().headFlow(a, head, dir);
+    /** 시체 피 웅덩이 (맞은 부위 밑, 시체에 붙임) */
+    public void bloodPool(Arena a, Vec3 at, float size, org.bukkit.entity.Entity body) {
+        plugin.blood().pool(a, at, size, body);
     }
 
     /** 벽 탄흔 */

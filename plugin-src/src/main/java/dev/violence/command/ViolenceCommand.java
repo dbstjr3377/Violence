@@ -162,6 +162,27 @@ public final class ViolenceCommand implements TabExecutor {
                     msg(sender, g.weapon.type().displayName() + " 을(를) 봅니다.");
                     return true;
                 }
+                if (args.length > 1 && args[1].equalsIgnoreCase("line")) {
+                    // /vio test line [n]: 살아 있는 NPC n 명을 앞 5~7칸에 옆으로 늘어세우고 6초 동안 멈춤 (연사 촬영용)
+                    int n = args.length > 2 ? Math.max(1, Math.min(8, Integer.parseInt(args[2]))) : 4;
+                    dev.violence.math.Vec3 f = pc.look().horizontal().normalize();
+                    dev.violence.math.Vec3 rt = new dev.violence.math.Vec3(-f.z(), 0, f.x());
+                    int k = 0;
+                    for (dev.violence.npc.NpcCombatant npc : a.npcs) {
+                        if (k >= n) break;
+                        if (npc.state != dev.violence.combat.CombatState.ALIVE || npc.execution != null) continue;
+                        // 좁은 복도에서도 벽에 묻히지 않게: 앞쪽으로 1.6칸 간격, 좌우로 조금씩 엇갈림
+                        double side = (k % 2 == 0 ? -0.55 : 0.55);
+                        dev.violence.math.Vec3 at = pc.feet().add(f.mul(4.0 + k * 1.6)).add(rt.mul(side));
+                        org.bukkit.Location l = new org.bukkit.Location(a.world, at.x(), at.y(), at.z(), p.getLocation().getYaw() + 180, 0);
+                        npc.teleport(l);
+                        npc.actionLockUntil = plugin.now() + 120;
+                        npc.moveLockUntil = plugin.now() + 120;
+                        k++;
+                    }
+                    msg(sender, k + " 명을 앞에 세웠습니다.");
+                    return true;
+                }
                 boolean aim = args.length > 1 && args[1].equalsIgnoreCase("aim");
                 boolean near = args.length > 1 && args[1].equalsIgnoreCase("near");
                 dev.violence.npc.NpcCombatant best = null;
@@ -222,6 +243,7 @@ public final class ViolenceCommand implements TabExecutor {
                 plugin.combat().knockdown(best, dir, pc, true);
                 // 밀려난 뒤 처형할 수 있는 거리(발 앞 0.8칸)로 내가 다가감
                 final dev.violence.npc.NpcCombatant target = best;
+                if (args.length > 1 && args[1].equalsIgnoreCase("stay")) return true;   // /vio test down stay: 제자리에서 넘어지는 것만 봄
                 plugin.later(10, () -> {
                     if (!p.isOnline() || target.state != dev.violence.combat.CombatState.DOWNED) return;
                     org.bukkit.Location to = p.getLocation().clone();

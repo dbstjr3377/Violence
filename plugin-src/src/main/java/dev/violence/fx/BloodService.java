@@ -43,7 +43,10 @@ public final class BloodService {
     private static final java.util.Map<String, Integer> SHAPES = java.util.Map.of("splat", 3, "streak", 3, "drip", 3, "drops", 2, "spray", 2);
     public static final int FADE_STEPS = 6;
     private static final double GRAVITY = 0.045;
-    private static final int SPLAT_LIFE = 100;     // 5초
+    private static final int SPLAT_LIFE = 200;     // 10초
+    /** 동시에 보이는 날아가는 핏방울 수 (넘으면 궤적만 계산) */
+    private static final int MAX_VISIBLE_DROPS = 160;
+    private int visibleDrops;
     private static final int FADE_STEP_TICKS = 4;
 
     private final ViolencePlugin plugin;
@@ -59,6 +62,8 @@ public final class BloodService {
         final float size;
         final boolean burst;
         int age;
+        /** 날아가는 동안 보이는 핏방울 (작은 붉은 상자), 없으면 null */
+        ItemDisplay vis;
 
         Drop(Arena arena, Vec3 pos, Vec3 vel, float size, boolean burst) {
             this.arena = arena;
@@ -94,51 +99,83 @@ public final class BloodService {
      * @param intensity 1(약) ~ 4(처형/헤드샷)
      */
     public void spray(Arena a, Vec3 point, Vec3 dir, int intensity) {
+        spray(a, point, dir, intensity, 1.0);
+    }
+
+    /** reach: 날아가는 거리 배율 (1 = 보통, 작을수록 가까이 떨어짐) */
+    public void spray(Arena a, Vec3 point, Vec3 dir, int intensity, double reach) {
         Vec3 bias = dir.lengthSq() < 1e-6 ? Vec3.UP : dir.normalize();
         int n = 5 + intensity * 4;
         for (int i = 0; i < n; i++) {
             Vec3 r = new Vec3(rnd.nextGaussian(), rnd.nextGaussian() * 0.6, rnd.nextGaussian()).normalize();
             Vec3 d = bias.mul(1.4 + intensity * 0.2).add(r).add(0, 0.25, 0).normalize();
-            double speed = 0.18 + rnd.nextDouble() * (0.18 + intensity * 0.06);
+            double speed = (0.18 + rnd.nextDouble() * (0.18 + intensity * 0.06)) * reach;
             float size = 0.22f + rnd.nextFloat() * (0.22f + intensity * 0.07f);
             boolean burst = intensity >= 3 && i < 2;
-            drops.add(new Drop(a, point.add(r.mul(0.05)), d.mul(burst ? speed * 1.4 : speed), burst ? Math.max(size, 0.4f) : size, burst));
+            addDrop(new Drop(a, point.add(r.mul(0.05)), d.mul(burst ? speed * 1.4 : speed), burst ? Math.max(size, 0.4f) : size, burst));
         }
     }
 
-    /** 시체 밑 피 웅덩이 (시체가 사라질 즈음 사라짐) */
-    public void pool(Arena a, Vec3 feet, float size) {
-        Vec3 floor = floorBelow(a, feet.add(0, 0.5, 0), 3);
+    /** 핏방울 추가: 날아가는 동안 작은 붉은 상자로 보임 (닿으면 혈흔으로 바뀜) */
+    private void addDrop(Drop d) {
+        drops.add(d);
+        if (visibleDrops >= MAX_VISIBLE_DROPS) return;
+        try {
+            float s = 0.045f + d.size * 0.07f;
+            d.vis = d.arena.track(d.arena.world.spawn(Fx.loc(d.arena.world, d.pos), ItemDisplay.class, e -> {
+                e.setPersistent(false);
+                e.setItemStack(item("violence:fx/blood_drop", 0));
+                e.setTransformation(new Transformation(new Vector3f(-s / 2, -s / 2, -s / 2), new Quaternionf(), new Vector3f(s, s, s), new Quaternionf()));
+                e.setTeleportDuration(1);
+                e.setViewRange(1.0f);
+                e.setShadowRadius(0);
+            }));
+            visibleDrops++;
+        } catch (RuntimeException ex) {
+            d.vis = null;
+        }
+    }
+
+    private void dropGone(Drop d) {
+        if (d.vis == null) return;
+        visibleDrops--;
+        d.arena.tracked.remove(d.vis);
+        if (d.vis.isValid()) d.vis.remove();
+        d.vis = null;
+    }
+
+    /**
+     * 시체의 피 웅덩이: 맞은 부위(at, 처형이면 머리) 밑 바닥에서 2초에 걸쳐 퍼짐.
+     * 시체(body)에 태워서 붙이므로 시체가 사라지면 함께 사라짐 (시체가 없으면 그 자리에 18초).
+     */
+    public void pool(Arena a, Vec3 at, float size, org.bukkit.entity.Entity body) {
+        Vec3 floor = floorBelow(a, at.add(0, 0.5, 0), 3);
         if (floor == null) return;
         ItemDisplay d = decal(a, floor, Vec3.UP, null, "violence:fx/blood_pool", size, size, 18 * 20);
         if (d == null) return;
-        // 처음엔 작게 → 2초에 걸쳐 퍼짐
-        Transformation t = d.getTransformation();
-        d.setTransformation(new Transformation(t.getTranslation(), t.getLeftRotation(), new Vector3f(size * 0.3f, 1, size * 0.3f), t.getRightRotation()));
+        Transformation full = d.getTransformation();
+        boolean attach = body != null && body.isValid();
+        if (attach) {
+            decals.removeIf(c -> c.display == d);   // 시체와 함께 사라짐 (따로 흐려지지 않음)
+            body.addPassenger(d);
+        }
+        // 처음엔 거의 안 보이게 → 다음 틱에 (태운 자리에서 웅덩이 자리까지 옮긴 뒤) 2초에 걸쳐 퍼짐
+        d.setTransformation(new Transformation(new Vector3f(), full.getLeftRotation(), new Vector3f(0.001f, 1, 0.001f), full.getRightRotation()));
+        Vec3 target = floor.add(0, 0.012, 0);
         plugin.later(1, () -> {
             if (!d.isValid()) return;
+            org.bukkit.Location dl = d.getLocation();
+            Vector3f off = attach ? new Vector3f((float) (target.x() - dl.getX()), (float) (target.y() - dl.getY()), (float) (target.z() - dl.getZ()))
+                    : new Vector3f();
             d.setInterpolationDelay(0);
-            d.setInterpolationDuration(40);
-            d.setTransformation(t);
-        });
-    }
-
-    /** 처형당한 시체: 머리에서 바닥으로 피가 천천히 흘러 퍼짐 (dir = 발 → 머리, 흘러가는 쪽) */
-    public void headFlow(Arena a, Vec3 head, Vec3 dir) {
-        Vec3 floor = floorBelow(a, head.add(0, 0.3, 0), 2.5);
-        if (floor == null) return;
-        Vec3 f = dir.horizontal().lengthSq() < 1e-6 ? new Vec3(1, 0, 0) : dir.horizontal().normalize();
-        // 머리에서 시작해 머리 너머로 흐름: 판의 +x 가 흐르는 방향, 시작점이 머리 밑
-        ItemDisplay d = decal(a, floor, Vec3.UP, f, "violence:fx/blood_flow", 0.18f, 0.12f, 16 * 20);
-        if (d == null) return;
-        Quaternionf q = d.getTransformation().getLeftRotation();
-        Vector3f along = q.transform(new Vector3f(1, 0, 0));
-        plugin.later(2, () -> {
-            if (!d.isValid()) return;
-            d.setInterpolationDelay(0);
-            d.setInterpolationDuration(70);
-            float len = 1.5f;
-            d.setTransformation(new Transformation(new Vector3f(along).mul(len * 0.42f), q, new Vector3f(len, 1, 0.62f), new Quaternionf()));
+            d.setInterpolationDuration(0);
+            d.setTransformation(new Transformation(new Vector3f(off), full.getLeftRotation(), new Vector3f(size * 0.3f, 1, size * 0.3f), full.getRightRotation()));
+            plugin.later(1, () -> {
+                if (!d.isValid()) return;
+                d.setInterpolationDelay(0);
+                d.setInterpolationDuration(40);
+                d.setTransformation(new Transformation(new Vector3f(off), full.getLeftRotation(), full.getScale(), full.getRightRotation()));
+            });
         });
     }
 
@@ -168,7 +205,7 @@ public final class BloodService {
                 for (int i = 0; i < 2; i++) {
                     Vec3 r = new Vec3(rnd.nextGaussian(), rnd.nextGaussian(), rnd.nextGaussian()).mul(0.12);
                     Vec3 v = d.add(r).normalize().mul(0.16 + 0.14 * pulse);
-                    drops.add(new Drop(a, from, v, 0.24f + rnd.nextFloat() * 0.12f, false));
+                    addDrop(new Drop(a, from, v, 0.24f + rnd.nextFloat() * 0.12f, false));
                 }
             });
         }
@@ -179,6 +216,7 @@ public final class BloodService {
             for (Iterator<Drop> it = drops.iterator(); it.hasNext(); ) {
                 Drop d = it.next();
                 if (plugin.arena() != d.arena || ++d.age > 50) {
+                    dropGone(d);
                     it.remove();
                     continue;
                 }
@@ -191,12 +229,13 @@ public final class BloodService {
                         Vector hp = r.getHitPosition();
                         Vector fn = r.getHitBlockFace().getDirection();
                         splat(d.arena, new Vec3(hp.getX(), hp.getY(), hp.getZ()), new Vec3(fn.getX(), fn.getY(), fn.getZ()), d.vel, d.size, d.burst);
+                        dropGone(d);
                         it.remove();
                         continue;
                     }
                 }
-                // 날아가는 핏방울은 보이지 않게 궤적만 계산 (닿은 자리에 혈흔)
                 d.pos = d.pos.add(d.vel);
+                if (d.vis != null && d.vis.isValid()) d.vis.teleport(Fx.loc(w, d.pos));
                 d.vel = d.vel.mul(0.98).add(0, -GRAVITY, 0);
             }
         }
@@ -328,7 +367,9 @@ public final class BloodService {
     }
 
     public void clear() {
+        for (Drop d : drops) dropGone(d);
         drops.clear();
+        visibleDrops = 0;
         decals.clear();
     }
 
