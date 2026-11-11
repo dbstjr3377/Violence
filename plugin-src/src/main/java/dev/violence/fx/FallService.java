@@ -147,6 +147,8 @@ public final class FallService {
         int lastMove = -1;
         FallPose.Part poolPart = FallPose.Part.BODY;
         int tick;
+        /** 발차기 인형: 이 틱(서버 시각)까지 마지막 자세로 남음 (처형 카메라가 돌아올 때까지) */
+        long keepUntil;
 
         Lying(Combatant victim, Arena arena, FallPose.Kind kind, FallPose pose, float startYaw, float yaw) {
             this.victim = victim;
@@ -288,29 +290,17 @@ public final class FallService {
             plugin.laterIn(a, 1, () -> {
                 if (a.combatants.containsKey(v.id)) sendEquipment(a, v, false);
             });
-            if (l.kind == FallPose.Kind.WALL && poses != null) {
-                // 전용 사망 모션: 앉은 자세에서 벽 아래로 미끄러져 누움
-                Lying d = new Lying(v, a, FallPose.Kind.WALL_DEATH, poses.get(FallPose.Kind.WALL_DEATH), l.yaw, l.yaw);
-                d.start = l.end.clone();
-                d.end = d.start.clone().add(forward(l.yaw).multiply(0));
-                d.corpse = true;
-                d.execution = execution;
-                d.poolSize = poolSize;
-                d.poolPart = head ? FallPose.Part.HEAD : FallPose.Part.BODY;
-                if (spawnPuppet(a, v, d)) {
-                    end(l, false);
-                    d.body = spawnDouble(a, v, d);
-                    place(d, 0, false);
-                    falling.add(d);
-                    return d.body;
-                }
+            boolean wallSeat = l.kind == FallPose.Kind.WALL;
+            if (wallSeat) {
+                // 벽에 기대 기절한 채 죽으면 그대로 벽에 기댄 시체로 남음 (피웅덩이 없음, 피는 맞은 자리의 벽·바닥 혈흔만)
+                poolSize = 0f;
             }
             l.corpse = true;
             l.follow = false;
             l.execution = execution;
             l.poolSize = poolSize;
             l.poolPart = head ? FallPose.Part.HEAD : FallPose.Part.BODY;
-            l.start = l.end = l.anchor(l.pose.frameCount() - 1);
+            if (!wallSeat) l.start = l.end = l.anchor(l.pose.frameCount() - 1);
             if (l.revealed) {
                 bleed(l);
             } else {
@@ -420,6 +410,38 @@ public final class FallService {
     public void cancelExec(Combatant ex) {
         ExecAct act = execs.get(ex.id);
         if (act != null) endExec(act);
+    }
+
+    /** 벽 발차기 인형을 ticks 동안 (동작이 끝나도 마지막 자세로) 남김 */
+    public void holdKick(Combatant ex, int ticks) {
+        Lying l = acting.get(ex.id);
+        if (l != null) l.keepUntil = plugin.now() + ticks;
+    }
+
+    /**
+     * 처형 카메라가 처형자 눈으로 거의 다 돌아왔을 때: 처형자 자신의 화면에서만 자기 인형(발차기·처형 동작)을 숨김.
+     * 카메라가 인형 머리 속으로 들어가 얼굴 안쪽이 화면을 덮지 않게 한다 (다른 사람에게는 그대로 보임).
+     */
+    public void hideOwnPuppet(Combatant ex) {
+        if (!(ex instanceof PlayerCombatant pc) || !pc.player().isOnline()) return;
+        Player p = pc.player();
+        Lying l = acting.get(ex.id);
+        if (l != null) {
+            for (ItemDisplay d : l.parts.values()) if (d != null && d.isValid()) p.hideEntity(plugin, d);
+            if (l.mask != null && l.mask.isValid()) p.hideEntity(plugin, l.mask);
+        }
+        ExecAct act = execs.get(ex.id);
+        if (act != null) {
+            for (ItemDisplay d : act.exPuppet.parts.values()) if (d != null && d.isValid()) p.hideEntity(plugin, d);
+            if (act.exPuppet.mask != null && act.exPuppet.mask.isValid()) p.hideEntity(plugin, act.exPuppet.mask);
+            if (act.weapon != null && act.weapon.isValid()) p.hideEntity(plugin, act.weapon);
+        }
+    }
+
+    /** 벽 발차기 인형을 지금 치우고 실제 몸으로 */
+    public void endKick(Combatant ex) {
+        Lying l = acting.remove(ex.id);
+        if (l != null) end(l, true);
     }
 
     /** 벽 발차기 인형이 남은 틱 수 */
@@ -713,7 +735,8 @@ public final class FallService {
                 LivingEntity e = l.victim.entity();
                 l.tick++;
                 boolean gone = e == null || !e.isValid() || plugin.arena() != l.arena || !l.arena.combatants.containsKey(l.victim.id);
-                if (gone || l.tick >= l.pose.holdTicks() || l.victim.state == CombatState.DEAD || l.victim.state.isDownedLike()) {
+                boolean done = l.tick >= l.pose.holdTicks() && plugin.now() >= l.keepUntil;
+                if (gone || done || l.victim.state == CombatState.DEAD || l.victim.state.isDownedLike()) {
                     acting.remove(l.victim.id);
                     end(l, !gone);
                     continue;

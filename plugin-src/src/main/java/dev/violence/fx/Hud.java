@@ -142,30 +142,73 @@ public final class Hud {
     /** 처치 회색 깜빡임 길이 (틱) */
     public static final int FLASH_TICKS = 27;   // 0.75배 속도 (쉐이더 violence_flash.glsl 과 같이)
 
-    private final Map<UUID, Long> flashUntil = new HashMap<>();
+    /** 깜빡임 상태: dropAt = "화면 어둡게"를 끈 틱(시계 0), end = 끝나는 틱, rising = 되감는 중 */
+    private static final class Flash {
+        long dropAt;
+        long end;
+        boolean rising;
+        long token;
+    }
+
+    private final Map<UUID, Flash> flashes = new HashMap<>();
+    private long flashSeq;
+
+    /** 클라이언트가 "화면 어둡게" 값을 바꾸는 빠르기 (틱당): 켜면 +0.05, 끄면 -0.0125 */
+    static final double DARKEN_UP = 0.05;
+    static final double DARKEN_DOWN = 0.0125;
+
+    /** 깜빡임 도중 다시 처치: 지난 틱 수만큼 내려간 값을 되돌리는 데 걸리는 틱 (그동안 화면이 다시 흑백으로 차오름) */
+    static int rewindTicks(long elapsed) {
+        double down = Math.min(1.0, Math.max(0, elapsed) * DARKEN_DOWN);
+        return (int) Math.ceil(down / DARKEN_UP - 1e-9);
+    }
 
     /**
-     * 처치: 화면이 잠깐 조금 밝은 회색이 됐다가 easeOutExpo 로 1초 동안 원래 색으로 돌아옴 (쉐이더, 상태이상 효과 없음).
+     * 처치: 화면이 흑백으로 번쩍였다가 easeOutCirc 로 원래 색으로 돌아옴 (쉐이더, 상태이상 효과 없음).
      * 보이지 않는 HUD 보스바의 플래그만 바꿔서 쉐이더에 신호를 준다 (리소스팩 violence_flash.glsl / lightmap.fsh):
      *  - 평소: 상태 보스바에 "화면 어둡게" → 클라이언트 값이 1 (리소스팩 라이트맵 쉐이더가 바닐라의 어둡게 하기를 지움)
      *  - 처치: "화면 어둡게"를 끄면 클라이언트가 그 값을 틱당 1/80 씩 부드럽게(프레임 보간) 줄임 → 쉐이더의 시계
      *          동시에 콤보 보스바에 "안개" 플래그 → 쉐이더가 안개 거리로 "깜빡임 중"을 알아챔
-     *  - 20틱 뒤: 둘 다 원래대로 (값은 5틱 만에 다시 1)
-     * 깜빡임 중에 또 처치하면 그대로 이어서 진행 (다시 시작하지 않음).
+     *  - FLASH_TICKS 뒤: 둘 다 원래대로
+     * 깜빡임 도중에 또 처치하면 (연속 킬, 붉은 연속킬 화면 중에도) 씹히지 않고 다시 깜빡인다:
+     * "화면 어둡게"를 잠깐 다시 켜서 값을 1 로 되돌리면(그동안 흑백이 다시 차오름) 그때부터 시계가 처음부터 다시 간다.
      */
     public void killFlash(Player p) {
         PlayerHud h = hud(p);
         long now = plugin.now();
-        Long until = flashUntil.get(p.getUniqueId());
-        if (until != null && now < until) return;
-        long end = now + FLASH_TICKS;
-        flashUntil.put(p.getUniqueId(), end);
+        Flash f = flashes.get(p.getUniqueId());
+        if (f != null && now < f.end) {
+            if (f.rising) return;   // 이미 되감는 중 → 곧 처음부터 다시 감
+            int rise = rewindTicks(now - f.dropAt);
+            if (rise <= 0) return;
+            long token = ++flashSeq;
+            f.token = token;
+            f.rising = true;
+            f.end = now + rise + FLASH_TICKS;
+            h.status.addFlag(BossBar.Flag.DARKEN_SCREEN);
+            plugin.later(rise, () -> {
+                if (f.token != token || flashes.get(p.getUniqueId()) != f) return;
+                f.rising = false;
+                f.dropAt = plugin.now();
+                h.status.removeFlag(BossBar.Flag.DARKEN_SCREEN);
+                scheduleFlashEnd(p, h, f, token, FLASH_TICKS);
+            });
+            return;
+        }
+        Flash nf = new Flash();
+        nf.token = ++flashSeq;
+        nf.dropAt = now;
+        nf.end = now + FLASH_TICKS;
+        flashes.put(p.getUniqueId(), nf);
         h.status.removeFlag(BossBar.Flag.DARKEN_SCREEN);
         h.combo.addFlag(BossBar.Flag.CREATE_WORLD_FOG);
-        plugin.later(FLASH_TICKS, () -> {
-            Long u = flashUntil.get(p.getUniqueId());
-            if (u == null || u != end) return;
-            flashUntil.remove(p.getUniqueId());
+        scheduleFlashEnd(p, h, nf, nf.token, FLASH_TICKS);
+    }
+
+    private void scheduleFlashEnd(Player p, PlayerHud h, Flash f, long token, int ticks) {
+        plugin.later(ticks, () -> {
+            if (f.token != token || flashes.get(p.getUniqueId()) != f) return;
+            flashes.remove(p.getUniqueId());
             h.combo.removeFlag(BossBar.Flag.CREATE_WORLD_FOG);
             h.status.addFlag(BossBar.Flag.DARKEN_SCREEN);
         });

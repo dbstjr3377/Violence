@@ -362,21 +362,35 @@ public final class GameService {
             default -> {
             }
         }
+        // 무기 이름은 띄우지 않음. 총이면 탄수만 우측 하단에 (AmmoHud: 쉐이더가 옮김), 가운데 오른쪽에는 가면·남은 시간·방패
         WeaponType t = pc.weaponType(plugin.weapons().fist());
-        Component c = Component.empty();
-        if (pc.mask != null) c = c.append(Glyphs.text("[" + pc.mask.displayName() + "] ", Glyphs.HUD, Glyphs.PINK));
-        c = c.append(Glyphs.text(t.displayName(), Glyphs.HUD, Glyphs.WHITE));
-        if (t.isGun() && pc.weapon != null) {
-            int ammo = pc.weapon.ammo() + (pc.offhand != null ? pc.offhand.ammo() : 0);
-            int col = ammo == 0 ? Glyphs.RED : (ammo <= t.ammo() / 4 ? Glyphs.YELLOW : Glyphs.WHITE);
-            c = c.append(Glyphs.text("  " + Glyphs.BULLET + " " + ammo, Glyphs.HUD, col));
-            if (pc.weapon.isReloading(now)) c = c.append(Glyphs.text("  재장전", Glyphs.HUD, Glyphs.YELLOW));
+        StringBuilder midText = new StringBuilder();
+        Component mid = Component.empty();
+        if (pc.mask != null) {
+            String m = "[" + pc.mask.displayName() + "]";
+            midText.append(m);
+            mid = mid.append(Glyphs.text(m, Glyphs.HUD, Glyphs.PINK));
         }
         if (pc.weapon != null && pc.weapon.expireTick() > 0) {
             long left = Math.max(0, pc.weapon.expireTick() - now);
-            c = c.append(Glyphs.text("  " + (left / 20 + 1) + "s", Glyphs.HUD, Glyphs.CYAN));
+            String m = "  " + (left / 20 + 1) + "s";
+            midText.append(m);
+            mid = mid.append(Glyphs.text(m, Glyphs.HUD, Glyphs.CYAN));
         }
-        if (pc.bulletShield > 0) c = c.append(Glyphs.text("  ◆".repeat(pc.bulletShield), Glyphs.HUD, Glyphs.CYAN));
+        if (pc.bulletShield > 0) {
+            String m = "  ◆".repeat(pc.bulletShield);
+            midText.append(m);
+            mid = mid.append(Glyphs.text(m, Glyphs.HUD, Glyphs.CYAN));
+        }
+        WeaponInstance off = t.isGun() ? pc.offhand : null;
+        boolean reloading = pc.weapon != null && pc.weapon.isReloading(now);
+        // [가운데 글의 숨은 짝][탄수][가운데 글][탄수의 숨은 짝] → 탄수의 오른쪽 끝이 늘 화면 가운데 (쉐이더가 오른쪽 아래로 옮김),
+        // 가운데 글은 가운데의 오른쪽에 붙음
+        Component c = Component.empty()
+                .append(dev.violence.fx.AmmoHud.hiddenText(midText.toString()))
+                .append(dev.violence.fx.AmmoHud.marked(t, pc.weapon, off, reloading))
+                .append(mid)
+                .append(dev.violence.fx.AmmoHud.hidden(t, pc.weapon, off));
         return c;
     }
 

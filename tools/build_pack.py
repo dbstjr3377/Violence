@@ -516,6 +516,14 @@ BLOOD_FADE = [1.0, 0.8, 0.6, 0.42, 0.26, 0.12]
 BLOOD_COLOR = (200, 10, 16)
 # 상황별 모양: 이름 → 개수. 그림의 +x 가 늘어나는 방향(진행 방향 / 벽에서는 아래)
 BLOOD_SHAPES = {"splat": 3, "streak": 3, "drip": 3, "drops": 2, "spray": 2}
+# 피 픽셀 크기: 다른 혈흔은 32px 그림을 보통 0.6블록 크기로 붙임 → 블록당 약 53px.
+# 웅덩이는 다 퍼졌을 때 크기(블록)에 맞춰 그림 크기를 정해 같은 픽셀 크기로 보이게 한다 (BloodService.pool 과 같은 값)
+BLOOD_PX_PER_BLOCK = 32 / 0.6
+POOL_SIZES = {"blood_pool_s": 1.1 * 1.8, "blood_pool_l": 1.6 * 1.8}
+
+
+def pool_px(blocks):
+    return int(round(blocks * BLOOD_PX_PER_BLOCK / 8.0)) * 8
 
 
 def _blob(d, x, y, r, rng):
@@ -566,10 +574,27 @@ def blood_mask(kind, seed, size=32):
     elif kind == "spray":          # 강한 공격: 넓게 흩뿌린 파편 (+x 로 몰림)
         _blob(d, size * 0.2, c, size * 0.09, r)
         _frags(d, size * 0.2, c, 60, size * 0.06, size * 0.7, r, 1.0, 0.9, bias=0.0)
-    elif kind == "pool":           # 웅덩이
-        _blob(d, c, c, size * 0.3, r)
-        _blob(d, c + size * 0.08, c - size * 0.05, size * 0.2, r)
-        _frags(d, c, c, 12, size * 0.34, size * 0.46, r)
+    elif kind == "pool":           # 웅덩이: 둥근 덩어리(가장자리가 울퉁불퉁) + 번진 작은 방울 + 1~2px 파편 (가장자리 계단은 다른 혈흔과 같은 1px)
+        R = size * 0.3
+        harm = [(k, r.uniform(0.03, 0.09) / k ** 0.35, r.uniform(0, math.tau)) for k in range(2, 9)]
+        pts = []
+        for i in range(180):
+            t = i / 180 * math.tau
+            rr = R * (1 + sum(amp * math.sin(k * t + ph) for k, amp, ph in harm))
+            pts.append((c + math.cos(t) * rr, c + math.sin(t) * rr * 0.92))
+        d.polygon(pts, fill=1)
+        for k in range(r.randint(4, 6)):     # 가장자리에 붙은 혹
+            t = r.uniform(0, math.tau)
+            rr = R * r.uniform(0.18, 0.3)
+            x, y = c + math.cos(t) * R * 0.92, c + math.sin(t) * R * 0.85
+            d.ellipse([x - rr, y - rr, x + rr, y + rr], fill=1)
+        for k in range(r.randint(6, 9)):     # 떨어진 작은 방울
+            t = r.uniform(0, math.tau)
+            dist = R * r.uniform(1.18, 1.45)
+            rr = r.uniform(1.0, 2.6)
+            x, y = c + math.cos(t) * dist, c + math.sin(t) * dist
+            d.ellipse([x - rr, y - rr, x + rr, y + rr], fill=1)
+        _frags(d, c, c, int(14 * (size / 32) ** 1.2), R * 1.2, size * 0.48, r)
     elif kind == "flow":           # 머리에서 흐르는 피
         _blob(d, size * 0.14, c, size * 0.12, r)
         x = size * 0.14
@@ -598,9 +623,10 @@ def blood_base(kind, seed, size=32):
 
 def blood_assets(T):
     shapes = [(f"blood_{k}_{i}", k, 40 + i * 13) for k, n in BLOOD_SHAPES.items() for i in range(n)]
-    shapes += [("blood_flow", "flow", 90), ("blood_pool", "pool", 77)]
-    for name, kind, seed in shapes:
-        base = blood_base(kind, seed)
+    shapes += [("blood_flow", "flow", 90)]
+    shapes = [(n, k, s, 32) for n, k, s in shapes] + [(n, "pool", 77, pool_px(b)) for n, b in POOL_SIZES.items()]
+    for name, kind, seed, px in shapes:
+        base = blood_base(kind, seed, px)
         entries = []
         for k, a in enumerate(BLOOD_FADE):
             img = base.copy()
@@ -904,6 +930,36 @@ def fonts():
             if ch == "#":
                 mouse.putpixel((x, y), (255, 255, 255, 255))
     save_png(mouse, os.path.join(T, "mouse_right.png"))
+    # 샷건 탄수 게이지: 탄피 아이콘 (남은 탄 = 빨간 탄피, 쓴 탄 = 빈 탄피). 4×9, 1px 간격은 글꼴이 넣음
+    def shell(full):
+        img = Image.new("RGBA", (4, 9), (0, 0, 0, 0))
+        if full:
+            hull = [(236, 72, 58), (204, 38, 38), (176, 28, 32), (128, 18, 26)]
+            for y in range(6):
+                for x in range(4):
+                    c = hull[x] if y > 0 else (150, 26, 30)
+                    img.putpixel((x, y), c + (255,))
+            for x in range(4):
+                img.putpixel((x, 6), (110, 78, 28, 255))
+            brass = [(252, 222, 122), (232, 188, 78), (204, 156, 58), (156, 112, 40)]
+            for y in (7, 8):
+                for x in range(4):
+                    img.putpixel((x, y), brass[x] + (255,))
+        else:
+            edge = (96, 92, 100, 255)
+            for y in range(6):
+                img.putpixel((0, y), edge)
+                img.putpixel((3, y), edge)
+            for x in range(4):
+                img.putpixel((x, 0), edge)
+            for x in range(4):
+                img.putpixel((x, 6), (70, 60, 44, 255))
+                img.putpixel((x, 7), (112, 98, 66, 255))
+                img.putpixel((x, 8), (86, 74, 50, 255))
+        return img
+
+    save_png(shell(True), os.path.join(T, "shell.png"))
+    save_png(shell(False), os.path.join(T, "shell_empty.png"))
     # 가면 안내 문구 (미리 그린 이미지 글리프: 화면 중앙 하단에 오도록 아래로 내림)
     prompt_img = render_text("E키를 눌러 가면을 착용하세요", 64, (255, 255, 255, 255), outline=(30, 0, 20, 255))
     save_png(prompt_img, os.path.join(T, "prompt_mask.png"))
@@ -914,6 +970,8 @@ def fonts():
         {"type": "bitmap", "file": "violence:font/bar.png", "ascent": 7, "height": 8, "chars": ["\uE003"]},
         {"type": "bitmap", "file": "violence:font/star.png", "ascent": 7, "height": 8, "chars": ["\uE004"]},
         {"type": "bitmap", "file": "violence:font/mouse_right.png", "ascent": 8, "height": 9, "chars": ["\uE005"]},
+        {"type": "bitmap", "file": "violence:font/shell.png", "ascent": 8, "height": 9, "chars": ["\uE006"]},
+        {"type": "bitmap", "file": "violence:font/shell_empty.png", "ascent": 8, "height": 9, "chars": ["\uE007"]},
     ]
 
     def ttf_pair(size, shift_y=0.0):

@@ -162,6 +162,43 @@ public final class ViolenceCommand implements TabExecutor {
                     msg(sender, g.weapon.type().displayName() + " 을(를) 봅니다.");
                     return true;
                 }
+                if (args.length > 1 && args[1].equalsIgnoreCase("wall")) {
+                    // /vio test wall: 바라보는 쪽 벽 앞에 가장 가까운 NPC 를 벽을 등지고 세우고(3초 멈춤), 나는 그 앞 1.6칸에서 바라봄
+                    // → 주먹으로 치면 벽에 기대 기절 (벽 처형·벽 시체 촬영용)
+                    dev.violence.math.Vec3 f = pc.look().horizontal().normalize();
+                    org.bukkit.Location eye = p.getEyeLocation();
+                    org.bukkit.util.RayTraceResult r = a.world.rayTraceBlocks(eye, new org.bukkit.util.Vector(f.x(), 0, f.z()), 16,
+                            org.bukkit.FluidCollisionMode.NEVER, true);
+                    if (r == null) {
+                        msg(sender, "앞에 벽이 없습니다.");
+                        return true;
+                    }
+                    org.bukkit.util.Vector hp = r.getHitPosition();
+                    dev.violence.math.Vec3 foot = new dev.violence.math.Vec3(hp.getX(), p.getLocation().getY(), hp.getZ());
+                    dev.violence.math.Vec3 npcAt = foot.sub(f.mul(0.75));
+                    dev.violence.math.Vec3 meAt = npcAt.sub(f.mul(1.6));
+                    dev.violence.npc.NpcCombatant near = null;
+                    double nd = Double.MAX_VALUE;
+                    for (dev.violence.npc.NpcCombatant n : a.npcs) {
+                        if (n.state != dev.violence.combat.CombatState.ALIVE || n.execution != null) continue;
+                        double d = n.feet().distanceSq(pc.feet());
+                        if (d < nd) {
+                            nd = d;
+                            near = n;
+                        }
+                    }
+                    if (near == null) {
+                        msg(sender, "세울 NPC 가 없습니다.");
+                        return true;
+                    }
+                    float yaw = (float) f.yaw();
+                    near.teleport(new org.bukkit.Location(a.world, npcAt.x(), npcAt.y(), npcAt.z(), yaw + 180, 0));
+                    near.actionLockUntil = plugin.now() + 60;
+                    near.moveLockUntil = plugin.now() + 60;
+                    p.teleport(new org.bukkit.Location(a.world, meAt.x(), meAt.y(), meAt.z(), yaw, 12));
+                    msg(sender, near.name() + " 를 벽 앞에 세웠습니다.");
+                    return true;
+                }
                 if (args.length > 1 && args[1].equalsIgnoreCase("line")) {
                     // /vio test line [n]: 살아 있는 NPC n 명을 앞 5~7칸에 옆으로 늘어세우고 6초 동안 멈춤 (연사 촬영용)
                     int n = args.length > 2 ? Math.max(1, Math.min(8, Integer.parseInt(args[2]))) : 4;

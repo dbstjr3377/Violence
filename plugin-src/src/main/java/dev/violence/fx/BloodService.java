@@ -187,7 +187,9 @@ public final class BloodService {
         float size = size0 * 1.8f;   // 웅덩이 1.8배
         Vec3 floor = floorBelow(a, at.add(0, 0.5, 0), 3);
         if (floor == null) return;
-        ItemDisplay d = decal(a, floor, Vec3.UP, null, "violence:fx/blood_pool", size, size, 18 * 20);
+        // 다 퍼진 크기에 맞춘 그림 (리소스팩 build_pack.POOL_SIZES): 다른 혈흔과 같은 픽셀 크기로 보임
+        String model = size0 > 1.35f ? "violence:fx/blood_pool_l" : "violence:fx/blood_pool_s";
+        ItemDisplay d = decal(a, floor, Vec3.UP, null, model, size, size, 18 * 20);
         if (d == null) return;
         Transformation full = d.getTransformation();
         boolean attach = body != null && body.isValid();

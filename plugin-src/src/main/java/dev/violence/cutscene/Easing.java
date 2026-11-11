@@ -14,6 +14,18 @@ public final class Easing {
         return t >= 1 ? 1 : 1 - Math.pow(2, -10 * t);
     }
 
+    /** 빠르게 출발해 부드럽게 멈춤 (처형 카메라가 1인칭 ↔ 3인칭으로 옮겨 감) */
+    public static double outSine(double t) {
+        t = clamp01(t);
+        return Math.sin(t * Math.PI / 2);
+    }
+
+    /** 처음에 거의 다 움직이고 끝에서 아주 천천히 (처치 흑백 깜빡임, 쉐이더 violence_flash.glsl 과 같은 식) */
+    public static double outCirc(double t) {
+        t = clamp01(t);
+        return Math.sqrt(1 - (t - 1) * (t - 1));
+    }
+
     /** 양 끝에서 부드럽게 가감속 (초상화 흔들림) */
     public static double inOutSine(double t) {
         t = clamp01(t);

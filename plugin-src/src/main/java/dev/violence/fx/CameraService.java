@@ -136,11 +136,13 @@ public final class CameraService {
         shakeUntil.put(cam, end);
         shakeBase.put(cam, new float[] {base.getYaw(), base.getPitch(), (float) base.getX(), (float) base.getY(), (float) base.getZ()});
         cam.setTeleportDuration(1);
-        final Location b0 = base.clone();
         for (int k = 0; k <= ticks; k++) {
             final int i = k;
             plugin.later(k, () -> {
                 if (!cam.isValid() || shakeUntil.getOrDefault(cam, -1L) != end) return;
+                // 흔들리는 동안 카메라가 옮겨지면(glide) 기준 자리도 따라감
+                float[] bb = shakeBase.get(cam);
+                Location b0 = new Location(cam.getWorld(), bb[2], bb[3], bb[4], bb[0], bb[1]);
                 if (i == ticks) {
                     cam.teleport(b0);
                     shakeUntil.remove(cam);
@@ -158,6 +160,58 @@ public final class CameraService {
     }
 
     private final Map<ItemDisplay, float[]> shakeBase = new HashMap<>();
+    private final Map<ItemDisplay, Long> glides = new HashMap<>();
+    private long glideSeq;
+
+    /**
+     * 카메라를 ticks 동안 from → to 로 easeOutSine 으로 옮김 (처형 시작: 1인칭 → 3인칭, 끝: 3인칭 → 처형자 눈).
+     * to 는 매 틱 다시 읽으므로 움직이는 눈 위치도 따라간다. 끝나면 done (같은 카메라에 새 glide 가 시작되면 부르지 않음).
+     */
+    public void glide(ItemDisplay cam, Location from, java.util.function.Supplier<Location> to, int ticks, Runnable done) {
+        long token = ++glideSeq;
+        glides.put(cam, token);
+        if (cam.isValid()) cam.setTeleportDuration(1);
+        int n = Math.max(1, ticks);
+        boolean[] over = {false};
+        for (int k = 1; k <= n; k++) {
+            final int i = k;
+            plugin.later(k, () -> {
+                if (over[0] || glides.get(cam) == null || glides.get(cam) != token) return;
+                if (!cam.isValid()) {
+                    over[0] = true;
+                    glides.remove(cam);
+                    if (done != null) done.run();
+                    return;
+                }
+                Location t = to.get();
+                if (t != null) place(cam, lerp(from, t, dev.violence.cutscene.Easing.outSine((double) i / n)));
+                if (i == n) {
+                    over[0] = true;
+                    glides.remove(cam);
+                    if (done != null) done.run();
+                }
+            });
+        }
+    }
+
+    /** 흔들리는 중이면 흔들림의 기준 자리만 옮기고, 아니면 카메라를 옮김 */
+    private void place(ItemDisplay cam, Location l) {
+        Long sh = shakeUntil.get(cam);
+        if (sh != null && sh >= plugin.now() && shakeBase.containsKey(cam)) {
+            shakeBase.put(cam, new float[] {l.getYaw(), l.getPitch(), (float) l.getX(), (float) l.getY(), (float) l.getZ()});
+            return;
+        }
+        cam.teleport(l);
+    }
+
+    static Location lerp(Location a, Location b, double t) {
+        double dy = ((b.getYaw() - a.getYaw()) % 360 + 540) % 360 - 180;
+        Location l = new Location(a.getWorld(), a.getX() + (b.getX() - a.getX()) * t, a.getY() + (b.getY() - a.getY()) * t,
+                a.getZ() + (b.getZ() - a.getZ()) * t);
+        l.setYaw((float) (a.getYaw() + dy * t));
+        l.setPitch((float) (a.getPitch() + (b.getPitch() - a.getPitch()) * t));
+        return l;
+    }
 
     public ItemDisplay cameraOf(Player p) {
         return cameras.get(p.getUniqueId());

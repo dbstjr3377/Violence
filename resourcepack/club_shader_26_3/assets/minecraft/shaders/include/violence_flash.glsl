@@ -1,6 +1,6 @@
 #ifndef VIOLENCE_FLASH_GLSL
 #define VIOLENCE_FLASH_GLSL
-// VIOLENCE: 처치 회색 깜빡임 (처음에 조금 밝은 회색 → easeOutExpo 로 1초 동안 원래 색으로). 상태이상 효과를 쓰지 않음.
+// VIOLENCE: 처치 흑백 깜빡임 (처음에 흑백 → easeOutCirc 로 원래 색으로). 상태이상 효과를 쓰지 않음.
 // 플러그인이 보이지 않는 HUD 보스바의 플래그만 바꾼다 (Hud.killFlash):
 //  - 평소 "화면 어둡게" 켜짐 → 클라이언트 값 1. 처치하면 끄므로 값이 틱당 1/80 씩 부드럽게 줄어듦 = 시계
 //    (lightmap.fsh 가 바닐라 어둡게 하기를 지우고, 이 값을 가장 밝은 라이트맵 칸의 아래 비트에 숨겨 둠)
@@ -20,10 +20,12 @@ float violence_flash_dark(sampler2D lightMap) {
     return float((b.r << 4) | (b.g << 2) | b.b) / 63.0;
 }
 
-// 회색 정도 = 1 - easeOutExpo(t), t = 끈 뒤 지난 시간 / 27틱 (값이 1 → 0.667 로 줄어드는 동안)
+// 흑백 정도 = 1 - easeOutCirc(t), t = 끈 뒤 지난 시간 / 27틱 (값이 1 → 0.667 로 줄어드는 동안)
+// easeOutCirc(t) = sqrt(1 - (t - 1)^2)
 float violence_flash_amount_of(float dark) {
     float t = clamp((1.0 - dark) * 3.0, 0.0, 1.0);   // 속도 0.75배: 27틱
-    return exp2(-10.0 * t);
+    float u = t - 1.0;
+    return 1.0 - sqrt(max(0.0, 1.0 - u * u));
 }
 
 // (깜빡임 중이면 1, 회색 정도)

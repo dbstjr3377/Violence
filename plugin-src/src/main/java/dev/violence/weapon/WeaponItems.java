@@ -57,7 +57,8 @@ public final class WeaponItems {
     public static ItemStack create(WeaponType type, int ammo) {
         ItemStack it = new ItemStack(Material.STICK);
         it.setData(DataComponentTypes.ITEM_MODEL, Key.key(type.model()));
-        it.setData(DataComponentTypes.ITEM_NAME, Component.text(type.displayName()));
+        // 손에 든 무기 이름은 화면에 띄우지 않음 (핫바 위 이름이 빈 글자로 나옴). 이름은 바닥 정보 카드에만
+        it.setData(DataComponentTypes.ITEM_NAME, Component.empty());
         it.setData(DataComponentTypes.MAX_STACK_SIZE, 1);
         it.setData(DataComponentTypes.TOOLTIP_DISPLAY, TooltipDisplay.tooltipDisplay().hideTooltip(true).build());
         // 바닐라 휘두르기 동작은 끄고 리소스팩 키프레임 애니메이션만 사용

@@ -199,7 +199,7 @@ class Blood:
                                 name=name, born=tk, life=life, grow=grow))
 
     def pool(self, feet, size, tk):
-        self.decal(np.array([feet[0], FLOOR, feet[2]]), np.array([0, 1.0, 0]), None, "blood_pool", size, size, tk, 18 * 20,
+        self.decal(np.array([feet[0], FLOOR, feet[2]]), np.array([0, 1.0, 0]), None, "blood_pool_l" if size > 2.4 else "blood_pool_s", size, size, tk, 18 * 20,
                    grow=(0.3, 40))
 
     def head_flow(self, head, direction, tk):

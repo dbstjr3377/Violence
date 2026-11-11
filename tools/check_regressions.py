@@ -116,10 +116,12 @@ for p in fp_models:
         bad_arm.append(os.path.basename(p))
 check("1인칭 팔이 스킨 두 마디", fp_models and not bad_arm, f"{len(fp_models)}개 모델" + (", 문제: " + ", ".join(bad_arm[:4]) if bad_arm else ""))
 
-# 11. 처치 회색 깜빡임: easeOutExpo, 화면 확대(속도 FOV) 없음
+# 11. 처치 흑백 깜빡임: easeOutCirc, 연속 킬에도 다시 깜빡임(씹히지 않음), 화면 확대(속도 FOV) 없음
 flash = open(os.path.join(ROOT, "tools", "shaders", "include", "violence_flash.glsl"), encoding="utf-8").read()
 speed = open(os.path.join(JAVA, "dev", "violence", "player", "PlayerSpeed.java"), encoding="utf-8").read()
-check("처치 깜빡임 easeOutExpo + 확대 없음", "exp2(-10.0" in flash and "setWalkSpeed" in speed, "1 - easeOutExpo, 걷기 속도로 시야 고정")
+hud = open(os.path.join(JAVA, "dev", "violence", "fx", "Hud.java"), encoding="utf-8").read()
+check("처치 깜빡임 easeOutCirc + 연속 킬 + 확대 없음", "sqrt(max(0.0, 1.0 - u * u))" in flash and "exp2(" not in flash and "rewindTicks" in hud and "setWalkSpeed" in speed,
+      "1 - easeOutCirc, 연속 킬마다 다시 깜빡임, 걷기 속도로 시야 고정")
 
 # 12. 가면: 잡티 없음 (외톨이 픽셀·4픽셀 미만 조각 0), 검은 눈 (개구리·중절모·헬멧 제외), Blockbench 프로젝트
 import mask_kit  # noqa: E402

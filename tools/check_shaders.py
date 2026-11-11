@@ -29,6 +29,7 @@ VARIANTS = {
     "item": [[["ALPHA_CUTOUT 0.1"]], [["GLINT"], ["GLINT", "GLINT_SPECIAL"]], OIT_PASSES],
     "particle": [OIT_PASSES],
     "block": [[["ALPHA_CUTOUT 0.5"]], OIT_PASSES],
+    "text": [[["IS_GUI"], ["IS_SEE_THROUGH"]], [["IS_GRAYSCALE"]], OIT_PASSES],
 }
 
 
