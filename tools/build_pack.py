@@ -781,33 +781,7 @@ def misc():
 # ───────────────────────── 피 뒤집어쓰기 장비 / 붉은 화면 ─────────────────────────
 
 def equipment():
-    T = os.path.join(NS, "textures", "entity", "equipment")
-    for level in (1, 2, 3):
-        for layer in ("humanoid", "humanoid_leggings"):
-            img = Image.new("RGBA", (64, 32), (0, 0, 0, 0))
-            d = ImageDraw.Draw(img)
-            r = random.Random(level * 31 + (7 if layer == "humanoid" else 3))
-            # 몸통 앞(20..28,20..32), 뒤(32..40), 팔(44..48 / 40..56), 다리(4..8 / 0..16), 머리(8..16, 8..16)
-            regions = [(20, 20, 28, 32), (32, 20, 40, 32), (40, 20, 56, 32), (0, 20, 16, 32), (16, 20, 20, 32), (28, 20, 32, 32)]
-            if layer == "humanoid":
-                regions += [(8, 8, 16, 16), (0, 8, 8, 16), (16, 8, 24, 16)]
-            splats = {1: 5, 2: 14, 3: 34}[level]
-            for _ in range(splats):
-                x0, y0, x1, y1 = r.choice(regions)
-                cx, cy = r.uniform(x0, x1), r.uniform(y0, y1)
-                rad = r.uniform(0.6, 1.4 + level * 0.5)
-                shade = r.randint(90, 150)
-                d.ellipse([cx - rad, cy - rad, cx + rad, cy + rad], fill=(shade, 4, 10, 255))
-                # 흘러내림
-                if r.random() < 0.5:
-                    d.line([(cx, cy), (cx, min(y1 - 0.5, cy + r.uniform(1, 2 + level)))], fill=(shade - 20, 2, 8, 255), width=1)
-            save_png(img, os.path.join(T, layer, f"blood{level}.png"))
-        write(os.path.join(NS, "equipment", f"blood{level}.json"), {
-            "layers": {
-                "humanoid": [{"texture": f"violence:blood{level}"}],
-                "humanoid_leggings": [{"texture": f"violence:blood{level}"}],
-            }
-        })
+    # 갑옷(피 묻은 옷) 장비는 쓰지 않음. 연속킬 붉은 화면 카메라 오버레이만
     # 연속킬 붉은 화면 (카메라 오버레이, 가장자리가 진함)
     for lvl, (alpha_c, alpha_e) in {1: (14, 95), 2: (34, 165)}.items():
         img = Image.new("RGBA", (256, 256))

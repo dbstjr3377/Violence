@@ -27,6 +27,6 @@ void main() {
     sphericalVertexDistance = fog_spherical_distance(Position);
     cylindricalVertexDistance = fog_cylindrical_distance(Position);
     texCoord0 = UV0;
-    violenceFlash = vec2(violence_flash_flag(Sampler2, ProjMat), violence_flash_light(UV2));  // VIOLENCE
-    vertexColor = violenceFlash.x > 0.5 ? Color * vec4(vec3(violenceFlash.y), 1.0) : Color * sample_lightmap(Sampler2, UV2);  // VIOLENCE
+    violenceFlash = violence_flash_state(Sampler2, ProjMat);  // VIOLENCE
+    vertexColor = Color * sample_lightmap(Sampler2, UV2);
 }

@@ -24,7 +24,7 @@ layout(location = 4) in float chunkVisibility;
 layout(location = 5) in vec3 clubWorldPos;    // VIOLENCE
 layout(location = 6) in vec3 clubBlockColor;  // VIOLENCE
 layout(location = 7) in vec2 clubLightLevel;  // VIOLENCE
-layout(location = 8) flat in float violenceFlash;  // VIOLENCE
+layout(location = 8) flat in vec2 violenceFlash;  // VIOLENCE
 
 #ifndef OIT_ALPHA_ONLY
 layout(location = 0) out vec4 fragColor;
@@ -37,17 +37,13 @@ vec4 calculateFinalColor(vec4 color) {
     #else
     vec4 fogColor = FogColor;
     #endif
-    return apply_fog(color, sphericalVertexDistance, cylindricalVertexDistance, violence_env_start(violenceFlash), violence_env_end(violenceFlash),  /* VIOLENCE */ FogRenderDistanceStart, FogRenderDistanceEnd, fogColor);
+    return apply_fog(color, sphericalVertexDistance, cylindricalVertexDistance, violence_env_start(violenceFlash.x), violence_env_end(violenceFlash.x),  /* VIOLENCE */ FogRenderDistanceStart, FogRenderDistanceEnd, fogColor);
 }
 
 void main() {
     vec4 texColor = (UseRgss == 1 ? sampleRGSS(Sampler0, texCoord0, 1.0f / TextureSize) : sampleNearest(Sampler0, texCoord0, 1.0f / TextureSize));  // VIOLENCE
     vec4 color = texColor * vertexColor;
     #ifndef OIT_ALPHA_ONLY
-    // VIOLENCE: 처치 회색 깜빡임 중에는 야간 투시로 밝아진 라이트맵 대신 블록·하늘 밝기로 다시 비춤 (회색은 맨 끝에 violence_flash 로)
-    if (violenceFlash > 0.5) {
-        color.rgb = texColor.rgb * clubBlockColor * violence_flash_level(clubLightLevel);
-    }
     // VIOLENCE: 카메라가 있는 구역에 따라 클럽 조명 / 벅샷 룰렛 색감
     if (club_active(CameraBlockPos)) {
         color.rgb = club_light(color.rgb, texColor.rgb * clubBlockColor, clubWorldPos, GameTime * 1200.0);
@@ -69,6 +65,6 @@ void main() {
     executeAlphaOnlyPhase(gl_FragCoord.z, color.a);
     #else
     fragColor = calculateFinalColor(color);
-    if (violenceFlash > 0.5) fragColor.rgb = violence_flash(fragColor.rgb);  // VIOLENCE: 안개까지 회색
+    if (violenceFlash.x > 0.5) fragColor.rgb = violence_flash(fragColor.rgb, violenceFlash.y);  // VIOLENCE: 안개까지 회색
     #endif
 }

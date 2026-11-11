@@ -102,15 +102,11 @@ public final class PlayerCombatant extends Combatant {
         if (inv.getHeldItemSlot() != 0) inv.setHeldItemSlot(0);
         plugin().game().syncHeld(this);
         inv.setHelmet(mask != null ? WeaponItems.mask(mask, false) : null);
-        int blood = streak.bloodLevel();
+        // 갑옷은 입히지 않음. 연속킬 붉은 화면만 보이지 않는 장비(모델 없음, 카메라 오버레이)로
         int overlay = streak.value() >= 5 ? 2 : (streak.value() >= 3 ? 1 : 0);
-        if (blood > 0) {
-            inv.setChestplate(WeaponItems.bloodArmor(EquipmentSlot.CHEST, blood, overlay));
-            inv.setLeggings(WeaponItems.bloodArmor(EquipmentSlot.LEGS, blood, 0));
-        } else {
-            inv.setChestplate(null);
-            inv.setLeggings(null);
-        }
+        inv.setChestplate(overlay > 0 && state != dev.violence.combat.CombatState.DEAD ? WeaponItems.overlayOnly(EquipmentSlot.CHEST, overlay) : null);
+        inv.setLeggings(null);
+        inv.setBoots(null);
     }
 
     public double speedValue(long now) {

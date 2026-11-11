@@ -38,8 +38,7 @@ layout(location = 0) out vec4 fragColor;
 #ifndef OIT_ALPHA_ONLY
 vec4 calculateFinalColor(vec4 color) {
     color.rgb = mix(overlayColor.rgb, color.rgb, overlayColor.a);
-    if (violenceFlash.x > 0.5) color.rgb *= violenceFlash.y;  // VIOLENCE: 깜빡임 중에는 야간 투시 라이트맵 대신
-    else color *= lightMapColor;
+    color *= lightMapColor;
 
     #ifdef GLINT
     vec4 glintColor = GlintAlpha * texture(GlintSampler, texCoordGlint);// Glint color modulator?
@@ -76,6 +75,6 @@ void main() {
     executeAlphaOnlyPhase(gl_FragCoord.z, color.a);
     #else
     fragColor = calculateFinalColor(color);
-    if (violenceFlash.x > 0.5) fragColor.rgb = violence_flash(fragColor.rgb);  // VIOLENCE
+    if (violenceFlash.x > 0.5) fragColor.rgb = violence_flash(fragColor.rgb, violenceFlash.y);  // VIOLENCE
     #endif
 }

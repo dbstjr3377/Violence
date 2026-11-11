@@ -9,6 +9,7 @@
 #include <minecraft:dynamictransforms.glsl>
 #include <minecraft:oit.glsl>
 #include <minecraft:violence_flash.glsl>  // VIOLENCE
+#include <minecraft:violence_skin.glsl>  // VIOLENCE
 
 uniform sampler2D Sampler0;
 
@@ -38,6 +39,7 @@ layout(location = 5) in vec4 overlayColor;
 #endif
 
 layout(location = 6) in vec2 texCoord0;
+layout(location = 9) flat in int violenceSkinPart;  // VIOLENCE
 layout(location = 8) in vec2 violenceFlash;  // VIOLENCE
 #ifdef GLINT
 layout(location = 7) in vec2 texCoordGlint;
@@ -53,8 +55,7 @@ vec4 calculateFinalColor(vec4 color) {
     #endif
 
     #ifndef EMISSIVE
-    if (violenceFlash.x > 0.5) color.rgb *= violenceFlash.y;  // VIOLENCE: 깜빡임 중에는 야간 투시 라이트맵 대신
-    else color *= lightMapColor;
+    color *= lightMapColor;
     #endif
 
     #ifdef GLINT
@@ -74,7 +75,7 @@ vec4 calculateFinalColor(vec4 color) {
 }
 
 void main() {
-    vec4 color = texture(Sampler0, texCoord0);
+    vec4 color = texture(Sampler0, violenceSkinPart > 0 ? violence_skin_uv(texCoord0, violenceSkinPart) : texCoord0);  // VIOLENCE: 스킨 인형
 
     #ifdef OIT_ADDITIVE
     color.a = min(0.99, color.a);
@@ -110,6 +111,6 @@ void main() {
     executeAlphaOnlyPhase(gl_FragCoord.z, color.a);
     #else
     fragColor = calculateFinalColor(color);
-    if (violenceFlash.x > 0.5) fragColor.rgb = violence_flash(fragColor.rgb);  // VIOLENCE
+    if (violenceFlash.x > 0.5) fragColor.rgb = violence_flash(fragColor.rgb, violenceFlash.y);  // VIOLENCE
     #endif
 }

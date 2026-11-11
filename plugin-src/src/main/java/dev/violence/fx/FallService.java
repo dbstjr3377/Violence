@@ -66,7 +66,6 @@ public final class FallService {
     private static final EquipmentSlot[] SLOTS = {EquipmentSlot.HAND, EquipmentSlot.OFF_HAND, EquipmentSlot.HEAD,
             EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.FEET};
     /** 기본 색: 피부, 머리카락, 윗옷, 바지, 신발 */
-    static final int[] DEFAULT_COLORS = {0xC89A7A, 0x3B2A1E, 0x3C8C96, 0x323278, 0x222222};
     /** 쓰고 있는 가면을 머리에 씌울 때 크기 (머리 칸 아이템 = 0.625 블록) */
     private static final float MASK_SCALE = 0.625f;
     /** 뒤쪽 벽을 찾는 거리 (넘어지며 밀려나는 거리) */
@@ -120,9 +119,6 @@ public final class FallService {
     }
     /** 넘어지는 중인 시체 */
     private final List<Lying> falling = new ArrayList<>();
-    private final Map<UUID, int[]> skins = new ConcurrentHashMap<>();
-    private final Map<UUID, Boolean> fetching = new ConcurrentHashMap<>();
-    private HttpClient http;
 
     private static final class Lying {
         final Combatant victim;
@@ -568,10 +564,10 @@ public final class FallService {
 
     private boolean spawnPuppet(Arena a, Combatant c, Lying l) {
         try {
-            int[] col = colors(c);
+            ItemStack head = skinHead(c);
             for (FallPose.Part part : FallPose.Part.values()) {
                 if (part == FallPose.Part.HEAD && c.mask != null) continue;
-                l.parts.put(part, a.track(a.world.spawn(l.start, ItemDisplay.class, d -> setup(d, partItem(part, col)))));
+                l.parts.put(part, a.track(a.world.spawn(l.start, ItemDisplay.class, d -> setup(d, head.clone()))));
             }
             if (c.mask != null) {
                 l.mask = a.track(a.world.spawn(l.start, ItemDisplay.class, d -> {
@@ -799,12 +795,27 @@ public final class FallService {
             FallPose.Placement p = l.pose.place(frame, part, l.scale);
             Vector3d c = FallPose.toWorld(p.center(), yaw);
             Quaternionf r = new Quaternionf(FallPose.toWorld(p.rotation(), yaw));
-            float sc = (float) (FallPose.PX * 16 * l.scale) * (d == l.mask ? MASK_SCALE : 1f);
             if (d.getLocation().distanceSquared(at) > 1e-4) d.teleport(at);
-            d.setTransformation(new Transformation(new Vector3f((float) c.x, (float) c.y, (float) c.z), r,
-                    new Vector3f(sc, sc, sc), new Quaternionf()));
+            if (d == l.mask) {
+                float sc = (float) (FallPose.PX * 16 * l.scale) * MASK_SCALE;
+                d.setTransformation(new Transformation(new Vector3f((float) c.x, (float) c.y, (float) c.z), r,
+                        new Vector3f(sc, sc, sc), new Quaternionf()));
+            } else {
+                d.setTransformation(SkinPuppet.transform(part, c, r, l.scale));
+                SkinPuppet.mark(d, part);
+            }
             if (animate) d.setInterpolationDelay(0);
         }
+    }
+
+    /** 이 사람의 스킨을 쓰는 플레이어 머리 (NPC 는 마네킹 프로필, 플레이어는 자기 프로필) */
+    private static ItemStack skinHead(Combatant c) {
+        ItemStack it = new ItemStack(Material.PLAYER_HEAD);
+        ResolvableProfile profile = null;
+        if (c instanceof NpcCombatant n) profile = n.profile();
+        else if (c.entity() instanceof Player p) profile = ResolvableProfile.resolvableProfile(p.getPlayerProfile());
+        if (profile != null) it.setData(DataComponentTypes.PROFILE, profile);
+        return it;
     }
 
     /** 보는 사람들에게 실제 몸의 장비를 숨김(hide) / 다시 보냄 */
@@ -824,103 +835,5 @@ public final class FallService {
         // 손 아이템은 3인칭용으로 바꿔 보내는 것이 따로 있음
         if (!hide && c instanceof PlayerCombatant pc) plugin.game().syncHeld(pc);
         if (!hide && c instanceof NpcCombatant n) plugin.game().syncNpcPose(n);
-    }
-
-    // ───────── 인형 아이템 / 색 ─────────
-
-    private static ItemStack partItem(FallPose.Part part, int[] col) {
-        String model;
-        int c0;
-        int c1;
-        switch (part) {
-            case HEAD -> { model = "head"; c0 = col[0]; c1 = col[1]; }
-            case BODY -> { model = "body"; c0 = col[2]; c1 = col[2]; }
-            case ARM_R, ARM_L -> { model = "arm_upper"; c0 = col[2]; c1 = col[0]; }
-            case FOREARM_R, FOREARM_L -> { model = "forearm"; c0 = col[2]; c1 = col[0]; }
-            case LEG_R, LEG_L -> { model = "leg_upper"; c0 = col[3]; c1 = col[4]; }
-            default -> { model = "shin"; c0 = col[3]; c1 = col[4]; }
-        }
-        ItemStack it = new ItemStack(Material.PAPER);
-        it.setData(DataComponentTypes.ITEM_MODEL, Key.key("violence", "puppet/" + model));
-        it.setData(DataComponentTypes.CUSTOM_MODEL_DATA, CustomModelData.customModelData()
-                .addColor(Color.fromRGB(c0 & 0xFFFFFF)).addColor(Color.fromRGB(c1 & 0xFFFFFF)).build());
-        return it;
-    }
-
-    private int[] colors(Combatant c) {
-        if (c instanceof NpcCombatant n) {
-            int o = n.outfitColor();
-            return new int[] {DEFAULT_COLORS[0], DEFAULT_COLORS[1], o, darker(o), 0x222222};
-        }
-        if (c instanceof PlayerCombatant pc) {
-            prefetch(pc.player());
-            int[] s = skins.get(pc.player().getUniqueId());
-            if (s != null) return s;
-        }
-        return DEFAULT_COLORS.clone();
-    }
-
-    static int darker(int rgb) {
-        int r = (rgb >> 16 & 0xFF) * 6 / 10, g = (rgb >> 8 & 0xFF) * 6 / 10, b = (rgb & 0xFF) * 6 / 10;
-        return (r << 16) | (g << 8) | b;
-    }
-
-    /** 플레이어 스킨에서 인형 색을 뽑아 둔다 (비동기, 실패하면 기본 색) */
-    public void prefetch(Player p) {
-        UUID id = p.getUniqueId();
-        if (skins.containsKey(id) || fetching.putIfAbsent(id, Boolean.TRUE) != null) return;
-        java.net.URL url;
-        try {
-            url = p.getPlayerProfile().getTextures().getSkin();
-        } catch (RuntimeException e) {
-            url = null;
-        }
-        if (url == null) {
-            skins.put(id, DEFAULT_COLORS.clone());
-            fetching.remove(id);
-            return;
-        }
-        final String target = url.toString();
-        plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
-            try {
-                if (http == null) http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
-                HttpResponse<byte[]> res = http.send(HttpRequest.newBuilder(URI.create(target)).timeout(Duration.ofSeconds(8)).build(),
-                        HttpResponse.BodyHandlers.ofByteArray());
-                BufferedImage img = res.statusCode() == 200 ? javax.imageio.ImageIO.read(new java.io.ByteArrayInputStream(res.body())) : null;
-                skins.put(id, img == null ? DEFAULT_COLORS.clone() : skinColors(img));
-            } catch (Exception e) {
-                skins.put(id, DEFAULT_COLORS.clone());
-            } finally {
-                fetching.remove(id);
-            }
-        });
-    }
-
-    /** 64×64(또는 64×32) 스킨 그림 → 피부, 머리카락, 윗옷, 바지, 신발 색 */
-    static int[] skinColors(BufferedImage img) {
-        int u = Math.max(1, img.getWidth() / 64);
-        return new int[] {
-            average(img, 8, 12, 16, 16, u, DEFAULT_COLORS[0]),   // 얼굴 아래쪽 (눈 아래)
-            average(img, 8, 0, 16, 8, u, DEFAULT_COLORS[1]),     // 머리 위
-            average(img, 20, 20, 28, 32, u, DEFAULT_COLORS[2]),  // 몸통 앞
-            average(img, 4, 20, 8, 28, u, DEFAULT_COLORS[3]),    // 다리 앞 위쪽
-            average(img, 4, 30, 8, 32, u, DEFAULT_COLORS[4]),    // 다리 앞 끝 (신발)
-        };
-    }
-
-    private static int average(BufferedImage img, int x0, int y0, int x1, int y1, int u, int fallback) {
-        long r = 0, g = 0, b = 0, n = 0;
-        for (int y = y0 * u; y < Math.min(img.getHeight(), y1 * u); y++) {
-            for (int x = x0 * u; x < Math.min(img.getWidth(), x1 * u); x++) {
-                int argb = img.getRGB(x, y);
-                if ((argb >>> 24) < 128) continue;
-                r += argb >> 16 & 0xFF;
-                g += argb >> 8 & 0xFF;
-                b += argb & 0xFF;
-                n++;
-            }
-        }
-        if (n == 0) return fallback;
-        return (int) (r / n) << 16 | (int) (g / n) << 8 | (int) (b / n);
     }
 }

@@ -38,6 +38,6 @@ void main() {
     executeAlphaOnlyPhase(gl_FragCoord.z, color.a);
     #else
     fragColor = calculateFinalColor(color);
-    if (violenceFlash.x > 0.5) fragColor.rgb = violence_flash(fragColor.rgb);  // VIOLENCE
+    if (violenceFlash.x > 0.5) fragColor.rgb = violence_flash(fragColor.rgb, violenceFlash.y);  // VIOLENCE
     #endif
 }

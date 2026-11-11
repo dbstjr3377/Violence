@@ -221,7 +221,6 @@ public final class GameService {
 
     private void addPlayer(Arena a, Player p) {
         PlayerCombatant pc = new PlayerCombatant(p);
-        plugin.falls().prefetch(p);   // 넘어지는 인형 색 (스킨)
         Vec3 spot = plugin.spawns().choose(a, pc);
         Location l = new Location(a.world, spot.x(), spot.y(), spot.z(), plugin.random().nextFloat() * 360, 0);
         p.teleport(l);

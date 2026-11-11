@@ -13,6 +13,6 @@ layout(location = 0) out vec4 fragColor;
 
 void main() {
     fragColor = apply_fog(ColorModulator, sphericalVertexDistance, cylindricalVertexDistance, 0.0, FogSkyEnd, FogSkyEnd, FogSkyEnd, FogColor);
-    // VIOLENCE: 경기장은 늘 한밤(18000) → 안개 색이 밝고 어둠 효과가 진행 중이면 처치 깜빡임
-    if (max(max(FogColor.r, FogColor.g), FogColor.b) > 0.6 && violence_flash_t() > 0.0) fragColor.rgb = mix(fragColor.rgb, violence_gray(fragColor.rgb) * 0.5, violence_flash_amount());
+    // VIOLENCE: 처치 깜빡임 (하늘은 라이트맵이 없어 시계를 못 읽음 → 깜빡임 중이면 절반만 회색. 밤하늘이라 거의 보이지 않음)
+    if (violence_flash_on()) fragColor.rgb = violence_flash(fragColor.rgb, 0.5);
 }

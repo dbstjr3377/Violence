@@ -49,9 +49,9 @@ void main() {
     #ifndef OIT_ALPHA_ONLY
     lightMapColor = sample_lightmap(Sampler2, UV2);
     overlayColor = texelFetch(Sampler1, UV1, 0);
-    violenceFlash = vec2(violence_flash_flag(Sampler2, ProjMat), violence_flash_light(UV2));  // VIOLENCE
+    violenceFlash = violence_flash_state(Sampler2, ProjMat);  // VIOLENCE
     #else
-    violenceFlash = vec2(0.0, 1.0);  // VIOLENCE
+    violenceFlash = vec2(0.0);  // VIOLENCE
     #endif
 
     texCoord0 = UV0;

@@ -93,10 +93,11 @@ public final class NpcCombatant extends Combatant {
         return 1.6 + (1.0 - skill) * 1.6;
     }
 
+    /** 갑옷·옷 장비는 입히지 않음 (스킨 그대로) */
     public void copyOutfitTo(EntityEquipment eq) {
-        eq.setChestplate(WeaponItems.outfit(Material.LEATHER_CHESTPLATE, outfitColor));
-        eq.setLeggings(WeaponItems.outfit(Material.LEATHER_LEGGINGS, darker(outfitColor)));
-        eq.setBoots(WeaponItems.outfit(Material.LEATHER_BOOTS, 0x222222));
+        eq.setChestplate(null);
+        eq.setLeggings(null);
+        eq.setBoots(null);
     }
 
     private static int darker(int rgb) {
@@ -122,7 +123,7 @@ public final class NpcCombatant extends Combatant {
             // 지원하지 않으면 오른손 주 손 그대로
         }
         eq.setItemInOffHand(offhand != null ? WeaponItems.world(offhand.type()) : null);
-        if (eq.getChestplate() == null || eq.getChestplate().getType() == Material.AIR) copyOutfitTo(eq);
+        copyOutfitTo(eq);
         ViolencePlugin.get().game().syncNpcPose(this);
     }
 

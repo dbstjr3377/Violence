@@ -10,6 +10,7 @@
 #include <minecraft:projection.glsl>
 #include <minecraft:sample_lightmap.glsl>
 #include <minecraft:violence_flash.glsl>  // VIOLENCE
+#include <minecraft:violence_skin.glsl>  // VIOLENCE
 
 layout(location = 0) in vec3 Position;
 layout(location = 1) in vec4 Color;
@@ -45,6 +46,7 @@ layout(location = 5) out vec4 overlayColor;
 #endif
 
 layout(location = 6) out vec2 texCoord0;
+layout(location = 9) flat out int violenceSkinPart;  // VIOLENCE: 스킨 인형 부위 (0 = 아님)
 layout(location = 8) out vec2 violenceFlash;  // VIOLENCE: (깜빡임 여부, 대신 쓸 밝기)
 #ifdef GLINT
 layout(location = 7) out vec2 texCoordGlint;
@@ -67,10 +69,10 @@ void main() {
 #endif
 
 #if !defined(EMISSIVE) && !defined(OIT_ALPHA_ONLY)
-    lightMapColor = sample_lightmap(Sampler2, UV2);
-    violenceFlash = vec2(violence_flash_flag(Sampler2, ProjMat), violence_flash_light(UV2));  // VIOLENCE
+    lightMapColor = sample_lightmap(Sampler2, violence_skin_light(UV2));  // VIOLENCE: 인형 부위 번호를 뺀 밝기
+    violenceFlash = violence_flash_state(Sampler2, ProjMat);  // VIOLENCE
 #else
-    violenceFlash = vec2(0.0, 1.0);  // VIOLENCE
+    violenceFlash = vec2(0.0);  // VIOLENCE
 #endif
 
 #if !defined(NO_OVERLAY) && !defined(OIT_ALPHA_ONLY)
@@ -78,6 +80,7 @@ void main() {
 #endif
 
     texCoord0 = UV0;
+    violenceSkinPart = violence_skin_part(UV2);  // VIOLENCE
 
 #ifdef APPLY_TEXTURE_MATRIX
     texCoord0 = (TextureMat * vec4(UV0, 0.0, 1.0)).xy;

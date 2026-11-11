@@ -192,21 +192,6 @@ public final class WeaponItems {
         return it;
     }
 
-    /**
-     * 피 뒤집어쓰기 장비 (갑옷 칸, 리소스팩 장비 텍스처).
-     * 3킬 이상일 때는 화면을 붉게 물들이는 카메라 오버레이도 포함.
-     */
-    public static ItemStack bloodArmor(EquipmentSlot slot, int level, int streakOverlay) {
-        ItemStack it = new ItemStack(Material.PAPER);
-        it.setData(DataComponentTypes.ITEM_MODEL, Key.key("violence:misc/blank"));
-        it.setData(DataComponentTypes.TOOLTIP_DISPLAY, TooltipDisplay.tooltipDisplay().hideTooltip(true).build());
-        Equippable.Builder eq = Equippable.equippable(slot).swappable(false).dispensable(false)
-                .assetId(Key.key("violence", "blood" + Math.max(1, Math.min(3, level))));
-        if (streakOverlay > 0) eq.cameraOverlay(Key.key("violence", "misc/streak" + streakOverlay));
-        it.setData(DataComponentTypes.EQUIPPABLE, eq.build());
-        return it;
-    }
-
     /** 카메라 오버레이만 있는 투명 장비 (피 없음 + 붉은 화면) */
     public static ItemStack overlayOnly(EquipmentSlot slot, int streakOverlay) {
         ItemStack it = new ItemStack(Material.PAPER);
@@ -217,10 +202,4 @@ public final class WeaponItems {
         return it;
     }
 
-    /** NPC 옷 색 (가죽 갑옷) */
-    public static ItemStack outfit(Material leather, int rgb) {
-        ItemStack it = new ItemStack(leather);
-        it.setData(DataComponentTypes.DYED_COLOR, io.papermc.paper.datacomponent.item.DyedItemColor.dyedItemColor(org.bukkit.Color.fromRGB(rgb)));
-        return it;
-    }
 }

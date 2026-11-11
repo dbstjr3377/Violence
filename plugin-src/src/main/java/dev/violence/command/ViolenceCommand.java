@@ -120,6 +120,10 @@ public final class ViolenceCommand implements TabExecutor {
             }
             case "test" -> {
                 // 테스트용 (관리자): /vio test down = 가장 가까운 NPC 를 내 앞 1.2칸에 데려와 쓰러뜨림 → Space 로 처형 확인
+                if (sender instanceof Player fp && args.length > 1 && args[1].equalsIgnoreCase("flash")) {
+                    plugin.hud().killFlash(fp);   // 처치 회색 깜빡임만 확인
+                    return true;
+                }
                 if (sender instanceof Player sp && args.length > 2 && args[1].equalsIgnoreCase("skin")) {
                     // /vio test skin <파일>: 플러그인 폴더의 PNG 를 내 1인칭 팔 스킨으로 (오프라인 서버 확인용)
                     java.io.File f = new java.io.File(plugin.getDataFolder(), args[2]);

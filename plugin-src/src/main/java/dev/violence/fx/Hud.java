@@ -52,7 +52,8 @@ public final class Hud {
     private PlayerHud hud(Player p) {
         return huds.computeIfAbsent(p.getUniqueId(), k -> {
             PlayerHud h = new PlayerHud();
-            h.status = BossBar.bossBar(Component.empty(), 0f, BossBar.Color.WHITE, BossBar.Overlay.PROGRESS);
+            // 상태 보스바는 늘 "화면 어둡게" 표시 → 클라이언트의 어둡게 값이 1 로 유지 (처치 깜빡임의 시계, 아래 killFlash)
+            h.status = BossBar.bossBar(Component.empty(), 0f, BossBar.Color.WHITE, BossBar.Overlay.PROGRESS, java.util.Set.of(BossBar.Flag.DARKEN_SCREEN));
             h.combo = BossBar.bossBar(Component.empty(), 0f, BossBar.Color.WHITE, BossBar.Overlay.PROGRESS);
             h.comboScore = BossBar.bossBar(Component.empty(), 0f, BossBar.Color.WHITE, BossBar.Overlay.PROGRESS);
             p.showBossBar(h.status);
@@ -138,36 +139,35 @@ public final class Hud {
         p.showTitle(t);
     }
 
-    private final java.util.Map<java.util.UUID, Long> flashUntil = new java.util.HashMap<>();
+    /** 처치 회색 깜빡임 길이 (틱) */
+    public static final int FLASH_TICKS = 20;
 
-    /** 처치 회색 깜빡임 길이 (틱). 어둠 효과 블렌드가 22틱에 다 차므로 12틱이면 회색이 2% 남짓만 남음 */
-    public static final int FLASH_TICKS = 12;
+    private final Map<UUID, Long> flashUntil = new HashMap<>();
 
     /**
-     * 처치: 화면이 잠깐 조금 밝은 회색이 됐다가 easeOutExpo 로 원래 색으로 돌아옴. 화면 확대 없음.
-     * 보이지 않는 효과 두 개를 주면 리소스팩 쉐이더(violence_flash.glsl)가 알아챈다.
-     *  - 야간 투시: 깜빡임 중이라는 신호
-     *  - 어둠: 클라이언트가 22틱 동안 부드럽게 올리는 블렌드 값이 경과 시간 (쉐이더가 안개 거리로 읽음)
+     * 처치: 화면이 잠깐 조금 밝은 회색이 됐다가 easeOutExpo 로 1초 동안 원래 색으로 돌아옴 (쉐이더, 상태이상 효과 없음).
+     * 보이지 않는 HUD 보스바의 플래그만 바꿔서 쉐이더에 신호를 준다 (리소스팩 violence_flash.glsl / lightmap.fsh):
+     *  - 평소: 상태 보스바에 "화면 어둡게" → 클라이언트 값이 1 (리소스팩 라이트맵 쉐이더가 바닐라의 어둡게 하기를 지움)
+     *  - 처치: "화면 어둡게"를 끄면 클라이언트가 그 값을 틱당 1/80 씩 부드럽게(프레임 보간) 줄임 → 쉐이더의 시계
+     *          동시에 콤보 보스바에 "안개" 플래그 → 쉐이더가 안개 거리로 "깜빡임 중"을 알아챔
+     *  - 20틱 뒤: 둘 다 원래대로 (값은 5틱 만에 다시 1)
+     * 깜빡임 중에 또 처치하면 그대로 이어서 진행 (다시 시작하지 않음).
      */
     public void killFlash(Player p) {
-        org.bukkit.potion.PotionEffectType nv = org.bukkit.potion.PotionEffectType.NIGHT_VISION;
-        org.bukkit.potion.PotionEffectType dark = org.bukkit.potion.PotionEffectType.DARKNESS;
-        // 지속 시간을 길게 줘야 끝날 때 깜빡이지 않음 → 직접 지움
-        p.addPotionEffect(new org.bukkit.potion.PotionEffect(nv, 20 * 60, 0, true, false, false));
-        // 어둠은 새로 붙어야 블렌드가 0부터 다시 시작 (이미 있으면 갱신만 되어 바로 1이 됨)
-        p.removePotionEffect(dark);
-        p.addPotionEffect(new org.bukkit.potion.PotionEffect(dark, 20 * 60, 0, true, false, false));
-        long until = plugin.now() + FLASH_TICKS;
-        flashUntil.put(p.getUniqueId(), until);
+        PlayerHud h = hud(p);
+        long now = plugin.now();
+        Long until = flashUntil.get(p.getUniqueId());
+        if (until != null && now < until) return;
+        long end = now + FLASH_TICKS;
+        flashUntil.put(p.getUniqueId(), end);
+        h.status.removeFlag(BossBar.Flag.DARKEN_SCREEN);
+        h.combo.addFlag(BossBar.Flag.CREATE_WORLD_FOG);
         plugin.later(FLASH_TICKS, () -> {
             Long u = flashUntil.get(p.getUniqueId());
-            if (u != null && u == until) {
-                flashUntil.remove(p.getUniqueId());
-                if (p.isOnline()) {
-                    p.removePotionEffect(nv);
-                    p.removePotionEffect(dark);
-                }
-            }
+            if (u == null || u != end) return;
+            flashUntil.remove(p.getUniqueId());
+            h.combo.removeFlag(BossBar.Flag.CREATE_WORLD_FOG);
+            h.status.addFlag(BossBar.Flag.DARKEN_SCREEN);
         });
     }
 

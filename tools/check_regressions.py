@@ -144,6 +144,23 @@ need = json.load(open(os.path.join(ROOT, "tools", "block_texture_map.json"), enc
 miss = sorted({t for ts in need.values() if ts for t in ts} - set(block_textures.BLOCK_TEXTURES))
 check("맵 블록 텍스처 전부 교체", not miss, f"{len(block_textures.BLOCK_TEXTURES)}장" + (", 빠짐: " + ", ".join(miss[:6]) if miss else ""))
 
+# 14. 이펙트는 쉐이더로만: 상태이상(포션) 효과를 쓰지 않음
+pot = [os.path.relpath(p, JAVA) for p in glob.glob(os.path.join(JAVA, "**", "*.java"), recursive=True)
+       if "PotionEffect" in open(p, encoding="utf-8").read()]
+lm = os.path.join(ROOT, "tools", "shaders", "core", "lightmap.fsh")
+check("상태이상 효과 없음 (깜빡임은 쉐이더)", not pot and os.path.isfile(lm) and "BossOverlayWorldDarkeningFactor" in open(lm, encoding="utf-8").read(),
+      ", ".join(pot) or "보스바 플래그 → lightmap.fsh → 월드 쉐이더")
+
+# 15. 갑옷을 입히지 않음 (피 묻은 옷·NPC 가죽옷 없음)
+arm = [os.path.relpath(p, JAVA) for p in glob.glob(os.path.join(JAVA, "**", "*.java"), recursive=True)
+       if any(t in open(p, encoding="utf-8").read() for t in ("LEATHER_CHESTPLATE", "bloodArmor", "Material.LEATHER_"))]
+check("갑옷 없음", not arm, ", ".join(arm) or "없음")
+
+# 16. 넘어짐·처형 인형 = 실제 스킨 (플레이어 머리 + entity 쉐이더 UV 바꾸기)
+ent = open(os.path.join(ROOT, "tools", "shaders", "core", "entity.fsh"), encoding="utf-8").read()
+fall = open(os.path.join(JAVA, "dev", "violence", "fx", "FallService.java"), encoding="utf-8").read()
+check("인형에 실제 스킨", "violence_skin_uv" in ent and "PLAYER_HEAD" in fall and "puppet/" not in fall, "플레이어 머리 10조각, 부위별 스킨 영역")
+
 w = max(len(i) for i, _, _ in results)
 fail = 0
 for issue, ok, detail in results:
