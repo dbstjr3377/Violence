@@ -12,6 +12,8 @@ public final class Glyphs {
     public static final Key HUD_BIG = Key.key("violence", "hud_big");
     public static final Key COMBO = Key.key("violence", "combo");
     public static final Key POPUP = Key.key("violence", "popup");
+    /** 바닥 무기 정보 카드의 작은 글자 */
+    public static final Key CARD = Key.key("violence", "card");
     public static final Key PROMPT = Key.key("violence", "prompt");
     public static final Key OVERLAY = Key.key("violence", "overlay");
     public static final Key SPACE = Key.key("violence", "space");

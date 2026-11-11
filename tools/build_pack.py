@@ -884,6 +884,8 @@ def fonts():
     write(os.path.join(F, "hud_big.json"), {"providers": ttf_pair(26)})
     write(os.path.join(F, "combo.json"), {"providers": icons + ttf_pair(15)})
     write(os.path.join(F, "popup.json"), {"providers": ttf_pair(14)})
+    # 바닥 무기 정보 카드 (글자 표시 엔티티: 줄 높이 10px). 작은 글자를 1px 내려 카드 위 테두리에 잘리지 않게
+    write(os.path.join(F, "card.json"), {"providers": icons + ttf_pair(9, 1.0)})
     write(os.path.join(F, "prompt.json"), {"providers": [
         {"type": "bitmap", "file": "violence:font/prompt_mask.png", "ascent": -38, "height": 12, "chars": [""]},
     ] + ttf_pair(11)})

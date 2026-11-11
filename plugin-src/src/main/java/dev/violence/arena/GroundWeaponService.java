@@ -44,7 +44,7 @@ public final class GroundWeaponService {
 
     /** 정보 카드 크기: 글자 폭(px) 기준 가로, 표시 배율 */
     static final int CARD_WIDTH = 104;
-    static final float CARD_SCALE = 0.3f;
+    static final float CARD_SCALE = 0.36f;
     private static final int CARD_BG = 0xE0141416;   // 거의 불투명한 검정 (단색)
     private static final int EMPTY_RED = 0xFF3030;
 
@@ -237,9 +237,9 @@ public final class GroundWeaponService {
      */
     Component cardText(WeaponInstance w) {
         String group = plugin.falls() != null && plugin.falls().execAnims() != null ? plugin.falls().execAnims().groupOf(w.type().id()) : null;
-        Component kind = Component.text(WeaponLabels.kind(w.type(), group)).font(Glyphs.HUD).color(TextColor.color(Glyphs.GRAY));
+        Component kind = Component.text(WeaponLabels.kind(w.type(), group)).font(Glyphs.CARD).color(TextColor.color(Glyphs.GRAY));
         Component name = Component.text(w.type().displayName()).font(Glyphs.POPUP).color(TextColor.color(Glyphs.WHITE));
-        Component pick = Component.text(Glyphs.MOUSE_RIGHT + " 줍기").font(Glyphs.HUD).color(TextColor.color(Glyphs.GRAY));
+        Component pick = Component.text(Glyphs.MOUSE_RIGHT + " 줍기").font(Glyphs.CARD).color(TextColor.color(Glyphs.GRAY));
         String ammo = WeaponLabels.ammo(w);
         var bottom = Component.text();
         if (ammo != null) {
@@ -250,17 +250,19 @@ public final class GroundWeaponService {
                     .append(Glyphs.space(-Math.max(CARD_WIDTH, aw)));
         }
         bottom.append(pick);
-        return Component.text().append(kind).append(Component.newline()).append(name).append(Component.newline())
+        // 이름(14px)은 한 줄(10px)보다 커서 위 줄로 올라오므로 종류 줄과 이름 줄 사이에 빈 줄을 하나 둠
+        return Component.text().append(kind).append(Component.newline()).append(Component.newline())
+                .append(name).append(Component.newline())
                 .append(Glyphs.space(CARD_WIDTH)).append(Component.newline()).append(bottom.build()).build();
     }
 
-    /** 카드 위치: 무기 오른쪽(보는 사람 기준)으로 카드 반 폭 + 여유만큼, 무기보다 조금 위 */
+    /** 카드 위치: 무기 오른쪽(보는 사람 기준)으로 카드 반 폭 + 여유만큼, 무기보다 조금 위, 보는 사람 쪽으로 조금 (벽에 붙은 무기도 카드가 벽에 묻히지 않게) */
     public static Vec3 cardPos(Vec3 item, Vec3 look) {
         Vec3 f = look.horizontal();
         f = f.lengthSq() < 1e-6 ? new Vec3(0, 0, 1) : f.normalize();
         Vec3 right = new Vec3(-f.z(), 0, f.x());
         double half = (CARD_WIDTH + 4) * 0.025 * CARD_SCALE / 2;
-        return item.add(right.mul(0.28 + half)).add(0, 0.08, 0);
+        return item.add(right.mul(0.28 + half)).sub(f.mul(0.3)).add(0, 0.08, 0);
     }
 
     private void updateCard(Arena a, PlayerCombatant pc, GroundWeapon t) {
@@ -282,7 +284,7 @@ public final class GroundWeaponService {
                 td.setLineWidth(400);
                 td.setBackgroundColor(Color.fromARGB(CARD_BG));
                 td.setShadowed(false);
-                td.setSeeThrough(false);
+                td.setSeeThrough(true);   // 벽·바닥에 걸려도 카드 전체가 보이게 (이 카드는 보는 사람에게만 보임)
                 td.setBrightness(new Display.Brightness(15, 15));
                 td.setTransformation(new Transformation(new Vector3f(), new Quaternionf(),
                         new Vector3f(CARD_SCALE, CARD_SCALE, CARD_SCALE), new Quaternionf()));
