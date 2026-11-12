@@ -342,27 +342,8 @@ public final class GameService {
     }
 
     private Component actionBar(PlayerCombatant pc, long now) {
-        switch (pc.state) {
-            case DEAD -> {
-                return Glyphs.text("사망", Glyphs.HUD, Glyphs.RED);
-            }
-            case DOWNED -> {
-                long left = Math.max(0, pc.downedUntil - now);
-                return Glyphs.text("쓰러짐 " + String.format("%.1f", left / 20.0) + "초", Glyphs.HUD, Glyphs.YELLOW);
-            }
-            case BEING_EXECUTED -> {
-                return Glyphs.text("처형당하는 중", Glyphs.HUD, Glyphs.RED);
-            }
-            case EXECUTING -> {
-                var e = pc.execution;
-                if (e != null && e.style == dev.violence.weapon.ExecutionStyle.HITS) {
-                    return Glyphs.text("왼클릭: 공격 (" + e.hitsLeft + ")   우클릭: 내리기", Glyphs.HUD, Glyphs.WHITE);
-                }
-                return Glyphs.text("처형 중", Glyphs.HUD, Glyphs.PINK);
-            }
-            default -> {
-            }
-        }
+        // 화면 가운데 아래 상태 글(사망·쓰러짐·처형 중 등)은 띄우지 않음: 그런 상태에서는 탄수도 숨김
+        if (pc.state != CombatState.ALIVE) return Component.empty();
         // 무기 이름은 띄우지 않음. 총이면 탄수만 우측 하단에 (AmmoHud: 쉐이더가 옮김), 가운데 오른쪽에는 가면·남은 시간·방패
         WeaponType t = pc.weaponType(plugin.weapons().fist());
         StringBuilder midText = new StringBuilder();

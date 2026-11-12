@@ -75,6 +75,7 @@ public final class WeaponItems {
     public static ItemStack hiddenHand() {
         ItemStack it = new ItemStack(Material.STICK);
         it.setData(DataComponentTypes.ITEM_MODEL, Key.key("violence:misc/blank"));
+        it.setData(DataComponentTypes.ITEM_NAME, Component.empty());   // 바꿔 낄 때 핫바 위에 "Stick" 이 뜨지 않게
         it.setData(DataComponentTypes.TOOLTIP_DISPLAY, TooltipDisplay.tooltipDisplay().hideTooltip(true).build());
         it.setData(DataComponentTypes.ATTACK_ANIMATION, SwingAnimation.swingAnimation().type(SwingAnimation.Animation.NONE).duration(1).build());
         it.setData(DataComponentTypes.INTERACT_ANIMATION, SwingAnimation.swingAnimation().type(SwingAnimation.Animation.NONE).duration(1).build());

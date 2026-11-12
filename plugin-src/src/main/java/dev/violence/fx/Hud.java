@@ -31,6 +31,8 @@ import org.joml.Vector3f;
 public final class Hud {
     /** 콤보 표시를 화면 중앙에서 왼쪽으로 미는 거리 (GUI 픽셀) */
     public static final int LEFT_SHIFT = 150;
+    /** 상단(보스바) 글을 모두 숨김: 시간·목표·1위·점수·콤보·콤보 점수 */
+    private static final boolean HIDE_TOP = true;
 
     private static final class PlayerHud {
         BossBar status;
@@ -68,13 +70,18 @@ public final class Hud {
         return Component.empty().append(content).append(Glyphs.space(shift * 2));
     }
 
+    /** 상단 글은 띄우지 않음 (보스바는 처치 깜빡임 신호용으로만 남김) */
     public void status(Player p, Component text) {
-        hud(p).status.name(text);
+        hud(p);
     }
 
     /** 콤보 표시. count < 2 면 숨김. */
     public void combo(Player p, int count, double remaining) {
         PlayerHud h = hud(p);
+        if (HIDE_TOP) {
+            h.combo.name(Component.empty());
+            return;
+        }
         if (count < 2) {
             h.combo.name(Component.empty());
             return;
@@ -90,6 +97,7 @@ public final class Hud {
 
     /** 콤보 종료 점수: 왼쪽에서 부드럽게 나와 0.8초 표시 */
     public void comboScore(Player p, int points, long now) {
+        if (HIDE_TOP) return;
         PlayerHud h = hud(p);
         h.slidePoints = points;
         h.slideStart = now;

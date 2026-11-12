@@ -1085,7 +1085,7 @@ public final class CombatService {
             rest = Math.max(WALL_KICK_AFTER, plugin.falls().kickRemaining(ex));
             ex.actionLockUntil = now + rest;
             ex.moveLockUntil = now + rest;
-            plugin.falls().holdKick(ex, Math.max(rest, CAM_OUT_TICKS) + 1);
+            plugin.falls().holdKick(ex, rest + 1);
         }
         ex.setState(CombatState.ALIVE, now);
         kill(v, ex, KillType.EXECUTION, new Vec3(0, -1, 0), false);
@@ -1093,65 +1093,22 @@ public final class CombatService {
         endCamera(ex, e, rest);
     }
 
-    /** 처형 카메라: 시작할 때 1인칭 → 지정 시점, 끝날 때 지정 시점 → 처형자 눈 (easeOutSine) */
+    /** 처형 카메라: 시작할 때 1인칭 → 지정 시점으로 easeOutSine. 끝날 때는 후딜레이가 끝나면 바로 처형자 시점으로 */
     static final int CAM_IN_TICKS = 6;
-    static final int CAM_OUT_TICKS = 8;
 
-    /**
-     * 처형이 끝난 뒤: 후딜레이(rest) 동안 처형 카메라로 보다가 1블록 물러나 몸을 돌려받는다 (시간은 예전과 같음).
-     * 카메라는 후딜레이의 마지막 CAM_OUT_TICKS 틱 동안 처형자 눈으로 부드럽게 돌아온다.
-     * 후딜레이가 그보다 짧으면 몸은 제때 돌려받고, 카메라만 남은 틱 동안 움직이는 눈을 따라 마저 돌아온다.
-     */
+    /** 처형이 끝난 뒤: 후딜레이(rest) 동안 처형 카메라로 보다가, 끝나면 1블록 물러나며 곧바로 처형자 시점으로 돌아옴 (이징 없음) */
     private void endCamera(Combatant ex, Execution e, int rest) {
         final Arena a = arena();
-        ItemDisplay cam = e.camera;
-        org.bukkit.entity.Player p = ex instanceof PlayerCombatant pc && pc.player().isOnline() ? pc.player() : null;
-        boolean glide = p != null && cam != null && cam.isValid() && plugin.camera().cameraOf(p) == cam;
-        int back = rest > 2 ? rest : 0;
-        Runnable giveBack = () -> {
-            if (!a.combatants.containsKey(ex.id) || ex.state == CombatState.DEAD) return;
-            if (ex.execution == null) stepBack(ex, e);
+        Runnable end = () -> {
+            if (!a.combatants.containsKey(ex.id) || ex.state == CombatState.DEAD || ex.execution != null) return;
+            stepBack(ex, e);
+            plugin.falls().endKick(ex);
+            ex.onExecutionEnd(e);
             ex.refreshEquipment();
         };
-        if (!glide) {
-            Runnable end = () -> {
-                if (!a.combatants.containsKey(ex.id) || ex.state == CombatState.DEAD || ex.execution != null) return;
-                stepBack(ex, e);
-                ex.onExecutionEnd(e);
-                ex.refreshEquipment();
-            };
-            if (back > 0) plugin.laterIn(a, back, end);
-            else end.run();
-            return;
-        }
-        long killTick = plugin.now();
-        Location stepTo = stepBackSpot(ex, e);
-        // 몸을 돌려받기 전에는 물러날 자리의 눈, 그 뒤에는 실제 눈 (움직이면 따라감)
-        java.util.function.Supplier<Location> eye = () -> {
-            if (!p.isOnline()) return null;
-            if (plugin.now() - killTick < back && stepTo != null) return stepTo.clone().add(0, p.getEyeHeight(), 0);
-            return p.getEyeLocation();
-        };
-        if (back > 0) plugin.laterIn(a, back, giveBack);
-        else giveBack.run();
-        int glideAt = Math.max(0, back - CAM_OUT_TICKS);
-        plugin.laterIn(a, glideAt, () -> {
-            if (!cam.isValid() || plugin.camera().cameraOf(p) != cam) return;
-            plugin.camera().glide(cam, cam.getLocation(), eye, CAM_OUT_TICKS, () -> {
-                if (!a.combatants.containsKey(ex.id) || ex.state == CombatState.DEAD || ex.execution != null) return;
-                if (plugin.camera().cameraOf(p) != cam) return;
-                plugin.falls().endKick(ex);
-                ex.onExecutionEnd(e);
-                ex.refreshEquipment();
-            }, () -> {
-                // 카메라가 눈 가까이(인형 머리 근처) 들어오면 내 화면에서만 내 인형을 숨김 (큰 가면 속을 지나지 않게)
-                if (plugin.camera().cameraOf(p) == cam) plugin.falls().hideOwnPuppet(ex);
-            }, CAM_HIDE_PUPPET_DIST);
-        });
+        if (rest > 2) plugin.laterIn(a, rest, end);
+        else end.run();
     }
-
-    /** 돌아오는 카메라가 눈에서 이 거리 안이면 내 인형을 숨김 (가면이 큰 인형도 머리 속을 지나지 않게) */
-    static final double CAM_HIDE_PUPPET_DIST = 1.4;
 
     /** 처형이 끝나면 올라탔던 자리에서 바라보던 반대쪽으로 1블록 물러남 (벽에 막히면 덜 물러남) */
     private void stepBack(Combatant ex, Execution e) {
