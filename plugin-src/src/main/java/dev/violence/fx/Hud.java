@@ -135,15 +135,6 @@ public final class Hud {
 
     /** 화면 중앙 하단 안내 (1초간 표시 후 자연스럽게 사라짐) */
     public void prompt(Player p, String text) {
-        prompt(p, text, 0);
-    }
-
-    /** 처형 카메라로 보는 중이면 끝날 때까지(최대 5초) 미뤘다가 띄움 */
-    private void prompt(Player p, String text, int tries) {
-        if (plugin.camera().isViewing(p) && tries < 20) {
-            plugin.later(5, () -> { if (p.isOnline()) prompt(p, text, tries + 1); });
-            return;
-        }
         Title t = Title.title(Component.empty(), Glyphs.text(text, Glyphs.PROMPT, Glyphs.WHITE),
                 Title.Times.times(Duration.ofMillis(150), Duration.ofMillis(850), Duration.ofMillis(400)));
         p.showTitle(t);
