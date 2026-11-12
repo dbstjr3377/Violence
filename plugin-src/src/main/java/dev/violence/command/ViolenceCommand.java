@@ -30,8 +30,10 @@ import org.bukkit.entity.Player;
 public final class ViolenceCommand implements TabExecutor {
     private final ViolencePlugin plugin;
     private final MapEditor editor;
+    private final BotState bot;
 
     public ViolenceCommand(ViolencePlugin plugin) {
+        this.bot = new BotState(plugin);
         this.plugin = plugin;
         this.editor = new MapEditor(plugin);
     }
@@ -160,6 +162,12 @@ public final class ViolenceCommand implements TabExecutor {
                     org.bukkit.Location to = new org.bukkit.Location(a.world, at.x(), at.y(), at.z(), (float) dir.yaw(), (float) dir.pitch());
                     p.teleport(to);
                     msg(sender, g.weapon.type().displayName() + " 을(를) 봅니다.");
+                    return true;
+                }
+                if (args.length > 1 && args[1].equalsIgnoreCase("bot")) {
+                    // /vio test bot [on|off]: 실제 클라이언트를 조종하는 촬영용 봇이 읽을 게임 상태를 파일로 씀 (BotState)
+                    if (args.length > 2 && args[2].equalsIgnoreCase("off")) bot.stop();
+                    else bot.start(p);
                     return true;
                 }
                 if (args.length > 1 && args[1].equalsIgnoreCase("wall")) {
