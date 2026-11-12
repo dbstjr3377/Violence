@@ -144,9 +144,15 @@ final class BotState {
             for (NpcCombatant c : a.npcs) if (c.state == CombatState.ALIVE || c.state == CombatState.DOWNED) cand.add(c);
             cand.sort(java.util.Comparator.comparingDouble(c -> c.feet().distanceSq(me.feet())));
             JsonArray best = new JsonArray();
-            for (int i = 0; i < Math.min(4, cand.size()); i++) {
-                JsonArray pa = path(a, me.feet(), cand.get(i).feet());
-                if (pa.size() > 0 && (best.size() == 0 || pa.size() < best.size())) best = pa;
+            for (int i = 0; i < Math.min(8, cand.size()); i++) {
+                Vec3 to = cand.get(i).feet();
+                JsonArray pa = path(a, me.feet(), to);
+                if (pa.size() == 0) continue;
+                // 길 끝이 실제로 그 적 곁이어야 함 (다른 층·벽 너머 적이면 길이 엉뚱한 곳에서 끝남)
+                JsonArray end = pa.get(pa.size() - 1).getAsJsonArray();
+                Vec3 e = new Vec3(end.get(0).getAsDouble(), end.get(1).getAsDouble(), end.get(2).getAsDouble());
+                if (e.distance(to) > 2.0) continue;
+                if (best.size() == 0 || pa.size() < best.size()) best = pa;
             }
             pathEnemy = best;
             pathGun = ng == null ? new JsonArray() : path(a, me.feet(), ng.pos);

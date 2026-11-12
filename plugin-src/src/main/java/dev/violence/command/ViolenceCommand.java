@@ -183,7 +183,8 @@ public final class ViolenceCommand implements TabExecutor {
                     }
                     org.bukkit.util.Vector hp = r.getHitPosition();
                     dev.violence.math.Vec3 foot = new dev.violence.math.Vec3(hp.getX(), p.getLocation().getY(), hp.getZ());
-                    dev.violence.math.Vec3 npcAt = foot.sub(f.mul(0.75));
+                    double gap = args.length > 2 ? Double.parseDouble(args[2]) : 0.75;   // /vio test wall [벽까지 거리]
+                    dev.violence.math.Vec3 npcAt = foot.sub(f.mul(gap));
                     dev.violence.math.Vec3 meAt = npcAt.sub(f.mul(1.6));
                     dev.violence.npc.NpcCombatant near = null;
                     double nd = Double.MAX_VALUE;

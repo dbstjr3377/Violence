@@ -147,6 +147,8 @@ public final class FallService {
         int lastMove = -1;
         FallPose.Part poolPart = FallPose.Part.BODY;
         int tick;
+        /** 벽에 기대지 않고 넘어질 때 밀려나도 되는 거리 (누운 몸이 비스듬한 벽 등에 박히지 않게) */
+        double maxSlide = Double.MAX_VALUE;
         /** 발차기 인형: 이 틱(서버 시각)까지 마지막 자세로 남음 (처형 카메라가 돌아올 때까지) */
         long keepUntil;
 
@@ -210,10 +212,18 @@ public final class FallService {
      * 뒤쪽에 벽이 있어 벽에 기대 앉게 되면 true (실제 몸은 앉을 자리로 옮기고 밀려나지 않게 함).
      */
     public boolean knockdown(Combatant c, Vec3 push, boolean strong) {
+        return knockdown(c, push, strong, 0);
+    }
+
+    /**
+     * knockback: 넘어지며 밀려날 세기 (NPC·플레이어 모두 대략 세기 × KNOCKBACK_DIST 블록 미끄러짐).
+     * 밀려난 자리 + 누운 몸 길이 안에 벽이 있으면 벽까지 날아가 기대 앉아 기절 (누운 몸이 벽을 뚫지 않게).
+     */
+    public boolean knockdown(Combatant c, Vec3 push, boolean strong, double knockback) {
         Arena a = plugin.arena();
         LivingEntity e = c.entity();
         if (poses == null || a == null || e == null || !e.isValid() || c.state != CombatState.DOWNED || downed.containsKey(c.id)) return false;
-        Lying l = create(a, c, push, strong, e.getLocation(), false);
+        Lying l = create(a, c, push, strong, e.getLocation(), false, knockback * KNOCKBACK_DIST);
         if (l == null) return false;
         downed.put(c.id, l);
         e.setInvisible(true);
@@ -228,6 +238,12 @@ public final class FallService {
         }
         l.follow = true;
         return false;
+    }
+
+    /** 넘어진 뒤 밀려나도 되는 거리 (블록): 누운 몸이 벽에 박히지 않게 */
+    public double maxSlide(Combatant c) {
+        Lying l = downed.get(c.id);
+        return l == null ? Double.MAX_VALUE : l.maxSlide;
     }
 
     /** 벽에 기대 기절해 있는지 */
@@ -492,6 +508,11 @@ public final class FallService {
                 endExec(act);
                 continue;
             }
+            // 처형이 끝났는데(취소·사망 등) 인형이 남지 않게: 처형자가 죽었거나, 마무리 중이 아닌데 처형 중이 아니면 치움
+            if (act.ex.state == CombatState.DEAD || (!act.ending && act.ex.execution == null)) {
+                endExec(act);
+                continue;
+            }
             if (act.mode == 0) continue;
             act.tick++;
             if (act.tick >= act.exTrack().length()) {
@@ -549,7 +570,21 @@ public final class FallService {
         return new Vector(-Math.sin(r), 0, Math.cos(r));
     }
 
+    /** 넉백 세기 1 당 미끄러지는 거리 (NPC: 세기 × 0.55 를 틱마다 0.7 배 → × 1.83, 플레이어 바닐라 마찰 ≈ × 2) */
+    public static final double KNOCKBACK_DIST = 2.0;
+
+    /** 등으로 누운 몸이 발에서 머리 끝까지 차지하는 거리 (블록, 키 1 기준) */
+    private double lyingLength(double scale) {
+        FallPose back = poses.get(FallPose.Kind.BACK);
+        FallPose.Placement h = back.place(back.frameCount() - 1, FallPose.Part.HEAD, scale);
+        return Math.hypot(h.center().x, h.center().z) + 0.3 * scale;
+    }
+
     private Lying create(Arena a, Combatant c, Vec3 push, boolean strong, Location at, boolean corpse) {
+        return create(a, c, push, strong, at, corpse, 0);
+    }
+
+    private Lying create(Arena a, Combatant c, Vec3 push, boolean strong, Location at, boolean corpse, double slideDist) {
         Vec3 face = c.look().horizontal();
         Vec3 p = push == null ? Vec3.ZERO : push.horizontal();
         float startYaw = (float) (face.lengthSq() < 1e-6 ? at.getYaw() : face.yaw());
@@ -559,12 +594,25 @@ public final class FallService {
         float yaw = (float) p.mul(-1).yaw();
         Location start = feet(at);
         FallPose.Config cfg = poses.get(FallPose.Kind.BACK).config();
-        Location sit = wallSeat(a, start, p, cfg);
+        // 벽 찾기: 밀려날 거리(시체는 미끄러짐) + 누운 몸 길이 안 (최소 예전 거리)
+        double travel = corpse ? poses.get(FallPose.Kind.BACK).slide() : slideDist;
+        double reach = Math.max(WALL_REACH, travel + lyingLength(c.scale()));
+        Location sit = wallSeat(a, start, p, cfg, reach);
         FallPose.Kind kind = FallPose.kindFor(strong, sit != null);
         Lying l = new Lying(c, a, kind, poses.get(kind), startYaw, yaw);
         l.start = start;
         if (sit != null) l.end = sit;
         else {
+            // 바닥 가까이(누운 몸 높이) 두 줄로 막힘을 재서, 누운 몸 길이만큼 여유를 남기고 밀려나게 함
+            Vector pd = new Vector(p.x(), 0, p.z());
+            double len = lyingLength(c.scale());
+            for (double h : new double[] {0.2, 0.5}) {
+                RayTraceResult r = a.world.rayTraceBlocks(start.clone().add(0, h, 0), pd, reach + 0.5, FluidCollisionMode.NEVER, true);
+                if (r != null && r.getHitBlock() != null && !dev.violence.arena.GlassService.isGlass(r.getHitBlock().getType())) {
+                    double dd = r.getHitPosition().distance(start.clone().add(0, h, 0).toVector());
+                    l.maxSlide = Math.min(l.maxSlide, Math.max(0, dd - len - 0.1));
+                }
+            }
             Vector slide = new Vector(p.x(), 0, p.z()).multiply(corpse ? l.pose.slide() : 0);
             l.end = clearSpot(a, start, slide);
         }
@@ -581,12 +629,12 @@ public final class FallService {
     }
 
     /** 밀려나는 쪽 벽: 몸통 두 높이에서 모두 막히면 벽. 앉을 자리(발 위치, 벽에서 wall_gap)를 돌려줌 */
-    private static Location wallSeat(Arena a, Location start, Vec3 push, FallPose.Config cfg) {
+    private static Location wallSeat(Arena a, Location start, Vec3 push, FallPose.Config cfg, double reach) {
         Vector dir = new Vector(push.x(), 0, push.z()).normalize();
         double dist = Double.MAX_VALUE;
         for (double h : new double[] {0.45, 1.0}) {
             Location from = start.clone().add(0, h, 0);
-            RayTraceResult r = a.world.rayTraceBlocks(from, dir, WALL_REACH, FluidCollisionMode.NEVER, true);
+            RayTraceResult r = a.world.rayTraceBlocks(from, dir, reach, FluidCollisionMode.NEVER, true);
             if (r == null || r.getHitBlock() == null || r.getHitBlockFace() == null) return null;
             if (dev.violence.arena.GlassService.isGlass(r.getHitBlock().getType())) return null;
             Vector n = r.getHitBlockFace().getDirection();

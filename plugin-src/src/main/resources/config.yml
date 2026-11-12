@@ -7,6 +7,8 @@ game:
   # 게임 시작에 필요한 최소 플레이어 (기획: 8~24명, 테스트를 위해 1명부터 허용)
   min-players: 1
   target-kills: 30
+  # 플레이어 시작 무기 (무기 id, 예: crowbar). 비우면 맨손. 게임 시작과 리스폰 때 지급
+  player-start-weapon: ""
   time-limit-seconds: 600
   # 바닥 무기 수 = 개체 수 × 비율
   weapon-ratio: 0.5

@@ -704,8 +704,12 @@ public final class CombatService {
         v.refreshEquipment();
         // 넘어지는 동작: 언제나 뒤로 넘어지며 공격 방향으로 밀려남 (샷건이면 팔을 벌리고 날아감).
         // 뒤쪽 벽에 부딪히면 벽에 기대 앉아 기절 (밀려나지 않음)
-        boolean wall = plugin.falls().knockdown(v, dir, now - v.strongHitTick <= 1);
-        if (!wall) v.knockback(dir.horizontal().normalize(), byFist ? 0.55 : 0.8);
+        double kb = byFist ? 0.55 : 0.8;
+        boolean wall = plugin.falls().knockdown(v, dir, now - v.strongHitTick <= 1, kb);
+        if (!wall) {
+            kb = Math.min(kb, plugin.falls().maxSlide(v) / dev.violence.fx.FallService.KNOCKBACK_DIST);
+            if (kb > 0.02) v.knockback(dir.horizontal().normalize(), kb);
+        }
     }
 
     private void standUp(Combatant v, long now) {
@@ -1222,7 +1226,9 @@ public final class CombatService {
             Execution e = v.execution;
             if (e.executor == v) cancelExecution(e);
             else {
+                // 처형당하던 사람이 다른 공격으로 죽음: 처형자 인형(처형 동작)도 치움 (안 치우면 그 자세로 남음)
                 executions.remove(e);
+                plugin.falls().cancelExec(e.executor);
                 e.executor.execution = null;
                 v.execution = null;
                 if (e.executor.state == CombatState.EXECUTING) {
@@ -1251,6 +1257,16 @@ public final class CombatService {
         else plugin.game().onSuicide(v);
     }
 
+    /** 플레이어 시작 무기 (config game.player-start-weapon, 비우면 맨손): 게임 시작·리스폰 때 */
+    public void giveStartWeapon(Combatant c) {
+        String id = plugin.getConfig().getString("game.player-start-weapon", "");
+        if (id == null || id.isBlank()) return;
+        WeaponType t = plugin.weapons().get(id);
+        if (t == null || t.isFist()) return;
+        c.weapon = new WeaponInstance(t);
+        c.refreshEquipment();
+    }
+
     private void respawn(Combatant v, long now) {
         Vec3 spot = plugin.spawns().choose(arena(), v);
         Location l = Fx.loc(arena().world, spot);
@@ -1266,6 +1282,7 @@ public final class CombatService {
         v.setState(CombatState.ALIVE, now);
         // NPC 는 리스폰할 때도 시작 무기 (5명 중 3명꼴로 무기, 그중 총 2 : 근접 3)
         if (v instanceof dev.violence.npc.NpcCombatant n) plugin.npcs().arm(n, null);
+        else giveStartWeapon(v);
         v.refreshEquipment();
         v.onRespawn(now);
     }
@@ -1313,6 +1330,7 @@ public final class CombatService {
         for (Execution e : new ArrayList<>(executions)) {
             if (!e.executor.isAlive() || !e.victim.isAlive()) {
                 executions.remove(e);
+                plugin.falls().cancelExec(e.executor);
                 continue;
             }
             if ((e.style == ExecutionStyle.AUTO || e.style == ExecutionStyle.GUN_SHOT || e.style == ExecutionStyle.WALL_KICK)

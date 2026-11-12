@@ -226,6 +226,7 @@ public final class GameService {
         p.teleport(l);
         a.add(pc);
         pc.applyRules();
+        plugin.combat().giveStartWeapon(pc);
     }
 
     private void spawnWeapons(Arena a) {
