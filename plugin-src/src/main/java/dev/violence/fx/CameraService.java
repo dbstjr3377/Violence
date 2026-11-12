@@ -168,11 +168,18 @@ public final class CameraService {
      * to 는 매 틱 다시 읽으므로 움직이는 눈 위치도 따라간다. 끝나면 done (같은 카메라에 새 glide 가 시작되면 부르지 않음).
      */
     public void glide(ItemDisplay cam, Location from, java.util.function.Supplier<Location> to, int ticks, Runnable done) {
+        glide(cam, from, to, ticks, done, null, 0);
+    }
+
+    /** near: 카메라가 목표에서 nearDist 블록 안으로 들어오면 한 번 부름 (처형자 인형 숨기기) */
+    public void glide(ItemDisplay cam, Location from, java.util.function.Supplier<Location> to, int ticks, Runnable done,
+                      Runnable near, double nearDist) {
         long token = ++glideSeq;
         glides.put(cam, token);
         if (cam.isValid()) cam.setTeleportDuration(1);
         int n = Math.max(1, ticks);
         boolean[] over = {false};
+        boolean[] nearDone = {near == null};
         for (int k = 1; k <= n; k++) {
             final int i = k;
             plugin.later(k, () -> {
@@ -184,7 +191,16 @@ public final class CameraService {
                     return;
                 }
                 Location t = to.get();
-                if (t != null) place(cam, lerp(from, t, dev.violence.cutscene.Easing.outSine((double) i / n)));
+                if (t != null) {
+                    Location l = lerp(from, t, dev.violence.cutscene.Easing.outSine((double) i / n));
+                    // 다음 틱 자리까지 미리 봄: 그 사이(프레임 보간) 카메라가 인형 속을 지나지 않게
+                    Location next = lerp(from, t, dev.violence.cutscene.Easing.outSine((double) Math.min(n, i + 1) / n));
+                    if (!nearDone[0] && Math.min(l.distance(t), next.distance(t)) < nearDist) {
+                        nearDone[0] = true;
+                        near.run();
+                    }
+                    place(cam, l);
+                }
                 if (i == n) {
                     over[0] = true;
                     glides.remove(cam);

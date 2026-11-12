@@ -1131,10 +1131,6 @@ public final class CombatService {
         if (back > 0) plugin.laterIn(a, back, giveBack);
         else giveBack.run();
         int glideAt = Math.max(0, back - CAM_OUT_TICKS);
-        // 마지막 3틱: 카메라가 눈 가까이(인형 머리 속) 들어가므로 내 화면에서만 내 인형을 숨김
-        plugin.laterIn(a, glideAt + CAM_OUT_TICKS - 3, () -> {
-            if (plugin.camera().cameraOf(p) == cam) plugin.falls().hideOwnPuppet(ex);
-        });
         plugin.laterIn(a, glideAt, () -> {
             if (!cam.isValid() || plugin.camera().cameraOf(p) != cam) return;
             plugin.camera().glide(cam, cam.getLocation(), eye, CAM_OUT_TICKS, () -> {
@@ -1143,9 +1139,15 @@ public final class CombatService {
                 plugin.falls().endKick(ex);
                 ex.onExecutionEnd(e);
                 ex.refreshEquipment();
-            });
+            }, () -> {
+                // 카메라가 눈 가까이(인형 머리 근처) 들어오면 내 화면에서만 내 인형을 숨김 (큰 가면 속을 지나지 않게)
+                if (plugin.camera().cameraOf(p) == cam) plugin.falls().hideOwnPuppet(ex);
+            }, CAM_HIDE_PUPPET_DIST);
         });
     }
+
+    /** 돌아오는 카메라가 눈에서 이 거리 안이면 내 인형을 숨김 (가면이 큰 인형도 머리 속을 지나지 않게) */
+    static final double CAM_HIDE_PUPPET_DIST = 1.4;
 
     /** 처형이 끝나면 올라탔던 자리에서 바라보던 반대쪽으로 1블록 물러남 (벽에 막히면 덜 물러남) */
     private void stepBack(Combatant ex, Execution e) {
