@@ -149,6 +149,8 @@ public final class FallService {
         int tick;
         /** 벽에 기대지 않고 넘어질 때 밀려나도 되는 거리 (누운 몸이 비스듬한 벽 등에 박히지 않게) */
         double maxSlide = Double.MAX_VALUE;
+        /** 처형이 시작돼 자기 화면에도 자기 몸을 보이는 중 */
+        boolean selfShown;
         /** 발차기 인형: 이 틱(서버 시각)까지 마지막 자세로 남음 (처형 카메라가 돌아올 때까지) */
         long keepUntil;
 
@@ -226,6 +228,7 @@ public final class FallService {
         Lying l = create(a, c, push, strong, e.getLocation(), false, knockback * KNOCKBACK_DIST);
         if (l == null) return false;
         downed.put(c.id, l);
+        selfVisible(l, false);
         e.setInvisible(true);
         sendEquipment(a, c, true);
         if (l.kind == FallPose.Kind.WALL) {
@@ -238,6 +241,33 @@ public final class FallService {
         }
         l.follow = true;
         return false;
+    }
+
+    /**
+     * 쓰러진 플레이어 자신의 화면에서 자기 인형·대역을 숨기거나 다시 보임.
+     * 쓰러져 있는 동안 실제 눈은 그대로라 자기 인형 머리·몸이 눈앞을 가려 주변이 안 보였다 (다른 사람에게는 그대로 보임).
+     * 처형이 시작되면 처형 카메라로 자기 몸이 보여야 하므로 다시 보인다.
+     */
+    private void selfVisible(Lying l, boolean visible) {
+        if (!(l.victim instanceof PlayerCombatant pc) || !pc.player().isOnline()) return;
+        Player p = pc.player();
+        java.util.List<org.bukkit.entity.Entity> es = new ArrayList<>(l.parts.values());
+        if (l.mask != null) es.add(l.mask);
+        if (l.body != null) es.add(l.body);
+        for (org.bukkit.entity.Entity en : es) {
+            if (en == null || !en.isValid()) continue;
+            if (visible) p.showEntity(plugin, en);
+            else p.hideEntity(plugin, en);
+        }
+    }
+
+    /** 처형당하기 시작: 쓰러진 자기 몸을 자기 화면에도 다시 보임 */
+    public void showSelf(Combatant c) {
+        Lying l = downed.get(c.id);
+        if (l != null) {
+            l.selfShown = true;
+            selfVisible(l, true);
+        }
     }
 
     /** 넘어진 뒤 밀려나도 되는 거리 (블록): 누운 몸이 벽에 박히지 않게 */
@@ -302,6 +332,7 @@ public final class FallService {
         }
         Lying l = downed.remove(v.id);
         if (l != null) {
+            selfVisible(l, true);   // 죽으면 사망 시점에서 자기 시체가 보이게
             // 실제 몸은 죽어서 숨겨진 상태 → 다음 틱에 실제 장비(죽으며 비워짐)를 다시 보냄
             plugin.laterIn(a, 1, () -> {
                 if (a.combatants.containsKey(v.id)) sendEquipment(a, v, false);
@@ -844,6 +875,7 @@ public final class FallService {
         l.body = spawnDouble(l.arena, l.victim, l);
         l.revealed = false;
         reveal(l);
+        if (!l.selfShown && downed.get(l.victim.id) == l) selfVisible(l, false);
         l.arena.tracked.remove(old);
         old.remove();
     }

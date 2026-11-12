@@ -58,7 +58,8 @@ public final class ScoreService {
         pc.score += points;
         int count = pc.combo.registerKill(now, points, comboWindow(pc));
         Arena a = plugin.arena();
-        if (a != null && pos != null) {
+        // 처형 카메라로 보는 중이면 점수 팝업을 띄우지 않음 (처형 장면에 글자가 뜨지 않게)
+        if (a != null && pos != null && !plugin.camera().isViewing(pc.player())) {
             Component text = Component.empty()
                     .append(Glyphs.text("+" + points, Glyphs.POPUP, count >= 2 ? Glyphs.YELLOW : Glyphs.WHITE));
             plugin.hud().popup(a, pc.player(), pos.add(0, 1.9, 0), text);

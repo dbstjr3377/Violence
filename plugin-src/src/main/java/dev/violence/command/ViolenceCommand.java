@@ -164,6 +164,36 @@ public final class ViolenceCommand implements TabExecutor {
                     msg(sender, g.weapon.type().displayName() + " 을(를) 봅니다.");
                     return true;
                 }
+                if (args.length > 1 && args[1].equalsIgnoreCase("execme")) {
+                    // /vio test execme [무기]: 가장 가까운 NPC 가 내 앞에서 나를 쓰러뜨리고 처형 (피처형자 화면 확인용)
+                    dev.violence.npc.NpcCombatant n = null;
+                    double bd = Double.MAX_VALUE;
+                    for (dev.violence.npc.NpcCombatant c : a.npcs) {
+                        if (c.state != dev.violence.combat.CombatState.ALIVE || c.execution != null) continue;
+                        double d = c.feet().distanceSq(pc.feet());
+                        if (d < bd) { bd = d; n = c; }
+                    }
+                    if (n == null) return true;
+                    final dev.violence.npc.NpcCombatant ex = n;
+                    WeaponType wt = args.length > 2 ? plugin.weapons().get(args[2]) : null;
+                    ex.weapon = wt == null || wt.isFist() ? null : new WeaponInstance(wt);
+                    ex.refreshEquipment();
+                    dev.violence.math.Vec3 f = pc.look().horizontal().normalize();
+                    org.bukkit.Location l = p.getLocation().clone().add(f.x() * 1.5, 0, f.z() * 1.5);
+                    l.setYaw(p.getLocation().getYaw() + 180);
+                    l.setPitch(0);
+                    ex.teleport(l);
+                    ex.actionLockUntil = plugin.now() + 30;
+                    plugin.combat().knockdown(pc, f.mul(-1), ex, true);
+                    plugin.later(14, () -> {
+                        if (pc.state != dev.violence.combat.CombatState.DOWNED) return;
+                        org.bukkit.Location at = ex.entity().getLocation();
+                        dev.violence.math.Vec3 to = pc.feet().sub(ex.feet()).horizontal();
+                        if (to.length() > 1.0) ex.teleport(new org.bukkit.Location(a.world, pc.feet().x() - to.normalize().x() * 0.9, at.getY(), pc.feet().z() - to.normalize().z() * 0.9, (float) to.yaw(), 0));
+                        plugin.combat().startExecution(ex, pc, plugin.now());
+                    });
+                    return true;
+                }
                 if (args.length > 1 && args[1].equalsIgnoreCase("bot")) {
                     // /vio test bot [on|off]: 실제 클라이언트를 조종하는 촬영용 봇이 읽을 게임 상태를 파일로 씀 (BotState)
                     if (args.length > 2 && args[2].equalsIgnoreCase("off")) bot.stop();

@@ -821,10 +821,11 @@ public final class CombatService {
                 camAlt.add(chest.add(0, 3.2, 0));
             }
         }
-        // 처형 카메라는 처형자(처형자가 NPC 면 피처형자) 눈에서 출발해 지정 시점으로 옮겨 감
+        // 처형 카메라는 처형자가 플레이어면 그 눈에서 출발해 지정 시점으로 옮겨 감.
+        // 피처형자 눈에서 출발하면 바로 위에 올라탄 처형자 몸 속을 지나 화면이 가려지므로, 피처형자에게는 바로 지정 시점
         Location startEye = null;
         if (ex instanceof PlayerCombatant sp && sp.player().isOnline()) startEye = sp.player().getEyeLocation();
-        else if (victim instanceof PlayerCombatant vp && vp.player().isOnline()) startEye = vp.player().getEyeLocation();
+        plugin.falls().showSelf(victim);
         ex.teleport(exAt);
         e.mountAt = exAt.clone();
         ex.history.clear();   // 순간 이동한 앞쪽 위치로 판정되지 않게

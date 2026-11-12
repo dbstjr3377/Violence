@@ -191,7 +191,8 @@ public final class GroundWeaponService {
         if (now % 2 != 0) return;
         for (PlayerCombatant pc : a.players.values()) {
             Player p = pc.player();
-            GroundWeapon t = pc.canAct(now) ? target(a, pc.eye(), pc.look(), PICK_RANGE, null) : null;
+            // 처형 카메라로 보는 동안은 정보 카드·테두리를 띄우지 않음
+            GroundWeapon t = pc.canAct(now) && !plugin.camera().isViewing(p) ? target(a, pc.eye(), pc.look(), PICK_RANGE, null) : null;
             for (GroundWeapon g : a.groundWeapons) {
                 ItemDisplay h = g.highlights.get(p.getUniqueId());
                 if (g == t && h == null) {
