@@ -24,8 +24,8 @@ import render_maps  # noqa: E402
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 NS = os.path.join(ROOT, "resourcepack", "assets", "violence")
 OUT = os.path.join(ROOT, "build-out", "dialog")
-FONT_KR = os.path.join(ROOT, "tools", "fonts", "blackhansans_BlackHanSans-Regular.ttf")
-FONT_EN = os.path.join(ROOT, "tools", "fonts", "bungee_Bungee-Regular.ttf")
+FONT_KR = os.path.join(ROOT, "tools", "fonts", "neodgm.ttf")
+FONT_EN = os.path.join(ROOT, "tools", "fonts", "neodgm.ttf")
 
 OW, OH = 960, 540          # 출력 크기
 GUI = 2                    # GUI 배율 (GUI 480x270 = 1080p 에서 배율 4 와 같은 비율)

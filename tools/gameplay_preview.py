@@ -28,7 +28,7 @@ import render_maps  # noqa: E402
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 NS = os.path.join(ROOT, "resourcepack", "assets", "violence")
 OUT = os.path.join(ROOT, "build-out", "gameplay")
-FONT_KR = os.path.join(ROOT, "tools", "fonts", "blackhansans_BlackHanSans-Regular.ttf")
+FONT_KR = os.path.join(ROOT, "tools", "fonts", "neodgm.ttf")
 OW, OH = 640, 360
 GP.W, GP.H = 640, 360           # 배경 광선 추적 해상도
 fp_sim.W, fp_sim.H = OW, OH     # 1인칭 모델/월드 물체 투영

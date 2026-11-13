@@ -17,7 +17,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import render_maps  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-FONT = os.path.join(ROOT, "tools", "fonts", "blackhansans_BlackHanSans-Regular.ttf")
+FONT = os.path.join(ROOT, "tools", "fonts", "neodgm.ttf")
 W, H = 640, 360
 FOV = 70.0
 

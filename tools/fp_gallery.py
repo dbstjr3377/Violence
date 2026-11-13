@@ -14,7 +14,7 @@ import fp_sim  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 NS = os.path.join(ROOT, "resourcepack", "assets", "violence")
-FONT = os.path.join(ROOT, "tools", "fonts", "blackhansans_BlackHanSans-Regular.ttf")
+FONT = os.path.join(ROOT, "tools", "fonts", "neodgm.ttf")
 OUT = os.path.join(ROOT, "docs", "images", "firstperson")
 
 

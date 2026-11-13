@@ -21,7 +21,7 @@ import tp_sim as T  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 NS = os.path.join(ROOT, "resourcepack", "assets", "violence")
-FONT = os.path.join(ROOT, "tools", "fonts", "blackhansans_BlackHanSans-Regular.ttf")
+FONT = os.path.join(ROOT, "tools", "fonts", "neodgm.ttf")
 TILE = 420
 
 

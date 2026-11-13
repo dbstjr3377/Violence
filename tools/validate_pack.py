@@ -183,6 +183,10 @@ def main():
                     err(f"{os.path.basename(fp)} 폰트 파일 없음 {prov['file']}")
             elif t == "space":
                 pass
+            elif t == "reference":
+                # 바닐라 글꼴 묶음 참조 (minecraft:include/default 등)만 허용
+                if prov.get("id") not in ("minecraft:include/space", "minecraft:include/default", "minecraft:include/unifont"):
+                    err(f"{os.path.basename(fp)} 알 수 없는 글꼴 참조 {prov.get('id')}")
             else:
                 err(f"{os.path.basename(fp)} 알 수 없는 provider {t}")
     # equipment

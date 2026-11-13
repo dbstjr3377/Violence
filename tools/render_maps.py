@@ -6,7 +6,7 @@ import sys
 from PIL import Image, ImageDraw, ImageFont
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-FONT = os.path.join(ROOT, "tools", "fonts", "blackhansans_BlackHanSans-Regular.ttf")
+FONT = os.path.join(ROOT, "tools", "fonts", "neodgm.ttf")
 SRC = os.path.join(ROOT, "build-out", "maps")
 
 COLORS = {

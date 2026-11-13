@@ -77,8 +77,11 @@ class DialogTest {
         assertEquals(base + a.portraitFrames / 2, a.portraitFrame(base, 0));
         // 글자 폭: 한글은 영문보다 넓고 공백은 좁음
         assertTrue(a.width('가') > a.width('a'));
-        assertTrue(a.width(' ') < a.width('A'));
-        assertTrue(a.width('가') > 8 && a.width('가') < 14);
+        // Neo둥근모 16: 영문·공백 반각 8, 한글 전각 16
+        assertTrue(a.width(' ') <= a.width('A'));
+        // 폭에는 자간(1)이 들어 있음: 가 = 16+1, a = 8+1
+        assertEquals(17.0, a.width('가'), 0.01);
+        assertEquals(9.0, a.width('a'), 0.01);
     }
 
     @Test

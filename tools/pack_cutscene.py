@@ -32,12 +32,12 @@ PORTRAIT_HEIGHT = 32
 PORTRAIT_ASCENT = 17
 PORTRAIT_PX = 64       # 64x64 도트 (회전도 도트 단위로)
 
-DIALOG_SIZE = 12.0      # 대사 글자 크기 (GUI 픽셀)
+DIALOG_SIZE = 16.0      # 대사 글자 크기 (GUI 픽셀, Neo둥근모 16px 원본 크기 그대로)
 DIALOG_SHIFT = (24.0, 44.0)   # 액션바 기준 아래로 내리는 양: 첫 줄, 둘째 줄
-EN_SCALE = 0.92         # build_pack.ttf_pair 와 같은 비율
-SPACE_W = 5.0           # 대사 띄어쓰기 폭 (Bungee 공백은 1.9 로 너무 좁음)
+EN_SCALE = 1.0          # 영문도 같은 글꼴(Neo둥근모) 같은 크기
+SPACE_W = 8.0           # 대사 띄어쓰기 폭 (Neo둥근모 공백 = 반각 8)
 TRACK_CHAR = 0xE2FF     # 글자 사이에 끼우는 자간 글리프 (플러그인이 글자마다 넣음)
-TRACK_W = 1.2
+TRACK_W = 1.0           # 자간 (도트 글꼴이라 정수 픽셀)
 
 
 def _write(path, obj):
@@ -248,8 +248,7 @@ def build(NS, font_kr, font_en):
     for i, shift in enumerate(DIALOG_SHIFT, start=1):
         _write(os.path.join(NS, "font", f"dialog{i}.json"), {"providers": [
             {"type": "space", "advances": {" ": SPACE_W, chr(TRACK_CHAR): TRACK_W}},
-            {"type": "ttf", "file": "violence:bungee.ttf", "size": DIALOG_SIZE * EN_SCALE, "oversample": 4.0, "shift": [0, shift], "skip": ""},
-            {"type": "ttf", "file": "violence:blackhansans.ttf", "size": DIALOG_SIZE, "oversample": 4.0, "shift": [0, shift], "skip": ""},
+            {"type": "ttf", "file": "violence:neodgm.ttf", "size": DIALOG_SIZE, "oversample": 2.0, "shift": [0, shift], "skip": ""},
         ]})
     # 비트맵 글리프 폭 = (int)(0.5 + 이미지폭 × height/이미지높이) + 1 (오른쪽 끝이 불투명할 때)
     panel_adv = int(0.5 + PANEL_IMG[0] * PANEL_HEIGHT / PANEL_IMG[1]) + 1

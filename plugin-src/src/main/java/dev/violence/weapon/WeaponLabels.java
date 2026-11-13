@@ -30,7 +30,7 @@ public final class WeaponLabels {
 
     private static Map<Character, Double> cardWidths;
 
-    /** 카드 글꼴(violence:card, Bungee)로 그린 글자 폭 (px). 폭표는 tools/build_pack.py 가 만든 card_widths.json */
+    /** 카드 글꼴(violence:card, Neo둥근모 8)로 그린 글자 폭 (px). 폭표는 tools/build_pack.py 가 만든 card_widths.json */
     public static int cardFontWidth(String s) {
         if (cardWidths == null) {
             Map<Character, Double> m = new java.util.HashMap<>();

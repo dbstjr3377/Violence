@@ -151,7 +151,7 @@ Violence/
 - 총 명중 히트마커, 처치 흑백 깜빡임
 - 사격·처형 시 화면 흔들림
 - 3킬부터 화면이 붉게 물들며 계속 흔들리고, 5킬에는 더 심해지며 심장 박동 소리가 납니다.
-- HUD는 전용 폰트를 씁니다(Black Han Sans + Bungee).
+- 글꼴은 Mc둥근모와 같은 Neo둥근모 하나를 씁니다(HUD·카드·대사·마인크래프트 기본 글꼴의 한글까지). 16px 도트 글꼴이라 크기를 8의 배수(8·16·24)로 두어 픽셀이 고르게 보입니다.
 - 손에 든 무기 이름은 띄우지 않습니다. 총을 들면 화면 오른쪽 아래에 탄수만 나옵니다: "현재탄수/총탄수"(탄창 무기는 탄창 잔탄/남은 전체), 탄이 없으면 빨간 "탄 없음!", 샷건·더블배럴은 숫자 대신 탄피 아이콘 게이지(남은 탄 = 빨간 탄피, 쓴 탄 = 빈 탄피).
   - 액션바에 정해진 색으로 실어 보내고, 리소스팩 `text.vsh` 쉐이더가 그 색의 글만 화면 오른쪽 끝 8px 안쪽·아래로 옮깁니다(화면 크기·GUI 배율과 상관없이 오른쪽 정렬). 같은 너비의 글을 "숨김 색"으로 함께 보내 탄수의 오른쪽 끝이 늘 화면 가운데에 오게 합니다(`AmmoHud`).
 - 채팅에는 아무것도 띄우지 않습니다. 게임 알림과 관리자 명령 결과는 서버 콘솔에 남고, 바닐라 명령 결과·접속·사망 메시지는 모든 월드에서 꺼져 있습니다(`NoChat`).
@@ -434,7 +434,7 @@ violenceCutsceneNarration("초상화", "대사")           # 카메라를 옮기
 
 제약:
 - 패널과 초상화 위치는 GUI 크기 기준이라, 아주 큰 GUI 배율이나 좁은 창에서는 조금 왼쪽에 보일 수 있습니다.
-- 대사 글꼴(Black Han Sans)에 없는 드문 한글은 빈 상자로 보입니다(자주 쓰는 2,581자는 들어 있음).
+- 대사 글꼴(Neo둥근모)은 현대 한글 11,172자를 모두 담고 있습니다.
 
 ## 설정과 수정
 
@@ -499,7 +499,7 @@ tools/verify_all.sh
 
 ## 라이선스와 출처
 
-- 폰트: [Black Han Sans](https://github.com/zesstype/Black-Han-Sans), [Bungee](https://github.com/djrrb/Bungee) — SIL Open Font License 1.1 (`resourcepack/assets/violence/font/*_OFL.txt`)
+- 폰트: [Neo둥근모](https://neodgm.dalgona.dev) v1.600 (Mc둥근모의 원본 글꼴, 둥근모꼴 기반, Dalgona) — SIL Open Font License 1.1 (`resourcepack/assets/violence/font/neodgm_OFL.txt`)
 - 모든 모델·텍스처는 `tools/build_pack.py`가 직접 생성한 것입니다. 맵 블록 텍스처도 직접 그린 것으로 바닐라 텍스처를 덮습니다.
 - Blockbench 스킬: jasonjgardner/blockbench-mcp-project (Apache License 2.0)
 - 사운드는 바닐라 효과음을 피치·볼륨만 조정해 씁니다(`sounds.json`). 같은 이름으로 ogg 파일을 넣으면 교체됩니다.

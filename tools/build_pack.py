@@ -23,8 +23,11 @@ from pack_common import NS, PACK, ROOT, box, item_def, model, palette_texture, s
 import pack_models as M  # noqa: E402
 
 TOOLS = os.path.dirname(os.path.abspath(__file__))
-FONT_KR = os.path.join(TOOLS, "fonts", "blackhansans_BlackHanSans-Regular.ttf")
-FONT_EN = os.path.join(TOOLS, "fonts", "bungee_Bungee-Regular.ttf")
+# 글꼴: Neo둥근모 (Mc둥근모 의 원본, SIL OFL). 한글·영문·숫자 모두 이 글꼴 하나.
+# 16px 비트맵 글꼴이라 크기를 8의 배수로 두면 픽셀이 고르게 그려진다 (1 글꼴 픽셀 = 크기/16 GUI 픽셀)
+FONT = os.path.join(TOOLS, "fonts", "neodgm.ttf")
+FONT_KR = FONT
+FONT_EN = FONT
 MC = os.path.join(PACK, "assets", "minecraft")
 rnd = random.Random(1337)
 
@@ -139,9 +142,9 @@ def mcmeta():
     d = ImageDraw.Draw(img)
     for i in range(0, 128, 8):
         d.line([(0, i), (128, i - 40)], fill=(60, 10, 40, 255), width=3)
-    f = ImageFont.truetype(FONT_EN, 30)
+    f = ImageFont.truetype(FONT_EN, 32)
     d.text((64, 52), "VIO", font=f, fill=(255, 60, 140, 255), anchor="mm")
-    d.text((64, 84), "LENCE", font=ImageFont.truetype(FONT_EN, 22), fill=(255, 220, 80, 255), anchor="mm")
+    d.text((64, 84), "LENCE", font=ImageFont.truetype(FONT_EN, 16), fill=(255, 220, 80, 255), anchor="mm")
     img.save(os.path.join(PACK, "pack.png"))
 
 
@@ -873,8 +876,10 @@ def fonts():
     F = os.path.join(NS, "font")
     T = os.path.join(NS, "textures", "font")
     os.makedirs(os.path.join(NS, "font"), exist_ok=True)
-    shutil.copy(FONT_KR, os.path.join(F, "blackhansans.ttf"))
-    shutil.copy(FONT_EN, os.path.join(F, "bungee.ttf"))
+    shutil.copy(FONT, os.path.join(F, "neodgm.ttf"))
+    for old in ("blackhansans.ttf", "bungee.ttf", "blackhansans_OFL.txt", "bungee_OFL.txt"):
+        if os.path.exists(os.path.join(F, old)):
+            os.remove(os.path.join(F, old))
     # 아이콘
     black = Image.new("RGBA", (32, 16), (0, 0, 0, 255))
     save_png(black, os.path.join(T, "black.png"))
@@ -961,7 +966,8 @@ def fonts():
     save_png(shell(True), os.path.join(T, "shell.png"))
     save_png(shell(False), os.path.join(T, "shell_empty.png"))
     # 가면 안내 문구 (미리 그린 이미지 글리프: 화면 중앙 하단에 오도록 아래로 내림)
-    prompt_img = render_text("E키를 눌러 가면을 착용하세요", 64, (255, 255, 255, 255), outline=(30, 0, 20, 255))
+    # 도트 글꼴 원래 크기(16)로 1px 테두리를 둘러 그림 → 글꼴 높이 9(=18px 그림의 절반)로 써서 부제목(2배)에서 1:1 픽셀
+    prompt_img = render_text("E키를 눌러 가면을 착용하세요", 16, (255, 255, 255, 255), outline=(30, 0, 20, 255), ow=1, pad=1)
     save_png(prompt_img, os.path.join(T, "prompt_mask.png"))
 
     icons = [
@@ -975,25 +981,24 @@ def fonts():
     ]
 
     def ttf_pair(size, shift_y=0.0):
-        return [
-            {"type": "ttf", "file": "violence:bungee.ttf", "size": size * 0.92, "oversample": 4.0, "shift": [0, shift_y], "skip": ""},
-            {"type": "ttf", "file": "violence:blackhansans.ttf", "size": size, "oversample": 4.0, "shift": [0, shift_y], "skip": ""},
-        ]
+        # Neo둥근모 하나 (예전 이름 그대로: 영문·한글 두 글꼴 짝이었음). 크기는 8의 배수
+        assert size % 8 == 0, size
+        return [{"type": "ttf", "file": "violence:neodgm.ttf", "size": size, "oversample": max(1.0, 32.0 / size),
+                 "shift": [0, shift_y], "skip": ""}]
 
-    write(os.path.join(F, "hud.json"), {"providers": icons + ttf_pair(10)})
-    write(os.path.join(F, "hud_big.json"), {"providers": ttf_pair(26)})
-    write(os.path.join(F, "combo.json"), {"providers": icons + ttf_pair(15)})
-    write(os.path.join(F, "popup.json"), {"providers": ttf_pair(14)})
+    write(os.path.join(F, "hud.json"), {"providers": icons + ttf_pair(8)})
+    write(os.path.join(F, "hud_big.json"), {"providers": ttf_pair(24)})
+    write(os.path.join(F, "combo.json"), {"providers": icons + ttf_pair(16)})
+    write(os.path.join(F, "popup.json"), {"providers": ttf_pair(16)})
     # 바닥 무기 정보 카드 (글자 표시 엔티티: 줄 높이 10px). 작은 글자를 1px 내려 카드 위 테두리에 잘리지 않게
-    write(os.path.join(F, "card.json"), {"providers": icons + ttf_pair(9, 1.0)})
-    # 카드 글꼴(Bungee 9×0.92)의 탄수 글자 폭표 → 플러그인이 탄수를 카드 오른쪽 끝에 맞출 때 씀
-    # (마인크래프트 TTF: 크기×oversample 로 그린 글자 진행 폭 ÷ oversample, 글자 사이 1px 없음)
-    bf = ImageFont.truetype(FONT_EN, int(round(9 * 0.92 * 4)))
-    widths = {ch: round(bf.getlength(ch) / 4, 2) for ch in "0123456789 /"}
+    write(os.path.join(F, "card.json"), {"providers": icons + ttf_pair(8, 1.0)})
+    # 카드 글꼴(Neo둥근모 8)의 탄수 글자 폭표 → 플러그인이 탄수를 카드 오른쪽 끝에 맞출 때 씀
+    # (마인크래프트 TTF: hmtx 폭 × 크기 / (hhea 상승 - 하강), 글자 사이 1px 없음)
+    widths = ttf_widths(FONT, 8, "0123456789 /")
     write(os.path.join(ROOT, "plugin-src", "src", "main", "resources", "card_widths.json"), widths)
     write(os.path.join(F, "prompt.json"), {"providers": [
-        {"type": "bitmap", "file": "violence:font/prompt_mask.png", "ascent": -38, "height": 12, "chars": [""]},
-    ] + ttf_pair(11)})
+        {"type": "bitmap", "file": "violence:font/prompt_mask.png", "ascent": -30, "height": 9, "chars": [""]},
+    ] + ttf_pair(8)})
     write(os.path.join(F, "overlay.json"), {"providers": [
         {"type": "bitmap", "file": "violence:font/black.png", "ascent": 128, "height": 256, "chars": [""]},
         # 제목(4배) 글자 기준 중앙: 위 = -10 + 7 - ascent, 높이 4 → ascent -1 이면 화면 정중앙
@@ -1006,21 +1011,43 @@ def fonts():
         adv[NEG[i]] = -(1 << i)
     write(os.path.join(F, "space.json"), {"providers": [{"type": "space", "advances": adv}]})
     # 라이선스
-    for lic in ("blackhansans_OFL.txt", "bungee_OFL.txt"):
-        shutil.copy(os.path.join(TOOLS, "fonts", lic), os.path.join(F, lic))
+    shutil.copy(os.path.join(TOOLS, "fonts", "neodgm_OFL.txt"), os.path.join(F, "neodgm_OFL.txt"))
+    # 마인크래프트 기본 글꼴의 한글도 Neo둥근모 (Mc둥근모 처럼): 바닐라 영문 비트맵은 그대로, 한글 등은 유니폰트 대신 Neo둥근모
+    MF = os.path.join(MC, "font")
+    os.makedirs(MF, exist_ok=True)
+    write(os.path.join(MF, "default.json"), {"providers": [
+        {"type": "reference", "id": "minecraft:include/space"},
+        {"type": "reference", "id": "minecraft:include/default", "filter": {"uniform": False}},
+        {"type": "ttf", "file": "violence:neodgm.ttf", "size": 8, "oversample": 4.0, "shift": [0, 0.5], "skip": ""},
+        {"type": "reference", "id": "minecraft:include/unifont"},
+    ]})
 
 
-def render_text(text, size, color, outline=None):
+def ttf_widths(path, size, chars):
+    """마인크래프트 TTF 글자 진행 폭 (GUI 픽셀): hmtx 폭 × size / (hhea 상승 - 하강)"""
+    from fontTools.ttLib import TTFont
+    f = TTFont(path)
+    scale = size / (f["hhea"].ascent - f["hhea"].descent)
+    cmap = f.getBestCmap()
+    return {ch: round(f["hmtx"][cmap[ord(ch)]][0] * scale, 2) for ch in chars}
+
+
+def render_text(text, size, color, outline=None, ow=3, pad=6):
     f = ImageFont.truetype(FONT_KR, size)
-    bbox = f.getbbox(text)
-    w, h = bbox[2] - bbox[0] + 12, bbox[3] - bbox[1] + 12
+    # 도트 글꼴: 글꼴 상승(12/16)·하강(4/16) 높이 그대로 (글자마다 높이가 달라지지 않게)
+    asc, desc = f.getmetrics()
+    w = int(round(f.getlength(text))) + 2 * pad
+    h = asc + desc + 2 * pad
     img = Image.new("RGBA", (w, h), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
     if outline:
-        for ox in (-3, 0, 3):
-            for oy in (-3, 0, 3):
-                d.text((6 - bbox[0] + ox, 6 - bbox[1] + oy), text, font=f, fill=outline)
-    d.text((6 - bbox[0], 6 - bbox[1]), text, font=f, fill=color)
+        for ox in (-ow, 0, ow):
+            for oy in (-ow, 0, ow):
+                d.text((pad + ox, pad + oy), text, font=f, fill=outline)
+    d.text((pad, pad), text, font=f, fill=color)
+    # 도트 글꼴의 반투명 가장자리를 없앰
+    a = img.getchannel("A").point(lambda v: 255 if v >= 128 else 0)
+    img.putalpha(a)
     return img
 
 
@@ -1057,9 +1084,9 @@ def gui():
     for i in range(0, 176, 6):
         d.line([(i, 0), (i - 30, 165)], fill=(34, 18, 40, 245))
     d.rectangle([2, 2, 173, 163], outline=(90, 30, 70, 255))
-    title = ImageFont.truetype(FONT_KR, 14)
+    title = ImageFont.truetype(FONT_KR, 16)
     d.text((88, 30), "가면 선택", font=title, fill=(255, 70, 150, 255), anchor="mm")
-    d.text((88, 50), "연속 처치 보상", font=ImageFont.truetype(FONT_KR, 9), fill=(255, 220, 90, 255), anchor="mm")
+    d.text((88, 50), "연속 처치 보상", font=ImageFont.truetype(FONT_KR, 8), fill=(255, 220, 90, 255), anchor="mm")
 
     def slot(x, y, hi=False):
         d.rectangle([x - 1, y - 1, x + 16, y + 16], fill=(12, 6, 16, 255), outline=(255, 70, 150, 255) if hi else (70, 40, 80, 255))

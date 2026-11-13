@@ -19,7 +19,7 @@ import tp_sim as T  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FALL = os.path.join(ROOT, "plugin-src", "src", "main", "resources", "fall.json")
-FONT = os.path.join(ROOT, "tools", "fonts", "blackhansans_BlackHanSans-Regular.ttf")
+FONT = os.path.join(ROOT, "tools", "fonts", "neodgm.ttf")
 PX = 0.9375 / 16
 
 import puppet_rig as RIG  # noqa: E402

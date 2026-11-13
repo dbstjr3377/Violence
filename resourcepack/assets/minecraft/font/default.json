@@ -1,0 +1,30 @@
+{
+ "providers": [
+  {
+   "type": "reference",
+   "id": "minecraft:include/space"
+  },
+  {
+   "type": "reference",
+   "id": "minecraft:include/default",
+   "filter": {
+    "uniform": false
+   }
+  },
+  {
+   "type": "ttf",
+   "file": "violence:neodgm.ttf",
+   "size": 8,
+   "oversample": 4.0,
+   "shift": [
+    0,
+    0.5
+   ],
+   "skip": ""
+  },
+  {
+   "type": "reference",
+   "id": "minecraft:include/unifont"
+  }
+ ]
+}

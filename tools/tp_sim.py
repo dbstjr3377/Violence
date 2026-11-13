@@ -172,7 +172,7 @@ if __name__ == "__main__":
     from PIL import ImageFont
     ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     NS = os.path.join(ROOT, "resourcepack", "assets", "violence")
-    FONT = ImageFont.truetype(os.path.join(ROOT, "tools", "fonts", "blackhansans_BlackHanSans-Regular.ttf"), 26)
+    FONT = ImageFont.truetype(os.path.join(ROOT, "tools", "fonts", "neodgm.ttf"), 26)
     shots = [("m16_tp", "crossbow_hold", "M16 - 양팔 조준 (석궁 자세)"), ("shotgun_tp", "crossbow_hold", "샷건 - 양팔 조준"),
              ("mp5_tp", "crossbow_hold", "MP5 - 양팔 조준"), ("magnum_tp", "one_arm", "매그넘 - 한 팔 조준"),
              ("silenced_pistol_tp", "one_arm", "소음기 권총 - 한 팔 조준"), ("katana", "item", "카타나 - 한 손 들기")]
