@@ -878,11 +878,22 @@ public final class FallService {
             Vector3d onFace = p.rotation().transform(new Vector3d(w.spot().u() * hx, w.spot().v() * hy, sign * hz));
             Vector3d c = FallPose.toWorld(new Vector3d(p.center()).add(onFace), yaw);
             Vector3d n = FallPose.toWorld(p.rotation().transform(new Vector3d(0, 0, sign)), yaw);
-            Vector3d up = FallPose.toWorld(p.rotation().transform(new Vector3d(0, 1, 0)), yaw);
+            // 면 위 방향: 0 = 부위 가로, 90 = 부위 세로 (그림의 +x 를 이쪽으로)
+            double ang = Math.toRadians(w.angle());
+            Vector3d along = FallPose.toWorld(p.rotation().transform(new Vector3d(Math.cos(ang), Math.sin(ang), 0)), yaw);
             Vec3 at = new Vec3(anchor.getX() + c.x, anchor.getY() + c.y, anchor.getZ() + c.z);
-            String model = Wounds.model(w.kind()) + r.nextInt(Wounds.variants(w.kind()));
-            float size = (float) (Wounds.size(w.kind()) * l.scale * (0.85 + r.nextDouble() * 0.3));
-            plugin.blood().bodyDecal(l.arena, at, new Vec3(n.x, n.y, n.z), new Vec3(up.x, up.y, up.z), model, size, l.body);
+            String model = Wounds.model(w.kind(), w.severe()) + r.nextInt(Wounds.variants(w.kind(), w.severe()));
+            float size = (float) (Wounds.size(w.kind(), w.severe()) * w.scale() * l.scale * (0.9 + r.nextDouble() * 0.2));
+            Vec3 nv = new Vec3(n.x, n.y, n.z);
+            plugin.blood().bodyDecal(l.arena, at, nv, new Vec3(along.x, along.y, along.z), model, size, l.body);
+            // 총알 구멍·벤 상처에서는 한동안 핏방울이 떨어짐
+            if (Wounds.bleeds(w.kind()) && w.scale() >= 0.8) {
+                int drips = w.severe() ? 3 : 2;
+                for (int i = 0; i < drips; i++) {
+                    Vec3 from = at.add(nv.mul(0.04));
+                    plugin.laterIn(l.arena, 4 + r.nextInt(50), () -> plugin.blood().drip(l.arena, from));
+                }
+            }
         }
     }
 

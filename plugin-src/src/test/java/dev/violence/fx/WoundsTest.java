@@ -26,8 +26,11 @@ class WoundsTest {
     }
 
     @Test
-    void heavierWeaponsLeaveBiggerWounds() {
-        assertTrue(Wounds.size(Wounds.Kind.BULLET) < Wounds.size(Wounds.Kind.MELEE));
-        assertTrue(Wounds.size(Wounds.Kind.MELEE) < Wounds.size(Wounds.Kind.HEAVY));
+    void heavierWeaponsLeaveBiggerWoundsAndCutsBleed() {
+        assertTrue(Wounds.size(Wounds.Kind.BULLET, false) < Wounds.size(Wounds.Kind.SLASH, false));
+        assertTrue(Wounds.size(Wounds.Kind.SLASH, false) < Wounds.size(Wounds.Kind.SLASH, true));
+        assertTrue(Wounds.size(Wounds.Kind.BLUNT, false) < Wounds.size(Wounds.Kind.BLUNT, true));
+        assertTrue(Wounds.bleeds(Wounds.Kind.BULLET) && Wounds.bleeds(Wounds.Kind.SLASH) && !Wounds.bleeds(Wounds.Kind.BLUNT));
+        assertTrue(Wounds.model(Wounds.Kind.SLASH, true).contains("gash") && Wounds.model(Wounds.Kind.BLUNT, true).contains("gore"));
     }
 }

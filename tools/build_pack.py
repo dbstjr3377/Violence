@@ -598,20 +598,51 @@ def blood_mask(kind, seed, size=32):
             x, y = c + math.cos(t) * dist, c + math.sin(t) * dist
             d.ellipse([x - rr, y - rr, x + rr, y + rr], fill=1)
         _frags(d, c, c, int(14 * (size / 32) ** 1.2), R * 1.2, size * 0.48, r)
-    elif kind == "hole":           # 몸에 박힌 총알 자국: 둥근 구멍 (가장자리 계단 1px) + 작은 방울 한두 개
-        R = size * 0.27
-        d.ellipse([c - R, c - R, c + R, c + R], fill=1)
-        for k in range(r.randint(1, 2)):
-            a = r.uniform(0, math.tau)
-            x, y = c + math.cos(a) * R * 1.55, c + math.sin(a) * R * 1.55
-            d.rectangle([int(x), int(y), int(x), int(y)], fill=1)
-    elif kind == "smear":          # 근접 무기에 맞은 자리: 피범벅 (뭉개진 덩어리 + 한쪽(+x)으로 번진 자국 + 파편)
-        _blob(d, c, c, size * 0.22, r)
-        _blob(d, c + size * 0.12, c + r.uniform(-2, 2), size * 0.15, r)
-        for k in range(r.randint(2, 3)):    # 흘러내린 줄기
-            y = int(c + r.uniform(-0.18, 0.18) * size)
-            d.rectangle([int(c), y, int(c + size * r.uniform(0.3, 0.42)), y], fill=1)
-        _frags(d, c, c, 16, size * 0.2, size * 0.44, r)
+    elif kind == "hole":           # 총알 자국: 둥근 구멍(가운데) + +x(발 쪽)로 가늘어지며 흘러내린 자국
+        R = size * 0.15
+        d.ellipse([c - R, c - R, c + R - 1, c + R - 1], fill=1)
+        x, y = int(c + R) - 1, int(c) - 1
+        ln = r.randint(3, 5)
+        for i in range(ln):
+            w = 2 if i < ln // 2 else 1
+            d.rectangle([x + i, y, x + i, y + w - 1], fill=1)
+            if i == ln // 2 and r.random() < 0.5:
+                y += r.choice((-1, 1))
+        d.point((x + ln, y), fill=1)
+        if r.random() < 0.6:
+            a2 = r.uniform(0, math.tau)
+            d.point((int(c + math.cos(a2) * R * 1.9), int(c + math.sin(a2) * R * 1.9)), fill=1)
+    elif kind in ("slash", "gash"):   # 날붙이: +x 방향으로 그어진 가는 상처 (gash = 무거운 날붙이, 굵고 깊게) + 흘러내린 방울
+        deep = kind == "gash"
+        y0 = c + r.uniform(-1, 1)
+        x0, x1 = int(size * 0.12), int(size * 0.88)
+        ph = r.uniform(0, math.tau)
+        for x in range(x0, x1 + 1):
+            t = (x - x0) / max(1, x1 - x0)
+            th = 1 + (1 if 0.25 < t < 0.75 else 0) + (1 if deep and 0.15 < t < 0.85 else 0)
+            y = int(round(y0 + math.sin(t * 5 + ph) * 0.7 + (t - 0.5) * r.uniform(-0.6, 0.6)))
+            d.rectangle([x, y - th // 2, x, y - th // 2 + th - 1], fill=1)
+        if r.random() < (0.9 if deep else 0.5):    # 나란한 짧은 상처
+            off = r.choice((-1, 1)) * r.randint(3, 4)
+            xa = int(size * r.uniform(0.25, 0.4))
+            xb = int(size * r.uniform(0.55, 0.75))
+            d.rectangle([xa, int(y0 + off), xb, int(y0 + off)], fill=1)
+        for k in range(r.randint(2, 4) if deep else r.randint(1, 3)):   # 상처에서 흘러내린 방울
+            x = int(size * r.uniform(0.25, 0.75))
+            ln = r.randint(3, 6) if deep else r.randint(2, 4)
+            d.rectangle([x, int(y0) + 1, x, int(y0) + ln], fill=1)
+            d.rectangle([x, int(y0) + ln, x + 1, int(y0) + ln + 1], fill=1)
+        _frags(d, c, c, 10 if deep else 4, size * 0.2, size * 0.46, r)
+    elif kind == "bruise":         # 둔기·주먹: 울퉁불퉁하게 뭉개진 피멍 자국 + 작은 방울
+        R = size * 0.26
+        harm = [(k, r.uniform(0.06, 0.14) / k ** 0.3, r.uniform(0, math.tau)) for k in range(2, 7)]
+        pts = []
+        for i in range(120):
+            t = i / 120 * math.tau
+            rr = R * (1 + sum(amp * math.sin(k * t + ph) for k, amp, ph in harm))
+            pts.append((c + math.cos(t) * rr * 1.15, c + math.sin(t) * rr * 0.85))
+        d.polygon(pts, fill=1)
+        _frags(d, c, c, 6, R * 1.3, size * 0.46, r)
     elif kind == "gore":           # 무거운 무기: 크고 심한 피범벅 (덩어리 여럿이 겹침 + 굵은 줄기 + 많은 파편)
         for k in range(4):
             _blob(d, c + r.gauss(0, size * 0.08), c + r.gauss(0, size * 0.08), size * r.uniform(0.15, 0.24), r)
@@ -651,8 +682,10 @@ def blood_assets(T):
     shapes += [("blood_flow", "flow", 90)]
     shapes = [(n, k, s, 32) for n, k, s in shapes] + [(n, "pool", 77, pool_px(b)) for n, b in POOL_SIZES.items()]
     # 몸에 붙는 상처 (FallService.woundDecals, 크기는 Wounds.size): 다른 혈흔과 같은 픽셀 크기가 되게 그림 크기를 맞춤
-    shapes += [(f"wound_hole_{i}", "hole", 300 + i, 10) for i in range(3)]
-    shapes += [(f"wound_smear_{i}", "smear", 310 + i, 22) for i in range(3)]
+    shapes += [(f"wound_hole_{i}", "hole", 300 + i, 16) for i in range(3)]
+    shapes += [(f"wound_slash_{i}", "slash", 330 + i, 24) for i in range(3)]
+    shapes += [(f"wound_gash_{i}", "gash", 340 + i, 32) for i in range(2)]
+    shapes += [(f"wound_bruise_{i}", "bruise", 350 + i, 22) for i in range(3)]
     shapes += [(f"wound_gore_{i}", "gore", 320 + i, 32) for i in range(2)]
     for name, kind, seed, px in shapes:
         base = blood_base(kind, seed, px)

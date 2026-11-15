@@ -140,6 +140,27 @@ public final class BloodService {
         }
     }
 
+    /** 상처에서 떨어지는 핏방울 하나 (거의 제자리에서 떨어져 바닥에 작은 혈흔) */
+    public void drip(Arena a, Vec3 at) {
+        Vec3 v = new Vec3(rnd.nextGaussian() * 0.012, -0.02, rnd.nextGaussian() * 0.012);
+        addDrop(new Drop(a, at, v, 0.16f + rnd.nextFloat() * 0.08f, false));
+    }
+
+    /**
+     * 살아남은 몸의 상처에서 핏방울이 몇 번 떨어짐 (총알 자국): 맞은 자리를 몸 기준으로 기억해 움직이는 몸을 따라감.
+     */
+    public void bleedFrom(Arena a, dev.violence.combat.Combatant v, Vec3 point, int drops) {
+        Vec3 d = point.sub(v.feet());
+        org.joml.Vector3d local = FallPose.toWorld(new org.joml.Vector3d(d.x(), d.y(), d.z()), -v.yaw());
+        for (int i = 0; i < drops; i++) {
+            plugin.laterIn(a, 6 + i * (10 + rnd.nextInt(8)), () -> {
+                if (!v.isAlive() || v.entity() == null || !v.entity().isValid() || v.state.isDownedLike()) return;
+                org.joml.Vector3d w = FallPose.toWorld(new org.joml.Vector3d(local), v.yaw());
+                drip(a, v.feet().add(w.x, w.y, w.z));
+            });
+        }
+    }
+
     /** 핏방울 추가: 날아가는 동안 속도 방향으로 늘어난 핏방울로 보임 (닿으면 혈흔으로 바뀜) */
     private void addDrop(Drop d) {
         drops.add(d);

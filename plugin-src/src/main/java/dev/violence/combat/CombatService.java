@@ -250,8 +250,8 @@ public final class CombatService {
             return;
         }
         v.lastAttacker = shooter;
-        // 총알이 박힌 자리: 시체가 되면 그 부위에 둥근 상처
-        v.addWound(v.woundSpot(point), dev.violence.fx.Wounds.Kind.BULLET);
+        // 총알이 박힌 자리: 시체가 되면 그 부위에 둥근 구멍 + 흘러내린 줄기 (방향 -90 = 발 쪽)
+        v.addWound(new dev.violence.fx.Wounds.Wound(v.woundSpot(point), dev.violence.fx.Wounds.Kind.BULLET, false, -90, 1));
         // 샷건처럼 펠릿이 여러 개인 총 = 강한 공격 (팔을 벌리고 뒤로 날아가며 넘어짐)
         if (shooter != null && shooter.weapon != null && shooter.weapon.type().pelletsMax() > 1) v.strongHitTick = now;
         boolean headshot = part == Hitbox.Part.HEAD;
@@ -275,6 +275,7 @@ public final class CombatService {
             if (!(v instanceof PlayerCombatant)) v.knockback(dir.horizontal().normalize(), 0.18);
             v.feelImpact(0.35);
             plugin.fx().sound(v.world(), point, "violence:hit.knockdown", 0.7f, 1.4f);
+            plugin.blood().bleedFrom(arena(), v, point, 3);   // 살아남은 몸의 총알 자국에서 핏방울이 떨어짐
         }
         if (shooter instanceof PlayerCombatant ps) plugin.hud().hitmarker(ps.player(), v.state == CombatState.DEAD);
     }
@@ -403,6 +404,7 @@ public final class CombatService {
             plugin.fx().sound(v.world(), point, "violence:melee.punch_hit", 1.2f, 1f);
             if (v.state.isDownedLike() || attacker.mask == Mask.TONY) {
                 plugin.fx().blood(arena(), point, dir, 3);
+                meleeWounds(v, fist(), false);   // 주먹으로 죽임: 얼굴에 피멍
                 kill(v, attacker, KillType.FIST, dir, false);
             } else if (v.heavy) {
                 // 덩치는 맨주먹으로 쓰러지지 않음 - 잠깐 휘청
@@ -419,7 +421,7 @@ public final class CombatService {
         // 근접 무기: 몸통/머리 상관없이 즉사. 맞은 머리는 피범벅, 무거운 무기는 더 크게 + 몸통까지
         plugin.fx().sound(v.world(), point, sharp(t) ? "violence:melee.slash_hit" : "violence:melee.blunt_hit", 1.3f, 1f);
         boolean heavyHit = heavy(t);
-        meleeWounds(v, heavyHit);
+        meleeWounds(v, t, false);
         plugin.fx().blood(arena(), point, dir, heavyHit ? 6 : 3);
         kill(v, attacker, KillType.MELEE, dir, false);
         attacker.feelImpact(0.3);
@@ -440,16 +442,27 @@ public final class CombatService {
         return t != null && anims != null && "heavy".equals(anims.groupOf(t.id()));
     }
 
-    /** 근접 무기·처형으로 맞은 머리(와 무거운 무기면 몸통)에 상처 */
-    private void meleeWounds(Combatant v, boolean heavyHit) {
+    /**
+     * 근접 무기·주먹·처형으로 맞은 머리에 상처 (레퍼런스 Cruor 를 도트·단색 피로):
+     * 날붙이 = 휘두른 방향의 가는 상처, 둔기·주먹 = 피멍 자국. 무거운 무기는 크고 깊게 + 몸통 + 몸 여기저기 작은 상처.
+     * chop: 위에서 내리침 (처형) → 상처가 세로, 아니면 옆으로 휘두름 → 가로
+     */
+    private void meleeWounds(Combatant v, WeaponType t, boolean chop) {
         java.util.Random r = plugin.random();
-        v.addWound(new dev.violence.fx.Wounds.Spot(dev.violence.fx.FallPose.Part.HEAD, (r.nextDouble() - 0.5) * 0.8, (r.nextDouble() - 0.5) * 0.6, true),
-                heavyHit ? dev.violence.fx.Wounds.Kind.HEAVY : dev.violence.fx.Wounds.Kind.MELEE);
-        if (heavyHit) {
-            v.addWound(new dev.violence.fx.Wounds.Spot(dev.violence.fx.FallPose.Part.BODY, (r.nextDouble() - 0.5) * 0.8, 0.2 + r.nextDouble() * 0.5, true),
-                    dev.violence.fx.Wounds.Kind.HEAVY);
-            dev.violence.fx.FallPose.Part arm = r.nextBoolean() ? dev.violence.fx.FallPose.Part.ARM_L : dev.violence.fx.FallPose.Part.ARM_R;
-            v.addWound(new dev.violence.fx.Wounds.Spot(arm, 0, (r.nextDouble() - 0.5), true), dev.violence.fx.Wounds.Kind.MELEE);
+        dev.violence.fx.Wounds.Kind kind = t != null && !t.isFist() && sharp(t) ? dev.violence.fx.Wounds.Kind.SLASH : dev.violence.fx.Wounds.Kind.BLUNT;
+        boolean severe = heavy(t);
+        double base = chop ? 90 : 0;
+        v.addWound(new dev.violence.fx.Wounds.Wound(new dev.violence.fx.Wounds.Spot(dev.violence.fx.FallPose.Part.HEAD, (r.nextDouble() - 0.5) * 0.6, (r.nextDouble() - 0.5) * 0.5, true),
+                kind, severe, base + (r.nextDouble() - 0.5) * 40 + (r.nextBoolean() ? 180 : 0), 1));
+        if (!severe) return;
+        v.addWound(new dev.violence.fx.Wounds.Wound(new dev.violence.fx.Wounds.Spot(dev.violence.fx.FallPose.Part.BODY, (r.nextDouble() - 0.5) * 0.7, 0.1 + r.nextDouble() * 0.5, true),
+                kind, true, base + (r.nextDouble() - 0.5) * 40, 1));
+        dev.violence.fx.FallPose.Part[] parts = dev.violence.fx.FallPose.Part.values();
+        int n = 2 + r.nextInt(2);
+        for (int i = 0; i < n; i++) {
+            dev.violence.fx.FallPose.Part p = parts[1 + r.nextInt(parts.length - 1)];
+            v.addWound(new dev.violence.fx.Wounds.Wound(new dev.violence.fx.Wounds.Spot(p, (r.nextDouble() - 0.5) * 1.2, (r.nextDouble() - 0.5) * 1.2, true),
+                    kind, false, r.nextDouble() * 360, 0.45 + r.nextDouble() * 0.2));
         }
     }
 
@@ -640,7 +653,7 @@ public final class CombatService {
                 || plugin.random().nextDouble() < t.throwKillChance();
         if (lethal) {
             plugin.fx().blood(arena(), point, dir, 3);
-            v.addWound(v.woundSpot(point), dev.violence.fx.Wounds.Kind.MELEE);
+            v.addWound(new dev.violence.fx.Wounds.Wound(v.woundSpot(point), sharp(t) ? dev.violence.fx.Wounds.Kind.SLASH : dev.violence.fx.Wounds.Kind.BLUNT, false, plugin.random().nextDouble() * 360, 0.8));
             kill(v, thrower, KillType.THROW, dir, false);
         } else {
             // 던져서 쓰러뜨릴 때는 피 없이 맞은 사람 화면만 흔들림
@@ -1119,9 +1132,9 @@ public final class CombatService {
         // 처형당한 머리: 총 처형은 총알 구멍, 그 밖에는 피범벅 (무거운 무기면 더 심하게)
         WeaponType et = ex.weaponType(fist());
         if (e.style == ExecutionStyle.GUN_SHOT) {
-            v.addWound(new dev.violence.fx.Wounds.Spot(dev.violence.fx.FallPose.Part.HEAD, 0, 0.1, true), dev.violence.fx.Wounds.Kind.BULLET);
+            v.addWound(new dev.violence.fx.Wounds.Wound(new dev.violence.fx.Wounds.Spot(dev.violence.fx.FallPose.Part.HEAD, 0, 0.1, true), dev.violence.fx.Wounds.Kind.BULLET, false, -90, 1));
         } else {
-            meleeWounds(v, heavy(et));
+            meleeWounds(v, e.style == ExecutionStyle.WALL_KICK ? fist() : et, e.style != ExecutionStyle.WALL_KICK);
         }
         kill(v, ex, KillType.EXECUTION, new Vec3(0, -1, 0), false);
         ex.refreshEquipment();

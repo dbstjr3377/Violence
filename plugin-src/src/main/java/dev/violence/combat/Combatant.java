@@ -36,8 +36,8 @@ public abstract class Combatant {
     /** 이번 목숨에 입은 상처 (시체가 자리를 잡으면 그 부위에 혈흔, 리스폰하면 비움) */
     public final java.util.List<dev.violence.fx.Wounds.Wound> wounds = new java.util.ArrayList<>();
 
-    public void addWound(dev.violence.fx.Wounds.Spot spot, dev.violence.fx.Wounds.Kind kind) {
-        if (wounds.size() < 12) wounds.add(new dev.violence.fx.Wounds.Wound(spot, kind));
+    public void addWound(dev.violence.fx.Wounds.Wound w) {
+        if (wounds.size() < 16) wounds.add(w);
     }
 
     /** 맞은 자리(월드)를 서 있는 몸 기준 상처 자리로 (쓰러져 있으면 몸통) */
