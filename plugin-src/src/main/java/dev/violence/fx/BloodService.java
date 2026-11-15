@@ -217,6 +217,30 @@ public final class BloodService {
         });
     }
 
+    /**
+     * 시체 몸 위의 상처 혈흔: 면(normal)에 붙여 시체에 태움 → 시체와 함께 사라짐 (따로 흐려지지 않음).
+     * 태운 자리와 실제 자리의 차이는 다음 틱에 변환으로 메움 (그동안은 거의 안 보이게).
+     */
+    public void bodyDecal(Arena a, Vec3 at, Vec3 normal, Vec3 along, String model, float size, org.bukkit.entity.Entity body) {
+        ItemDisplay d = decal(a, at, normal, along, model, size, size, 20 * 60);
+        if (d == null) return;
+        if (body == null || !body.isValid()) return;
+        decals.removeIf(c -> c.display == d);
+        Transformation full = d.getTransformation();
+        org.bukkit.Location spawned = d.getLocation();
+        d.setTransformation(new Transformation(full.getTranslation(), full.getLeftRotation(), new Vector3f(0.001f, 1, 0.001f), full.getRightRotation()));
+        body.addPassenger(d);
+        plugin.later(1, () -> {
+            if (!d.isValid()) return;
+            org.bukkit.Location dl = d.getLocation();
+            Vector3f off = new Vector3f((float) (spawned.getX() - dl.getX()), (float) (spawned.getY() - dl.getY()), (float) (spawned.getZ() - dl.getZ()))
+                    .add(full.getTranslation());
+            d.setInterpolationDelay(0);
+            d.setInterpolationDuration(0);
+            d.setTransformation(new Transformation(off, full.getLeftRotation(), full.getScale(), full.getRightRotation()));
+        });
+    }
+
     /** 처형: 머리·목 밑 바닥에 바로 혈흔 (모양: 둥근 얼룩, 크면 흩뿌림을 하나 더) */
     public void floorSplat(Arena a, Vec3 at, float size) {
         Vec3 floor = floorBelow(a, at.add(0, 0.4, 0), 2.0);

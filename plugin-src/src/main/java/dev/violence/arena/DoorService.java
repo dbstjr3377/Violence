@@ -16,18 +16,28 @@ import org.joml.Quaternionf;
 import org.joml.Vector3f;
 
 /**
- * 밀어서 여는 문.
- * - 닫힌 문 앞에서 앞으로 걸어가면 반대쪽으로 밀려 열린다.
+ * 문.
+ * - 문 가까이에서 바라보면 흰 테두리와 "F 문 열기 / F 문 닫기" 안내가 뜨고, F 로 열고 닫는다 (여는 사람 반대쪽으로 열림).
+ * - 몸으로 밀어서는 열리지 않는다. NPC 는 지나가야 할 닫힌 문 앞에서 문을 연다.
  * - 닫혀 있을 때는 문틀에 보이지 않는 벽(barrier)을 세워 충돌 판정을 준다.
- * - 총알/투척물에 맞으면 그 방향으로 열린다.
- * - 발차기로 크게 열리며, 빠르게 도는 문에 부딪힌 개체는 쓰러진다.
+ * - 돈 후안(말 가면)만 Space 로 문을 걷어찰 수 있다 (2초마다). 세게 도는 문에 맞은 적은 즉사, 찬 뒤 2초간 빨라진다.
  */
 public final class DoorService {
-    public static final double WALK_PUSH = 9;
-    public static final double BULLET_PUSH = 11;
     public static final double KICK_PUSH = 34;
+    /** F 로 문을 다룰 수 있는 거리 (눈에서 문틀·문판 가운데까지, 블록) */
+    public static final double INTERACT_RANGE = 2.3;
+    /** 발차기 쿨타임 (틱) */
+    public static final int KICK_COOLDOWN = 40;
+    /** 발차기 뒤 빨라지는 시간 (틱) */
+    public static final int KICK_BOOST = 40;
 
     private final ViolencePlugin plugin;
+    /** 플레이어별 지금 F 로 다룰 수 있는 문 */
+    private final java.util.Map<java.util.UUID, Door> targets = new java.util.HashMap<>();
+    /** 플레이어별 흰 테두리 문 (그 플레이어에게만 보이는 빛나는 복제본, 원래 문은 그 플레이어에게 숨김) */
+    private final java.util.Map<java.util.UUID, Highlight> highlights = new java.util.HashMap<>();
+
+    private record Highlight(Door door, ItemDisplay display) {}
 
     public DoorService(ViolencePlugin plugin) {
         this.plugin = plugin;
@@ -71,17 +81,64 @@ public final class DoorService {
         Vector3f offset = q.transform(new Vector3f(0.5f, 0.5f, 0f));
         d.display.setInterpolationDelay(0);
         d.display.setInterpolationDuration(instant ? 0 : 2);
-        d.display.setTransformation(new Transformation(offset, q, new Vector3f(1, 1, 1), new Quaternionf()));
+        Transformation tr = new Transformation(offset, q, new Vector3f(1, 1, 1), new Quaternionf());
+        d.display.setTransformation(tr);
         d.display.setBrightness(null);
+        for (Highlight h : highlights.values()) {
+            if (h.door() != d || !h.display().isValid()) continue;
+            h.display().setInterpolationDelay(0);
+            h.display().setInterpolationDuration(instant ? 0 : 2);
+            h.display().setTransformation(tr);
+        }
     }
 
-    /** 총알이 문에 맞음 */
+    /** 총알이 문에 맞음 (문은 F 로만 열림: 소리만) */
     public void bulletHit(Door d, Vec3 dir, Combatant shooter) {
-        d.pushAlong(dir, BULLET_PUSH, shooter, false);
         plugin.fx().sound(d.display.getWorld(), d.center(), "violence:world.door_hit", 1f, 1f);
     }
 
-    /** 발차기 */
+    /** F: 문 열기 / 닫기 */
+    public void toggle(Arena a, Door d, Combatant c) {
+        if (d.isOpen()) {
+            d.close(c);
+            plugin.fx().sound(a.world, d.center(), "violence:world.door_push", 0.8f, 0.85f);
+        } else {
+            d.open(c.feet(), c);
+            plugin.fx().sound(a.world, d.center(), "violence:world.door_push", 0.8f, 1.1f);
+        }
+    }
+
+    /** F 로 다룰 수 있는 문: 눈에서 INTERACT_RANGE 안, 바라보는 쪽 (문틀 가운데 또는 열린 문판 가운데) */
+    public Door interactable(Arena a, Combatant c) {
+        if (!c.isAlive() || c.state != CombatState.ALIVE) return null;
+        Vec3 eye = c.eye();
+        Vec3 look = c.look();
+        Door best = null;
+        double bd = INTERACT_RANGE;
+        for (Door d : a.doors) {
+            for (Vec3 p : new Vec3[] {d.center(), d.obb().center()}) {
+                Vec3 to = p.sub(eye);
+                double dist = to.length();
+                if (dist > bd) continue;
+                if (dist > 0.9 && to.normalize().dot(look) < 0.55) continue;
+                bd = dist;
+                best = d;
+            }
+        }
+        return best;
+    }
+
+    /** 지금 F 로 다룰 수 있는 문 (매 틱 갱신, HUD 와 F 키가 씀) */
+    public Door target(Combatant c) {
+        return targets.get(c.id);
+    }
+
+    /** 돈 후안 발차기를 할 수 있는가 (닫힌 문, 쿨타임 끝) */
+    public boolean canKick(Combatant c, Door d, long now) {
+        return d != null && c.mask == Mask.DON_JUAN && !d.isOpen() && now >= c.doorKickReadyAt;
+    }
+
+    /** 발차기 (돈 후안) */
     public void kick(Door d, Combatant kicker) {
         Vec3 dir = d.center().sub(kicker.feet()).horizontal().normalize();
         d.pushAlong(dir, KICK_PUSH, kicker, true);
@@ -108,44 +165,63 @@ public final class DoorService {
 
     public void tick(Arena a, long now) {
         for (Door d : a.doors) {
-            // 1) 사람이 닫힌 문에 몸을 붙이고 앞으로 걸어가면 밀린다
             for (Combatant c : a.combatants.values()) {
                 if (c.state != CombatState.ALIVE) continue;
                 Vec3 p = c.feet();
                 if (Math.abs(p.y() - d.by) > 1.2) continue;
-                if (d.lateralDistance(p) > 0.75) continue;
-                double plane = d.planeDistance(p);
-                if (Math.abs(plane) > 1.0) continue;
-                boolean pushing = c.wantsToWalkThrough(d, now);
-                if (d.physics.isClosed()) {
-                    if (pushing && Math.abs(plane) < 0.95) {
-                        Vec3 dir = new Vec3(0, 0, 0).sub(d.normal().mul(Math.signum(plane)));
-                        d.pushAlong(dir, WALK_PUSH, c, false);
-                        if (!d.physics.isMoving()) continue;
-                        plugin.fx().sound(a.world, d.center(), "violence:world.door_push", 0.8f, 1f);
-                    }
-                } else if (d.obb().overlapsPoint(p.add(0, 0.9, 0), 0.32)) {
-                    // 2) 열린 문판과 몸이 겹침
-                    if (d.physics.isDangerous() && d.lastPusher != c) {
-                        hitByDoor(a, d, c, now);
-                    } else {
-                        // 밀어서 통과: 문판이 몸에서 비켜나도록 돌림 (몸이 문판을 뚫고 지나가 보이지 않게)
-                        Vec3 away = p.sub(d.hinge()).horizontal();
-                        Vec3 tangent = new Vec3(-d.dir().z(), 0, d.dir().x());
-                        int side = away.dot(tangent) >= 0 ? -1 : 1;
-                        Vec3 pushDir = tangent.mul(side);
-                        int towardSide = pushDir.dot(d.normal()) >= 0 ? 1 : -1;
-                        if (d.pushOutOf(p.add(0, 0.9, 0), 0.32, d.rotationSignToward(towardSide))) {
-                            d.lastPusher = c;
-                            d.lastPushWasKick = false;
-                        }
-                    }
+                // NPC: 지나가야 할 닫힌 문 앞이면 문을 엶 (돈 후안이면 걷어참)
+                if (c instanceof dev.violence.npc.NpcCombatant && !d.isOpen() && d.lateralDistance(p) < 0.75
+                        && Math.abs(d.planeDistance(p)) < 1.3 && c.wantsToWalkThrough(d, now) && now >= c.nextDoorUse) {
+                    c.nextDoorUse = now + 20;   // 같은 문을 연달아 건드리지 않게
+                    if (canKick(c, d, now)) plugin.combat().kickDoor(c, d, now);
+                    else toggle(a, d, c);
+                    continue;
+                }
+                // 발차기로 세게 도는 문판에 맞으면 쓰러짐 (돈 후안이 찼으면 즉사)
+                if (d.physics.isDangerous() && d.lastPusher != c && d.obb().overlapsPoint(p.add(0, 0.9, 0), 0.32)) {
+                    hitByDoor(a, d, c, now);
                 }
             }
             d.physics.tick();
             setBarrier(a, d, d.physics.isClosed() && !d.physics.isMoving() && !someoneInDoorway(a, d));
             updateVisual(d, false);
         }
+        // 플레이어별 F 대상 문 + 흰 테두리
+        for (dev.violence.player.PlayerCombatant pc : a.players.values()) {
+            org.bukkit.entity.Player p = pc.player();
+            Door t = pc.canAct(now) && !plugin.camera().isViewing(p) ? interactable(a, pc) : null;
+            if (t == null) targets.remove(pc.id);
+            else targets.put(pc.id, t);
+            Highlight h = highlights.get(p.getUniqueId());
+            if (h != null && (h.door() != t || !h.display().isValid())) {
+                removeHighlight(a, p, h);
+                highlights.remove(p.getUniqueId());
+                h = null;
+            }
+            if (t != null && h == null && t.display != null && t.display.isValid()) {
+                ItemDisplay src = t.display;
+                ItemDisplay hd = a.track(a.world.spawn(src.getLocation(), ItemDisplay.class, e -> {
+                    e.setItemStack(src.getItemStack());
+                    e.setItemDisplayTransform(ItemDisplay.ItemDisplayTransform.NONE);
+                    e.setTransformation(src.getTransformation());
+                    e.setPersistent(false);
+                    e.setViewRange(2f);
+                    e.setShadowRadius(0);
+                    e.setVisibleByDefault(false);
+                    e.setGlowing(true);
+                    e.setGlowColorOverride(org.bukkit.Color.WHITE);
+                }));
+                p.showEntity(plugin, hd);
+                p.hideEntity(plugin, src);   // 원래 문은 이 플레이어에게만 숨김 (같은 자리에 겹쳐 깜빡이지 않게)
+                highlights.put(p.getUniqueId(), new Highlight(t, hd));
+            }
+        }
+    }
+
+    private void removeHighlight(Arena a, org.bukkit.entity.Player p, Highlight h) {
+        if (h.door().display != null && h.door().display.isValid() && p.isOnline()) p.showEntity(plugin, h.door().display);
+        a.tracked.remove(h.display());
+        if (h.display().isValid()) h.display().remove();
     }
 
     private boolean someoneInDoorway(Arena a, Door d) {
@@ -173,6 +249,13 @@ public final class DoorService {
 
     public void clear(Arena a) {
         for (Door d : a.doors) setBarrier(a, d, false);
+        for (java.util.Map.Entry<java.util.UUID, Highlight> en : highlights.entrySet()) {
+            org.bukkit.entity.Player p = plugin.getServer().getPlayer(en.getKey());
+            if (p != null) removeHighlight(a, p, en.getValue());
+            else if (en.getValue().display().isValid()) en.getValue().display().remove();
+        }
+        highlights.clear();
+        targets.clear();
     }
 
 }

@@ -55,28 +55,43 @@ class DoorTest {
     }
 
     @Test
-    void walkingThroughPushesPanelOutOfTheBodyWithoutKnockingDown() {
-        // 북쪽으로 걸어 문을 밀고 지나가는 동안 문판이 몸과 겹친 채로 남지 않아야 함
-        Door d = new Door(0, 64, 0, true, false);
-        Vec3 walk = new Vec3(0, 0, -1);
-        d.pushAlong(walk, 9, null, false);
-        d.physics.tick();
-        Vec3 p = new Vec3(0.5, 64, 1.3);
-        for (int t = 0; t < 12; t++) {
-            p = p.add(walk.mul(0.29));                  // 사람 걷는 속도 (블록/틱)
-            Vec3 body = p.add(0, 0.9, 0);
-            if (!d.physics.isClosed() && d.obb().overlapsPoint(body, 0.32)) {
-                Vec3 away = p.sub(d.hinge()).horizontal();
-                Vec3 tangent = new Vec3(-d.dir().z(), 0, d.dir().x());
-                int side = away.dot(tangent) >= 0 ? -1 : 1;
-                int toward = tangent.mul(side).dot(d.normal()) >= 0 ? 1 : -1;
-                d.pushOutOf(body, 0.32, d.rotationSignToward(toward));
-                assertFalse(d.obb().overlapsPoint(body, 0.32) && Math.abs(d.physics.angle()) < dev.violence.logic.DoorPhysics.MAX_ANGLE,
-                        "문판이 몸을 비켜나야 함 (틱 " + t + ")");
-                assertFalse(d.physics.isDangerous(), "걸어서 민 문은 사람을 쓰러뜨릴 만큼 빠르면 안 됨");
+    void fKeyOpensAwayFromOpenerAndClosesBackSafely() {
+        for (boolean alongX : new boolean[]{true, false}) {
+            for (boolean hingeMax : new boolean[]{true, false}) {
+                for (int side : new int[]{1, -1}) {
+                    Door d = new Door(0, 64, 0, alongX, hingeMax);
+                    // 문틀 side 쪽에 선 사람이 F → 반대쪽(-side)으로 열림
+                    Vec3 opener = d.center().add(0, -1, 0).add(d.normal().mul(side * 0.9));
+                    d.open(opener, null);
+                    assertTrue(d.isOpen(), "F 로 열림");
+                    for (int i = 0; i < 40; i++) {
+                        d.physics.tick();
+                        assertFalse(d.physics.isDangerous(), "F 로 연 문은 사람을 쓰러뜨리지 않음");
+                    }
+                    assertEquals(dev.violence.logic.DoorPhysics.OPEN_ANGLE, Math.abs(d.physics.angle()), 0.01);
+                    Vec3 end = d.hinge().add(d.dir());
+                    double moved = end.sub(d.center().add(0, -1, 0)).dot(d.normal());
+                    assertTrue(moved * side < -0.3, "여는 사람 반대쪽으로 열려야 함 moved=" + moved);
+                    d.close(null);
+                    assertFalse(d.isOpen(), "닫는 중이면 열린 문이 아님");
+                    for (int i = 0; i < 40; i++) d.physics.tick();
+                    assertTrue(d.physics.isClosed() && !d.physics.isMoving(), "닫혀서 멈춤");
+                }
             }
-            d.physics.tick();
         }
-        assertTrue(Math.abs(d.physics.angle()) > 45, "지나간 뒤 문이 충분히 열려 있어야 함: " + d.physics.angle());
+    }
+
+    @Test
+    void kickedDoorIsDangerousThenStaysOpen() {
+        Door d = new Door(0, 64, 0, true, false);
+        d.pushAlong(new Vec3(0, 0, 1), dev.violence.arena.DoorService.KICK_PUSH, null, true);
+        d.physics.tick();
+        assertTrue(d.physics.isDangerous(), "발차기는 사람을 쓰러뜨릴 만큼 빠름");
+        for (int i = 0; i < 80; i++) d.physics.tick();
+        assertFalse(d.physics.isMoving());
+        assertTrue(d.isOpen(), "발차기로 열린 문은 열린 채로 남음");
+        d.close(null);
+        for (int i = 0; i < 40; i++) d.physics.tick();
+        assertTrue(d.physics.isClosed(), "F 로 다시 닫힘");
     }
 }

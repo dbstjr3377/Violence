@@ -116,6 +116,7 @@ public final class PlayerCombatant extends Combatant {
         if (!canMove(now)) return 0;
         double s = BASE_SPEED;
         if (mask != null) s *= mask.speedMultiplier();
+        if (now < speedBoostUntil) s *= dev.violence.mask.Mask.GRAHAM.speedMultiplier();   // 문 발차기 뒤 (토끼 가면만큼)
         if (streak.value() >= 5) s *= 1.05;
         return s;
     }

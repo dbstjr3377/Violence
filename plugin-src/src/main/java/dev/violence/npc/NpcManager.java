@@ -400,7 +400,9 @@ public final class NpcManager {
     }
 
     private double speed(NpcCombatant n) {
-        return n.heavy ? HEAVY_SPEED : SPEED;
+        double s = n.heavy ? HEAVY_SPEED : SPEED;
+        if (plugin.now() < n.speedBoostUntil) s *= dev.violence.mask.Mask.GRAHAM.speedMultiplier();   // 문 발차기 뒤
+        return s;
     }
 
     private void wander(Arena a, NpcCombatant n, long now) {

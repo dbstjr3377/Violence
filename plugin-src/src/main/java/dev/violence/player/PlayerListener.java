@@ -119,7 +119,14 @@ public final class PlayerListener implements Listener {
         PlayerCombatant pc = pc(e.getPlayer());
         if (pc == null) return;
         e.setCancelled(true);
-        plugin.masks().onFKey(pc, plugin.now());
+        // F: 바라보는 문이 있으면 열기·닫기, 아니면 가면 능력
+        long now = plugin.now();
+        dev.violence.arena.Door door = plugin.arena() == null || !pc.canAct(now) ? null : plugin.doors().target(pc);
+        if (door != null) {
+            plugin.doors().toggle(plugin.arena(), door, pc);
+            return;
+        }
+        plugin.masks().onFKey(pc, now);
     }
 
     @EventHandler

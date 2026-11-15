@@ -33,6 +33,30 @@ public abstract class Combatant {
 
     public final KillStreak streak = new KillStreak();
     public final ComboTracker combo = new ComboTracker();
+    /** 이번 목숨에 입은 상처 (시체가 자리를 잡으면 그 부위에 혈흔, 리스폰하면 비움) */
+    public final java.util.List<dev.violence.fx.Wounds.Wound> wounds = new java.util.ArrayList<>();
+
+    public void addWound(dev.violence.fx.Wounds.Spot spot, dev.violence.fx.Wounds.Kind kind) {
+        if (wounds.size() < 12) wounds.add(new dev.violence.fx.Wounds.Wound(spot, kind));
+    }
+
+    /** 맞은 자리(월드)를 서 있는 몸 기준 상처 자리로 (쓰러져 있으면 몸통) */
+    public dev.violence.fx.Wounds.Spot woundSpot(Vec3 point) {
+        if (state.isDownedLike() || entity() == null) {
+            return new dev.violence.fx.Wounds.Spot(dev.violence.fx.FallPose.Part.BODY, 0, 0, true);
+        }
+        Vec3 d = point.sub(feet());
+        org.joml.Vector3d local = dev.violence.fx.FallPose.toWorld(new org.joml.Vector3d(d.x(), d.y(), d.z()), -yaw());
+        double px = dev.violence.fx.FallPose.PX * scale();
+        return dev.violence.fx.Wounds.locate(local.x / px, local.y / px, local.z / px);
+    }
+
+    /** 문 발차기(돈 후안)를 다시 할 수 있는 틱 */
+    public long doorKickReadyAt;
+    /** NPC 가 문을 다시 건드릴 수 있는 틱 */
+    public long nextDoorUse;
+    /** 이 틱까지 이동속도 증가 (문 발차기 뒤, 토끼 가면만큼) */
+    public long speedBoostUntil;
     public int kills;
     public int deaths;
     public int score;

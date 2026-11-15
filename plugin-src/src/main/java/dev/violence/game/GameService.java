@@ -368,9 +368,20 @@ public final class GameService {
         boolean reloading = pc.weapon != null && pc.weapon.isReloading(now);
         // [가운데 글의 숨은 짝][탄수][가운데 글][탄수의 숨은 짝] → 탄수의 오른쪽 끝이 늘 화면 가운데 (쉐이더가 오른쪽 아래로 옮김),
         // 가운데 글은 가운데의 오른쪽에 붙음
+        // 조준점 옆 상호작용 안내: 문 (F 열기·닫기), 돈 후안이면 Space 발차기 (쿨타임 중이면 흐리게)
+        Component hints = Component.empty();
+        dev.violence.arena.Door door = plugin.doors().target(pc);
+        if (door != null) {
+            hints = hints.append(dev.violence.fx.HintHud.hint(door.isOpen() ? dev.violence.fx.HintHud.Hint.CLOSE : dev.violence.fx.HintHud.Hint.OPEN, 0));
+            if (pc.mask == dev.violence.mask.Mask.DON_JUAN && !door.isOpen()) {
+                hints = hints.append(dev.violence.fx.HintHud.hint(now >= pc.doorKickReadyAt ? dev.violence.fx.HintHud.Hint.KICK
+                        : dev.violence.fx.HintHud.Hint.KICK_CD, 1));
+            }
+        }
         Component c = Component.empty()
                 .append(dev.violence.fx.AmmoHud.hiddenText(midText.toString()))
                 .append(dev.violence.fx.AmmoHud.marked(t, pc.weapon, off, reloading))
+                .append(hints)
                 .append(mid)
                 .append(dev.violence.fx.AmmoHud.hidden(t, pc.weapon, off));
         return c;

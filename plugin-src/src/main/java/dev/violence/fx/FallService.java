@@ -149,6 +149,8 @@ public final class FallService {
         int tick;
         /** 벽에 기대지 않고 넘어질 때 밀려나도 되는 거리 (누운 몸이 비스듬한 벽 등에 박히지 않게) */
         double maxSlide = Double.MAX_VALUE;
+        /** 시체가 자리를 잡으면 붙일 상처 (죽을 때의 목록) */
+        java.util.List<Wounds.Wound> wounds;
         /** 처형이 시작돼 자기 화면에도 자기 몸을 보이는 중 */
         boolean selfShown;
         /** 발차기 인형: 이 틱(서버 시각)까지 마지막 자세로 남음 (처형 카메라가 돌아올 때까지) */
@@ -345,11 +347,13 @@ public final class FallService {
             l.corpse = true;
             l.follow = false;
             l.execution = execution;
+            l.wounds = new ArrayList<>(v.wounds);
             l.poolSize = poolSize;
             l.poolPart = head ? FallPose.Part.HEAD : FallPose.Part.BODY;
             if (!wallSeat) l.start = l.end = l.anchor(l.pose.frameCount() - 1);
             if (l.revealed) {
                 bleed(l);
+                woundDecals(l);
             } else {
                 falling.add(l);
             }
@@ -361,6 +365,7 @@ public final class FallService {
         if (l == null) return null;
         l.corpse = true;
         l.execution = execution;
+        l.wounds = new ArrayList<>(v.wounds);
         l.poolSize = poolSize;
         l.poolPart = head ? FallPose.Part.HEAD : FallPose.Part.BODY;
         falling.add(l);
@@ -843,9 +848,42 @@ public final class FallService {
         if (l.tick < hold) place(l, l.pose.frameAt(l.tick), true);
         if (!l.revealed && l.tick >= hold - 1) {
             reveal(l);
-            if (l.corpse) bleed(l);
+            if (l.corpse) {
+                bleed(l);
+                woundDecals(l);
+            }
         }
         if (l.tick == hold) removePuppet(l);
+    }
+
+    /**
+     * 시체가 자리를 잡으면 맞은 부위에 상처 혈흔을 붙임 (시체에 태워 함께 사라짐).
+     * 상처 자리(부위, 면 위 u·v)를 인형 마지막 자세(= 시체 대역 자세)의 그 부위 앞면(또는 뒷면) 위로 옮긴다.
+     */
+    private void woundDecals(Lying l) {
+        java.util.List<Wounds.Wound> ws = l.wounds;
+        l.wounds = null;
+        if (ws == null || ws.isEmpty() || l.body == null || !l.body.isValid()) return;
+        int last = l.pose.frameCount() - 1;
+        Location anchor = l.anchor(last);
+        float yaw = l.yawAt(last);
+        java.util.Random r = plugin.random();
+        for (Wounds.Wound w : ws) {
+            FallPose.Part part = w.spot().part();
+            FallPose.Placement p = l.pose.place(last, part, l.scale);
+            double hx = part.size.x * FallPose.PX * l.scale / 2;
+            double hy = part.size.y * FallPose.PX * l.scale / 2;
+            double hz = part.size.z * FallPose.PX * l.scale / 2 + 0.03 * l.scale;   // 겉옷 층 바깥
+            double sign = w.spot().front() ? 1 : -1;
+            Vector3d onFace = p.rotation().transform(new Vector3d(w.spot().u() * hx, w.spot().v() * hy, sign * hz));
+            Vector3d c = FallPose.toWorld(new Vector3d(p.center()).add(onFace), yaw);
+            Vector3d n = FallPose.toWorld(p.rotation().transform(new Vector3d(0, 0, sign)), yaw);
+            Vector3d up = FallPose.toWorld(p.rotation().transform(new Vector3d(0, 1, 0)), yaw);
+            Vec3 at = new Vec3(anchor.getX() + c.x, anchor.getY() + c.y, anchor.getZ() + c.z);
+            String model = Wounds.model(w.kind()) + r.nextInt(Wounds.variants(w.kind()));
+            float size = (float) (Wounds.size(w.kind()) * l.scale * (0.85 + r.nextDouble() * 0.3));
+            plugin.blood().bodyDecal(l.arena, at, new Vec3(n.x, n.y, n.z), new Vec3(up.x, up.y, up.z), model, size, l.body);
+        }
     }
 
     /** 시체가 자리를 잡으면 맞은 부위 밑에서 피 웅덩이가 퍼짐 (시체에 붙어 함께 사라짐) */

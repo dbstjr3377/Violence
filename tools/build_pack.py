@@ -598,6 +598,28 @@ def blood_mask(kind, seed, size=32):
             x, y = c + math.cos(t) * dist, c + math.sin(t) * dist
             d.ellipse([x - rr, y - rr, x + rr, y + rr], fill=1)
         _frags(d, c, c, int(14 * (size / 32) ** 1.2), R * 1.2, size * 0.48, r)
+    elif kind == "hole":           # 몸에 박힌 총알 자국: 둥근 구멍 (가장자리 계단 1px) + 작은 방울 한두 개
+        R = size * 0.27
+        d.ellipse([c - R, c - R, c + R, c + R], fill=1)
+        for k in range(r.randint(1, 2)):
+            a = r.uniform(0, math.tau)
+            x, y = c + math.cos(a) * R * 1.55, c + math.sin(a) * R * 1.55
+            d.rectangle([int(x), int(y), int(x), int(y)], fill=1)
+    elif kind == "smear":          # 근접 무기에 맞은 자리: 피범벅 (뭉개진 덩어리 + 한쪽(+x)으로 번진 자국 + 파편)
+        _blob(d, c, c, size * 0.22, r)
+        _blob(d, c + size * 0.12, c + r.uniform(-2, 2), size * 0.15, r)
+        for k in range(r.randint(2, 3)):    # 흘러내린 줄기
+            y = int(c + r.uniform(-0.18, 0.18) * size)
+            d.rectangle([int(c), y, int(c + size * r.uniform(0.3, 0.42)), y], fill=1)
+        _frags(d, c, c, 16, size * 0.2, size * 0.44, r)
+    elif kind == "gore":           # 무거운 무기: 크고 심한 피범벅 (덩어리 여럿이 겹침 + 굵은 줄기 + 많은 파편)
+        for k in range(4):
+            _blob(d, c + r.gauss(0, size * 0.08), c + r.gauss(0, size * 0.08), size * r.uniform(0.15, 0.24), r)
+        for k in range(r.randint(3, 4)):
+            y = int(c + r.uniform(-0.22, 0.22) * size)
+            w = r.randint(1, 2)
+            d.rectangle([int(c), y, int(c + size * r.uniform(0.32, 0.47)), y + w - 1], fill=1)
+        _frags(d, c, c, 34, size * 0.22, size * 0.48, r)
     elif kind == "flow":           # 머리에서 흐르는 피
         _blob(d, size * 0.14, c, size * 0.12, r)
         x = size * 0.14
@@ -628,6 +650,10 @@ def blood_assets(T):
     shapes = [(f"blood_{k}_{i}", k, 40 + i * 13) for k, n in BLOOD_SHAPES.items() for i in range(n)]
     shapes += [("blood_flow", "flow", 90)]
     shapes = [(n, k, s, 32) for n, k, s in shapes] + [(n, "pool", 77, pool_px(b)) for n, b in POOL_SIZES.items()]
+    # 몸에 붙는 상처 (FallService.woundDecals, 크기는 Wounds.size): 다른 혈흔과 같은 픽셀 크기가 되게 그림 크기를 맞춤
+    shapes += [(f"wound_hole_{i}", "hole", 300 + i, 10) for i in range(3)]
+    shapes += [(f"wound_smear_{i}", "smear", 310 + i, 22) for i in range(3)]
+    shapes += [(f"wound_gore_{i}", "gore", 320 + i, 32) for i in range(2)]
     for name, kind, seed, px in shapes:
         base = blood_base(kind, seed, px)
         entries = []
@@ -970,6 +996,8 @@ def fonts():
     prompt_img = render_text("E키를 눌러 가면을 착용하세요", 16, (255, 255, 255, 255), outline=(30, 0, 20, 255), ow=1, pad=1)
     save_png(prompt_img, os.path.join(T, "prompt_mask.png"))
 
+    # 상호작용 안내 (조준점 오른쪽, 레퍼런스: 배그 "F 문 닫기"): [키캡][어두운 칸에 글자]. 액션바에 실어 보내고 text.vsh 가 옮김
+    hints = hint_glyphs(T)
     icons = [
         {"type": "bitmap", "file": "violence:font/bullet.png", "ascent": 7, "height": 8, "chars": [""]},
         {"type": "bitmap", "file": "violence:font/skull.png", "ascent": 7, "height": 8, "chars": [""]},
@@ -978,7 +1006,8 @@ def fonts():
         {"type": "bitmap", "file": "violence:font/mouse_right.png", "ascent": 8, "height": 9, "chars": ["\uE005"]},
         {"type": "bitmap", "file": "violence:font/shell.png", "ascent": 8, "height": 9, "chars": ["\uE006"]},
         {"type": "bitmap", "file": "violence:font/shell_empty.png", "ascent": 8, "height": 9, "chars": ["\uE007"]},
-    ]
+    ] + [{"type": "bitmap", "file": f"violence:font/hint_{k}.png", "ascent": 8, "height": HINT_HEIGHT, "chars": [v["char"]]}
+         for k, v in hints.items()]
 
     def ttf_pair(size, shift_y=0.0):
         # Neo둥근모 하나 (예전 이름 그대로: 영문·한글 두 글꼴 짝이었음). 크기는 8의 배수
@@ -1021,6 +1050,48 @@ def fonts():
         {"type": "ttf", "file": "violence:neodgm.ttf", "size": 8, "oversample": 4.0, "shift": [0, 0.5], "skip": ""},
         {"type": "reference", "id": "minecraft:include/unifont"},
     ]})
+
+
+HINT_HEIGHT = 10   # GUI 픽셀 (그림은 2배: 도트 글꼴 16px 로 그려 반으로 줄임 → 픽셀이 고름)
+HINTS = {   # 이름: (글리프, 키, 글자, 흐리게)
+    "open": ("\uE020", "F", "문 열기", False),
+    "close": ("\uE021", "F", "문 닫기", False),
+    "kick": ("\uE022", "Space", "발차기", False),
+    "kick_cd": ("\uE023", "Space", "발차기", True),
+}
+
+
+def hint_glyphs(T):
+    """안내 글리프 그림을 만들고, 글리프 폭표(플러그인이 음수 공백으로 자리를 되돌릴 때 씀)를 plugin 리소스에 씀"""
+    f = ImageFont.truetype(FONT, 16)
+    out = {}
+    for name, (ch, key, label, dim) in HINTS.items():
+        kw = int(f.getlength(key)) + 8
+        lw = int(f.getlength(label)) + 10
+        gap = 2
+        w = kw + gap + lw
+        w += w % 2
+        h = HINT_HEIGHT * 2
+        img = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+        d = ImageDraw.Draw(img)
+        a = 120 if dim else 255
+        # 키캡: 어두운 칸 + 밝은 1px 테두리 + 흰 글자
+        d.rectangle([0, 0, kw - 1, h - 1], fill=(36, 36, 40, 235), outline=(214, 214, 214, a))
+        txt = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+        dt = ImageDraw.Draw(txt)
+        dt.text((4, 2), key, font=f, fill=(255, 255, 255, a))
+        dt.text((kw + gap + 5, 2), label, font=f, fill=(236, 236, 236, a))
+        # 도트 글꼴의 반투명 가장자리 정리
+        ta = txt.getchannel("A").point(lambda v, a=a: a if v >= a * 0.5 else 0)
+        txt.putalpha(ta)
+        # 글자 칸: 반투명 검정 (오른쪽 끝까지 불투명해야 글리프 폭이 그림 폭과 같음)
+        d.rectangle([kw + gap, 0, w - 1, h - 1], fill=(0, 0, 0, 150))
+        img.alpha_composite(txt)
+        save_png(img, os.path.join(T, f"hint_{name}.png"))
+        # 마인크래프트 비트맵 글리프 폭 = (int)(0.5 + 그림 폭 × height/그림 높이) + 1
+        out[name] = {"char": ch, "advance": int(0.5 + w * HINT_HEIGHT / h) + 1}
+    write(os.path.join(ROOT, "plugin-src", "src", "main", "resources", "hint_glyphs.json"), out)
+    return out
 
 
 def ttf_widths(path, size, chars):

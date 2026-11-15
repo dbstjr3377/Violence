@@ -28,7 +28,7 @@ layout(location = 3) out vec2 texCoord0;
 void main() {
     gl_Position = ProjMat * ModelViewMat * vec4(Position, 1.0);
 
-    // VIOLENCE: 우측 하단 탄수 (플러그인 dev.violence.fx.AmmoHud 와 같은 색 값)
+    // VIOLENCE: 우측 하단 탄수 (플러그인 dev.violence.fx.AmmoHud 와 같은 색 값), 조준점 옆 안내 (HintHud)
     // 액션바에 정해진 색으로 실린 글만: 오른쪽 끝이 화면 가운데에 오도록 보내므로, 화면 오른쪽 끝 8px 안쪽·아래로 옮긴다.
     // "숨김 색" 글은 너비만 차지하고 화면 밖으로 치운다. GUI(정사영)일 때만.
     if (ProjMat[2][3] == 0.0) {
@@ -39,6 +39,13 @@ void main() {
             // ProjMat[0][0] = 2 / GUI 너비, ProjMat[1][1] = -2 / GUI 높이 (GUI 픽셀 → 화면 좌표)
             gl_Position.x += (1.0 - 8.0 * ProjMat[0][0]) * gl_Position.w;
             gl_Position.y += 58.0 * ProjMat[1][1] * gl_Position.w;
+        }
+        // 조준점 오른쪽 상호작용 안내 (dev.violence.fx.HintHud): 화면 가운데에서 시작하도록 보내므로 오른쪽으로 10px,
+        // 액션바(화면 아래에서 72px 위)에서 화면 가운데 + 6px(첫째 줄) / + 18px(둘째 줄) 로 옮긴다
+        else if (vc == ivec3(250, 251, 252) || vc == ivec3(249, 251, 252)) {
+            float row = vc.r == 250 ? 0.0 : 1.0;
+            gl_Position.x += 10.0 * ProjMat[0][0] * gl_Position.w;
+            gl_Position.y += (1.0 + (78.0 + 12.0 * row) * ProjMat[1][1]) * gl_Position.w;
         }
     }
 
