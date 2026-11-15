@@ -186,6 +186,12 @@ nc = open(os.path.join(JAVA, "dev", "violence", "chat", "NoChat.java"), encoding
 check("시스템 채팅 없음", not chat and not sk_chat and all(r in nc for r in ("SEND_COMMAND_FEEDBACK", "LOG_ADMIN_COMMANDS", "joinMessage(null)")),
       ", ".join(chat + sk_chat) or "플러그인·Skript → 콘솔, 바닐라 알림 끔")
 
+# 20. 반투명 디스플레이(피 혈흔·핏방울)도 벅샷 색감·처치 깜빡임: OIT 가중(sampleColorForAccumulation) 전에 적용해야 함
+for sh in ("item.fsh", "entity.fsh"):
+    src = open(os.path.join(ROOT, "tools", "shaders", "core", sh), encoding="utf-8").read()
+    gi, oi = src.find("grim_grade("), src.find("sampleColorForAccumulation(")
+    check(f"피 디스플레이에도 쉐이더 ({sh})", 0 <= gi < oi, "OIT 가중 전에 색감·깜빡임 적용")
+
 w = max(len(i) for i, _, _ in results)
 fail = 0
 for issue, ok, detail in results:

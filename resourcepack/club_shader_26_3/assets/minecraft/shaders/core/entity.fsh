@@ -64,6 +64,12 @@ vec4 calculateFinalColor(vec4 color) {
     color.rgb += glintColor.rgb * glintColor.rgb;
     #endif
 
+    // VIOLENCE: 벅샷 룰렛 색감(구역 안) + 처치 흑백 깜빡임. GUI 는 제외.
+    // 반투명(피 혈흔·핏방울 등)은 OIT 로 그려 아래에서 색에 가중치가 곱해지므로, 반드시 가중 전에 적용해야
+    // 합성할 때 가중치로 다시 나눠도 색 단계·디더링이 그대로 남는다 (가중 뒤에 하면 매끈한 원래 색으로 돌아감)
+    if (violencePersp > 0.5 && grim_active(CameraBlockPos)) color.rgb = grim_grade(color.rgb, color.rgb, vec2(0.0), sphericalVertexDistance, gl_FragCoord.xy, ScreenSize, GameTime * 1200.0);
+    if (violenceFlash.x > 0.5) color.rgb = violence_flash(color.rgb, violenceFlash.y);
+
     #ifdef OIT_ACCUMULATE
     color = sampleColorForAccumulation(color);
     vec4 fogColor = vec4(FogColor.rgb * color.a, FogColor.a);
@@ -111,8 +117,5 @@ void main() {
     executeAlphaOnlyPhase(gl_FragCoord.z, color.a);
     #else
     fragColor = calculateFinalColor(color);
-    // VIOLENCE: 벅샷 룰렛 색감 구역이면 인물·피·아이템도 같은 색감 (GUI 는 제외)
-    if (violencePersp > 0.5 && grim_active(CameraBlockPos)) fragColor.rgb = grim_grade(fragColor.rgb, fragColor.rgb, vec2(0.0), sphericalVertexDistance, gl_FragCoord.xy, ScreenSize, GameTime * 1200.0);
-    if (violenceFlash.x > 0.5) fragColor.rgb = violence_flash(fragColor.rgb, violenceFlash.y);  // VIOLENCE
     #endif
 }
