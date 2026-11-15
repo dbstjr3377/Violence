@@ -93,6 +93,14 @@ final class BotState {
             m.addProperty("hits_left", me.execution.hitsLeft);
         }
         m.addProperty("kills", me.kills);
+        m.addProperty("mask", me.mask == null ? "" : me.mask.name());
+        dev.violence.arena.Door door = plugin.doors().target(me);
+        if (door != null) {
+            JsonObject d = new JsonObject();
+            d.addProperty("open", door.isOpen());
+            d.addProperty("kick", plugin.doors().canKick(me, door, now));
+            m.add("door", d);
+        }
         root.add("me", m);
         JsonArray npcs = new JsonArray();
         NpcCombatant nearest = null;
