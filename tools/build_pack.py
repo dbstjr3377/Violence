@@ -549,7 +549,7 @@ def _frags(d, x, y, n, r0, r1, rng, spread_x=1.0, spread_y=1.0, bias=None):
         d.rectangle([px, py, px + w - 1, py + w - 1], fill=1)
 
 
-def blood_mask(kind, seed, size=32):
+def blood_mask(kind, seed, size=32, grow=1.0):
     r = random.Random(seed * 7919 + len(kind))
     m = Image.new("1", (size, size), 0)
     d = ImageDraw.Draw(m)
@@ -577,8 +577,9 @@ def blood_mask(kind, seed, size=32):
     elif kind == "spray":          # 강한 공격: 넓게 흩뿌린 파편 (+x 로 몰림)
         _blob(d, size * 0.2, c, size * 0.09, r)
         _frags(d, size * 0.2, c, 60, size * 0.06, size * 0.7, r, 1.0, 0.9, bias=0.0)
-    elif kind == "pool":           # 웅덩이: 둥근 덩어리(가장자리가 울퉁불퉁) + 번진 작은 방울 + 1~2px 파편 (가장자리 계단은 다른 혈흔과 같은 1px)
-        R = size * 0.3
+    elif kind == "pool":           # 웅덩이: 둥근 덩어리(가장자리가 울퉁불퉁) + 가장자리에 붙은 혹 (떨어진 방울·파편 없음)
+        # grow: 퍼진 정도 (0..1, 퍼지는 애니메이션 프레임). 같은 난수로 모양을 정하고 크기만 줄여 같은 웅덩이가 커지는 것처럼
+        R = size * 0.38 * grow   # 덩어리가 그림 대부분을 채움 (몸에 가려지지 않게, 혹까지 그림 안)
         harm = [(k, r.uniform(0.03, 0.09) / k ** 0.35, r.uniform(0, math.tau)) for k in range(2, 9)]
         pts = []
         for i in range(180):
@@ -586,18 +587,11 @@ def blood_mask(kind, seed, size=32):
             rr = R * (1 + sum(amp * math.sin(k * t + ph) for k, amp, ph in harm))
             pts.append((c + math.cos(t) * rr, c + math.sin(t) * rr * 0.92))
         d.polygon(pts, fill=1)
-        for k in range(r.randint(4, 6)):     # 가장자리에 붙은 혹
+        for k in range(r.randint(4, 6)):     # 가장자리에 붙은 혹 (덩어리와 겹쳐 떨어지지 않음)
             t = r.uniform(0, math.tau)
             rr = R * r.uniform(0.18, 0.3)
-            x, y = c + math.cos(t) * R * 0.92, c + math.sin(t) * R * 0.85
+            x, y = c + math.cos(t) * R * 0.88, c + math.sin(t) * R * 0.8
             d.ellipse([x - rr, y - rr, x + rr, y + rr], fill=1)
-        for k in range(r.randint(6, 9)):     # 떨어진 작은 방울
-            t = r.uniform(0, math.tau)
-            dist = R * r.uniform(1.18, 1.45)
-            rr = r.uniform(1.0, 2.6)
-            x, y = c + math.cos(t) * dist, c + math.sin(t) * dist
-            d.ellipse([x - rr, y - rr, x + rr, y + rr], fill=1)
-        _frags(d, c, c, int(14 * (size / 32) ** 1.2), R * 1.2, size * 0.48, r)
     elif kind == "hole":           # 총알 자국: 둥근 구멍(가운데) + +x(발 쪽)로 가늘어지며 흘러내린 자국
         R = size * 0.15
         d.ellipse([c - R, c - R, c + R - 1, c + R - 1], fill=1)
@@ -665,9 +659,9 @@ def blood_mask(kind, seed, size=32):
     return m
 
 
-def blood_base(kind, seed, size=32):
+def blood_base(kind, seed, size=32, grow=1.0):
     """한 가지 빨강"""
-    m = blood_mask(kind, seed, size)
+    m = blood_mask(kind, seed, size, grow)
     out = Image.new("RGBA", (size, size), (0, 0, 0, 0))
     mp, px = m.load(), out.load()
     for y in range(size):
@@ -690,17 +684,57 @@ def blood_assets(T):
     for name, kind, seed, px in shapes:
         base = blood_base(kind, seed, px)
         entries = []
+
+        def frame(img, tag, threshold):
+            save_png(img, os.path.join(T, f"{name}_{tag}.png"))
+            write(os.path.join(NS, "models", "fx", f"{name}_{tag}.json"), plane_model(f"violence:fx/{name}_{tag}"))
+            entries.append({"threshold": threshold, "model": {"type": "minecraft:model", "model": f"violence:fx/{name}_{tag}"}})
+
         for k, a in enumerate(BLOOD_FADE):
             img = base.copy()
             img.putalpha(img.getchannel("A").point(lambda v, a=a: int(v * a)))
-            save_png(img, os.path.join(T, f"{name}_a{k}.png"))
-            write(os.path.join(NS, "models", "fx", f"{name}_a{k}.json"), plane_model(f"violence:fx/{name}_a{k}"))
-            entries.append({"threshold": k, "model": {"type": "minecraft:model", "model": f"violence:fx/{name}_a{k}"}})
+            frame(img, f"a{k}", k)
+        if kind in SPLAT_ORIGIN:
+            # 벽·바닥에 튄 피: 닿은 점에서 퍼져 나가는 3프레임 (custom_model_data 10~12, BloodService.SPLAT_ANIM) → 완성(0)
+            for k, img in enumerate(splat_frames(base, SPLAT_ORIGIN[kind])):
+                frame(img, f"s{k}", 10 + k)
+        if kind == "pool":
+            # 웅덩이가 퍼지는 14프레임 (custom_model_data 20~33, BloodService.POOL_FRAMES 15 번째 = 완성 0)
+            for k in range(14):
+                t = (k + 1) / 15
+                frame(blood_base(kind, seed, px, grow=0.18 + 0.82 * (1 - (1 - t) ** 2)), f"g{k}", 20 + k)
         write(os.path.join(NS, "items", "fx", name + ".json"), {"model": {
             "type": "minecraft:range_dispatch", "property": "minecraft:custom_model_data", "index": 0,
             "entries": entries, "fallback": entries[0]["model"]}})
     # 맞은 자리 핏덩이 (빌보드)
     save_png(blood_base("mist", 5, 32), os.path.join(T, "blood_mist.png"))
+
+
+# 튄 피가 닿은 점 (그림 가로 비율): BloodService.splat 이 판을 진행 방향(+x)으로 head 만큼 밀어 놓으므로 0.5 - head
+SPLAT_ORIGIN = {"splat": 0.5, "drops": 0.5, "streak": 0.24, "drip": 0.26, "spray": 0.14}
+
+
+def splat_frames(base, ox):
+    """닿은 점(ox, 가운데 높이)에서 퍼져 나가는 3프레임: 닿은 점에서 먼 픽셀일수록 늦게 보임 (진행 방향 +x 로 늘어난 거리)"""
+    w, h = base.size
+    cx, cy = ox * w, h / 2
+    a = base.getchannel("A").load()
+    dist = {}
+    for y in range(h):
+        for x in range(w):
+            if a[x, y]:
+                dx = (x + 0.5 - cx) * (0.75 if x + 0.5 > cx else 1.6)   # 앞(+x)으로는 빨리, 뒤로는 거의 안 퍼짐
+                dist[(x, y)] = math.hypot(dx, (y + 0.5 - cy) * 1.1)
+    far = max(dist.values()) if dist else 1
+    out = []
+    for t in (0.22, 0.45, 0.72):
+        img = Image.new("RGBA", base.size, (0, 0, 0, 0))
+        px, bp = img.load(), base.load()
+        for (x, y), dd in dist.items():
+            if dd <= far * t:
+                px[x, y] = bp[x, y]
+        out.append(img)
+    return out
 
 
 def plane_model(tex, axis="y", double=True):
