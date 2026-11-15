@@ -49,9 +49,8 @@ public final class BloodService {
     /** 혈흔이 퍼지는 애니메이션: 프레임 3장 (custom_model_data 10~12) 뒤 완성 그림(0), 프레임마다 틱 */
     private static final int SPLAT_ANIM_FRAMES = 3;
     private static final int SPLAT_ANIM_TICKS = 2;
-    /** 피 웅덩이가 퍼지는 애니메이션: 프레임 15장 (custom_model_data 20~34), 6초 */
-    public static final int POOL_FRAMES = 15;
-    private static final int POOL_FRAME_TICKS = 8;
+    /** 피 웅덩이가 커지는 시간 (틱, 6초) */
+    public static final int POOL_GROW_TICKS = 120;
     private static final int FADE_STEP_TICKS = 4;
 
     private final ViolencePlugin plugin;
@@ -164,7 +163,7 @@ public final class BloodService {
 
     /**
      * 핏방울: 날아가는 개체 없이 궤적(중력·공기 저항, 예전 핏방울과 같은 식)을 튀는 순간 끝까지 계산해
-     * 벽·바닥에 닿는 틱에 그 자리에 혈흔을 붙인다 (혈흔은 4프레임 동안 퍼지는 애니메이션).
+     * 닿을 자리에 바로(맞은 틱에) 혈흔을 붙인다 (혈흔은 4프레임 동안 퍼지는 애니메이션).
      */
     private void addDrop(Drop d) {
         World w = d.arena.world;
@@ -179,9 +178,7 @@ public final class BloodService {
                     Vector fn = r.getHitBlockFace().getDirection();
                     Vec3 at = new Vec3(hp.getX(), hp.getY(), hp.getZ());
                     Vec3 n = new Vec3(fn.getX(), fn.getY(), fn.getZ());
-                    Vec3 v = vel;
-                    Arena a = d.arena;
-                    plugin.laterIn(a, age, () -> splat(a, at, n, v, d.size, d.burst));
+                    splat(d.arena, at, n, vel, d.size, d.burst);
                     return;
                 }
             }
@@ -191,41 +188,41 @@ public final class BloodService {
     }
 
     /**
-     * 시체의 피 웅덩이: 맞은 부위(at, 처형이면 머리) 밑 바닥에서 6초에 걸쳐 퍼짐.
-     * 크기를 키우지 않고 다 퍼진 크기 그대로 두고, 퍼지는 그림 15장(같은 픽셀 크기)을 차례로 바꿔 보인다.
+     * 시체의 피 웅덩이: 맞은 부위(at, 처형이면 머리) 밑 바닥에서 6초에 걸쳐 커짐 (완성 그림 1장을 작게 시작해 크기 보간).
      * 시체(body)에 태워서 붙이므로 시체가 사라지면 함께 사라짐 (시체가 없으면 그 자리에 18초).
      */
     public void pool(Arena a, Vec3 at, float size0, org.bukkit.entity.Entity body) {
         float size = size0 * 1.8f;   // 웅덩이 1.8배
         Vec3 floor = floorBelow(a, at.add(0, 0.5, 0), 3);
         if (floor == null) return;
-        // 다 퍼진 크기에 맞춘 그림 (리소스팩 build_pack.POOL_SIZES): 다른 혈흔과 같은 픽셀 크기로 보임
+        // 다 퍼진 크기에 맞춘 그림 (리소스팩 build_pack.POOL_SIZES)
         String model = size0 > 1.35f ? "violence:fx/blood_pool_l" : "violence:fx/blood_pool_s";
-        ItemDisplay d = decal(a, floor, Vec3.UP, null, model, size, size, 18 * 20, 20, false);
+        ItemDisplay d = decal(a, floor, Vec3.UP, null, model, size, size, 18 * 20);
         if (d == null) return;
         Transformation full = d.getTransformation();
         boolean attach = body != null && body.isValid();
         if (attach) {
             decals.removeIf(c -> c.display == d);   // 시체와 함께 사라짐 (따로 흐려지지 않음)
-            // 태운 자리와 웅덩이 자리의 차이는 다음 틱에 변환으로 메움 (그동안은 안 보이게)
-            d.setTransformation(new Transformation(new Vector3f(), full.getLeftRotation(), new Vector3f(0.001f, 1, 0.001f), full.getRightRotation()));
             body.addPassenger(d);
-            Vec3 target = floor.add(0, 0.012, 0);
+        }
+        // 처음엔 안 보이게 → 다음 틱에 (태운 자리에서 웅덩이 자리까지 옮긴 뒤) 작게 → 6초에 걸쳐 다 퍼진 크기로
+        d.setTransformation(new Transformation(new Vector3f(), full.getLeftRotation(), new Vector3f(0.001f, 1, 0.001f), full.getRightRotation()));
+        Vec3 target = floor.add(0, 0.012, 0);
+        plugin.later(1, () -> {
+            if (!d.isValid()) return;
+            org.bukkit.Location dl = d.getLocation();
+            Vector3f off = attach ? new Vector3f((float) (target.x() - dl.getX()), (float) (target.y() - dl.getY()), (float) (target.z() - dl.getZ()))
+                    : new Vector3f();
+            d.setInterpolationDelay(0);
+            d.setInterpolationDuration(0);
+            d.setTransformation(new Transformation(new Vector3f(off), full.getLeftRotation(), new Vector3f(size * 0.12f, 1, size * 0.12f), full.getRightRotation()));
             plugin.later(1, () -> {
                 if (!d.isValid()) return;
-                org.bukkit.Location dl = d.getLocation();
-                Vector3f off = new Vector3f((float) (target.x() - dl.getX()), (float) (target.y() - dl.getY()), (float) (target.z() - dl.getZ()));
                 d.setInterpolationDelay(0);
-                d.setInterpolationDuration(0);
-                d.setTransformation(new Transformation(off, full.getLeftRotation(), full.getScale(), full.getRightRotation()));
+                d.setInterpolationDuration(POOL_GROW_TICKS);
+                d.setTransformation(new Transformation(new Vector3f(off), full.getLeftRotation(), full.getScale(), full.getRightRotation()));
             });
-        }
-        for (int k = 1; k <= POOL_FRAMES; k++) {
-            final int step = k < POOL_FRAMES ? 20 + k : 0;   // 마지막은 완성 그림
-            plugin.laterIn(a, k * POOL_FRAME_TICKS, () -> {
-                if (d.isValid()) d.setItemStack(item(model, step));
-            });
-        }
+        });
     }
 
     /**

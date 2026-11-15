@@ -698,11 +698,6 @@ def blood_assets(T):
             # 벽·바닥에 튄 피: 닿은 점에서 퍼져 나가는 3프레임 (custom_model_data 10~12, BloodService.SPLAT_ANIM) → 완성(0)
             for k, img in enumerate(splat_frames(base, SPLAT_ORIGIN[kind])):
                 frame(img, f"s{k}", 10 + k)
-        if kind == "pool":
-            # 웅덩이가 퍼지는 14프레임 (custom_model_data 20~33, BloodService.POOL_FRAMES 15 번째 = 완성 0)
-            for k in range(14):
-                t = (k + 1) / 15
-                frame(blood_base(kind, seed, px, grow=0.18 + 0.82 * (1 - (1 - t) ** 2)), f"g{k}", 20 + k)
         write(os.path.join(NS, "items", "fx", name + ".json"), {"model": {
             "type": "minecraft:range_dispatch", "property": "minecraft:custom_model_data", "index": 0,
             "entries": entries, "fallback": entries[0]["model"]}})

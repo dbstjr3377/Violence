@@ -165,9 +165,9 @@ check("인형에 실제 스킨", "violence_skin_uv" in ent and "PLAYER_HEAD" in 
 
 # 17. 피: 날아가는 핏방울이 보임, 혈흔 10초, 얇게 흐르는 피 없음, 웅덩이는 시체에 붙음
 bl = open(os.path.join(JAVA, "dev", "violence", "fx", "BloodService.java"), encoding="utf-8").read()
-check("피 v14", "blood_fly" not in bl and "SPLAT_ANIM_FRAMES" in bl and "POOL_FRAMES" in bl and "SPLAT_LIFE = 200" in bl
+check("피 v14", "blood_fly" not in bl and "SPLAT_ANIM_FRAMES" in bl and "POOL_GROW_TICKS = 120" in bl and "SPLAT_LIFE = 200" in bl
       and "headFlow" not in bl and "addPassenger" in bl,
-      "날아가는 핏방울 개체 없음(궤적 계산) · 혈흔 4프레임 · 웅덩이 6초 15프레임 · 10초 · 웅덩이 부착")
+      "날아가는 핏방울 개체 없음(궤적 계산) · 혈흔 4프레임 · 웅덩이 6초 확대 · 10초 · 웅덩이 부착")
 
 # 18. 연사 무기로 적을 겨누고 꾹 누르면 계속 발사 (클라이언트가 인물을 겨누면 휘두르기를 한 번만 보내던 문제)
 hf = os.path.join(JAVA, "dev", "violence", "player", "HoldFireBlock.java")
