@@ -68,6 +68,13 @@ class Builder:
         c = [(frm[i] + to[i]) / 2 for i in range(3)]; h = [abs(to[i] - frm[i]) / 2 for i in range(3)]
         wc = [a + b for a, b in zip(_mv(xf.R, c), xf.t)]
         e = _euler(xf.R)
+        nz = [k for k in range(3) if abs(e[k]) > 1e-4]
+        if ROT_NORMALIZE and len(nz) == 1 and abs(e[nz[0]]) > 45.0001:
+            # 한 축 회전이 45° 를 넘으면: 90° 배수만큼은 상자 크기 두 축을 맞바꿔 처리하고 나머지(±45° 안)만 회전으로 남김
+            # (렌더러·게임에서 큰 각도가 다르게 풀리는 문제 방지, 모양은 똑같음)
+            a_ = nz[0]; m = round(e[a_] / 90.0); e[a_] = round(e[a_] - 90.0 * m, 4)
+            if m % 2:
+                o = [k for k in range(3) if k != a_]; h[o[0]], h[o[1]] = h[o[1]], h[o[0]]
         rot = None if max(abs(v) for v in e) < 1e-4 else e
         self.parts.append(Part([round(wc[i] - h[i], 4) for i in range(3)], [round(wc[i] + h[i], 4) for i in range(3)],
                                mat, [round(v, 4) for v in wc] if rot else None, rot, name))
@@ -150,6 +157,8 @@ def _hash(*a):
 
 
 OCT_STAGGER = False
+ROT_NORMALIZE = False
+DOT_MIX = False
 GRAD = True   # 긴 면 2단 그라데이션 (반쪽이 통째로 밝아져 큰 두 톤 면으로 보임 — 근접 2회차~ 끔)
 DOT_MOD = 10
 DOT_MODE = "pair"   # pair: 해시 2텍셀 묶음 / cell: 4x2 칸마다 점 하나
@@ -206,15 +215,28 @@ def atlas(parts, palette, density=2, painter=None, style="tacz2", topline=("stee
                             # 긴 방향을 따라 (TACZ: 대부분 가로 그라데이션)
                             t = (i / max(1, tw - 1)) if tw >= th else (j / max(1, th - 1))   # 세로로 긴 면은 아래로 갈수록 밝게 (윗줄 밝은 선과 섞이지 않게)
                             st_ = min(10, max(7, round(step * max(c) / 70)))   # 점 세기: 밝기에 비례, 7~10 (밝은 강철·나무가 지저분해지지 않게)
-                            if GRAD and max(tw, th) >= 8:
+                            if GRAD == "jag" and max(tw, th) >= 8:
+                                # 2단 그라데이션 경계를 줄마다 ±1텍셀 흔들어 곧은 두 톤 경계선이 안 보이게
+                                if tw >= th:
+                                    bnd = tw / 2 + (_hash(pi, fi, j, 3) % 3) - 1
+                                    off += st_ if i >= bnd else 0
+                                else:
+                                    bnd = th / 2 + (_hash(pi, fi, i, 3) % 3) - 1
+                                    off += st_ if j >= bnd else 0
+                            elif GRAD and max(tw, th) >= 8:
                                 off += st_ if t >= 0.5 else 0    # 긴 면만 2단 그라데이션 (TACZ 중앙 0.014 V)
                             if DOT_MODE == "cell":
                                 # 4x2 칸마다 가로 2텍셀 점 하나(확률 DOT_P) — 점끼리 붙어 사각 덩어리가 되지 않게
                                 ci, cj = i // 4, j // 2
                                 hh = _hash(pi, fi, ci, cj, 7)
                                 if hh % 100 < DOT_P * 100:
-                                    di, dj = (hh >> 8) % 3, (hh >> 12) % 2
-                                    if j == cj * 2 + dj and ci * 4 + di <= i <= ci * 4 + di + 1:
+                                    shp = (hh >> 20) % 3 if DOT_MIX else 0      # 0: 가로2 1: 가로3 2: 세로2 (같은 크기 점의 반복 방지)
+                                    di, dj = (hh >> 8) % (3 if shp != 1 else 2), (hh >> 12) % 2
+                                    if shp == 2:
+                                        hit = i == ci * 4 + di
+                                    else:
+                                        hit = j == cj * 2 + dj and ci * 4 + di <= i <= ci * 4 + di + (2 if shp == 1 else 1)
+                                    if hit:
                                         off += -st_ if (hh >> 16) % 2 else st_
                             else:
                                 r_ = _hash(pi, fi, (i + (j % 2)) // 2, j) % DOT_MOD   # TACZ식 드문 점 얼룩: 가로 2텍셀 묶음 2/DOT_MOD 만 ±st_ (1텍셀 고립 점 = 잡티 방지)

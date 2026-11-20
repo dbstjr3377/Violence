@@ -24,6 +24,8 @@ PAL = {
     "leather": (80, 50, 32),   "leather_d": (60, 38, 24), "brass": (130, 104, 48),
     "ivory":   (176, 166, 146), "white": (186, 186, 182), "chalk": (60, 92, 150),
     "glass":   (46, 48, 52),   "ground": (104, 110, 120),
+    "wood_g": (80, 50, 33), "wood_lg": (92, 60, 38), "maple_g": (122, 95, 62), "wood_dg": (58, 37, 24), "wood_rg": (146, 118, 80),
+    "hone":    (150, 156, 166), "rust_s": (96, 56, 34),
     "anod":    (54, 54, 59),   "pan_in": (34, 34, 37), "pot": (70, 74, 80), "pipe_s": (52, 54, 58), "pipe_k": (44, 46, 50), "bore": (10, 10, 11),
 }
 # 윗모서리 밝은 줄: 금속 머리·칼등·가죽처럼 '위로 놓인 면'이 있는 재질만
@@ -68,16 +70,22 @@ def dagger(b):
     rings(b, _ys(1.2, 6.4, 5), 0.9, "rubber_t", name="grip_ring")
     b.chamfer_box([7.05, 0, 7.05], [8.95, 0.75, 8.95], 0.2, "steel_d", name="pommel")
     b.chamfer_box([5.9, 6.8, 7.35], [10.1, 7.55, 8.65], 0.2, "steel_d", name="guard")
-    # 날: x 폭, z 두께. x+ 쪽 날(베벨+연마선), x- 쪽 등. 끝은 날 쪽 사선이 등 쪽으로 모이는 클립 포인트
-    b.put([7.25, 7.5, 7.7], [8.75, 13.4, 8.3], "blade", name="blade")
-    b.put([8.35, 7.5, 7.75], [8.8, 13.4, 8.25], "edge", name="bevel")
-    b.put([7.85, 8.2, 7.66], [8.15, 13.0, 8.34], "blade_d", name="fuller")
-    b.put([7.2, 7.5, 7.74], [7.4, 15.5, 8.26], "blade_d", name="spine")
-    for (x1, y0, y1) in ((8.5, 13.3, 14.2), (8.2, 14.1, 15.0), (7.9, 14.9, 15.7)):
-        b.put([7.25, y0, 7.72], [x1, y1, 8.28], "blade", name="tip_fill")
+    # 날: x 폭, z 두께. x+ 쪽 날(베벨+연마선), x- 쪽 등. 끝은 22.5° 사선 날이 등으로 모이는 클립 포인트
+    b.put([7.25, 7.5, 7.72], [8.75, 13.0, 8.28], "blade", name="blade")
+    b.put([8.4, 7.5, 7.78], [8.72, 13.0, 8.22], "ground", name="bevel")
+    b.put([8.68, 7.5, 7.82], [8.8, 13.0, 8.18], "hone", name="hone")
+    b.put([7.85, 8.2, 7.68], [8.15, 12.6, 8.32], "blade_d", name="fuller")
+    b.put([7.2, 7.5, 7.75], [7.42, 15.6, 8.25], "blade_d", name="spine")
+    T = math.tan(math.radians(22.5)); y = 12.95
+    while y < 16.3:      # 사선 안쪽을 채우는 얇은 단 (모서리가 사선 판 안에 숨음)
+        x1 = 8.75 - T * (y + 0.35 - 12.8) - 0.12
+        if x1 <= 7.3:
+            break
+        b.put([7.25, y, 7.72], [x1, y + 0.4, 8.28], "blade", name="tip_fill")
+        y += 0.35
     dx = Xf.rot("z", 22.5, (8.75, 12.8, 8))
-    b.put([8.3, 12.8, 7.74], [8.75, 16.5, 8.26], "blade", dx, name="tip_slope")
-    b.put([8.62, 12.8, 7.78], [8.8, 16.4, 8.22], "edge", dx, name="tip_edge")
+    b.put([8.3, 12.8, 7.74], [8.75, 16.65, 8.26], "ground", dx, name="tip_slope")
+    b.put([8.66, 12.8, 7.8], [8.8, 16.55, 8.2], "hone", dx, name="tip_hone")
 
 
 def machete(b):
@@ -86,29 +94,36 @@ def machete(b):
     for y in (2.0, 4.4):
         b.oct("x", y, 8.0, 0.24, 7.25, 8.75, "brass", name="rivet")
     b.chamfer_box([7.15, 6.5, 6.85], [8.85, 7.25, 9.15], 0.2, "steel_d", name="bolster")
-    # 날: x 두께, z 폭 (z+ 날, z- 등). 손잡이 쪽 좁고 끝으로 갈수록 넓어지는 배, 끝은 등 쪽으로 휨
-    for (y0, y1, z1) in ((7.2, 13.0, 9.4), (12.9, 18.0, 9.9), (17.9, 22.0, 10.3)):
-        b.put([7.75, y0, 6.6], [8.25, y1, z1], "blade", name="blade")
-        b.put([7.72, y0, z1 - 0.45], [8.28, y1, z1], "edge", name="edge")
-    b.put([7.7, 7.2, 6.55], [8.3, 23.0, 6.95], "blade_d", name="spine")
-    tx = Xf.rot("x", -32, (8, 21.9, 10.3))
-    b.put([7.75, 21.9, 7.0], [8.25, 24.6, 10.3], "blade", tx, name="tip")
-    b.put([7.72, 21.9, 9.85], [8.28, 24.5, 10.3], "edge", tx, name="tip_edge")
-    b.put([7.75, 21.9, 6.6], [8.25, 23.4, 8.0], "blade", name="tip_fill")
+    # 날: x 두께, z 폭 (z+ 날, z- 등). 곧은 판 + 날 쪽 배는 4° 기울인 판(연마면·연마선)으로 매끈하게 넓어짐
+    b.put([7.78, 7.2, 6.6], [8.22, 22.0, 9.3], "blade", name="blade")
+    bx = Xf.rot("x", 4, (8, 7.2, 9.3))
+    b.put([7.8, 7.2, 8.6], [8.2, 21.6, 9.35], "blade", bx, name="belly")
+    b.put([7.83, 7.2, 9.3], [8.17, 21.6, 9.75], "ground", bx, name="bevel")
+    b.put([7.88, 7.2, 9.7], [8.12, 21.6, 9.9], "hone", bx, name="hone")
+    b.put([7.74, 7.2, 6.55], [8.26, 22.0, 6.95], "blade_d", name="spine")
+    tx = Xf.rot("x", -32, (8, 21.6, 10.3))
+    b.put([7.78, 21.6, 7.0], [8.22, 24.2, 10.3], "blade", tx, name="tip")
+    b.put([7.83, 21.6, 9.6], [8.17, 24.1, 10.05], "ground", tx, name="tip_bevel")
+    b.put([7.88, 21.6, 10.0], [8.12, 24.0, 10.2], "hone", tx, name="tip_hone")
+    b.put([7.78, 21.6, 6.6], [8.22, 22.8, 8.4], "blade", name="tip_fill")
 
 
 def cleaver(b):
     rod(b, 0, 6.2, 0.75, "wood", name="handle")
     for y in (2.0, 4.4):
         b.oct("x", y, 8.0, 0.22, 7.2, 8.8, "brass", name="rivet")
-    b.chamfer_box([7.4, 5.8, 7.3], [8.6, 7.0, 8.7], 0.15, "steel", name="bolster")
-    # 날판 (얇게, 가운데 구멍은 판을 네 조각으로 둘러 만듦): z 6.2~11.6, y 6.6~16
-    hz0, hz1, hy0, hy1 = 9.1, 10.1, 14.1, 15.1
-    for frm, to in (([7.82, 6.6, 6.2], [8.18, 16.0, hz0]), ([7.82, 6.6, hz1], [8.18, 16.0, 11.0]),
-                    ([7.82, 6.6, hz0], [8.18, hy0, hz1]), ([7.82, hy1, hz0], [8.18, 16.0, hz1])):
+    b.chamfer_box([7.4, 5.8, 7.3], [8.6, 7.0, 8.7], 0.15, "steel_l", name="bolster")
+    # 날판 (얇게) + 둥근(팔각) 걸이 구멍: 판을 구멍 둘레로 나눠 만들고 구멍 테두리는 45° 판으로 깎음
+    hz, hy, hr = 9.6, 14.6, 0.5
+    for frm, to in (([7.82, 6.6, 6.2], [8.18, 16.0, hz - hr]), ([7.82, 6.6, hz + hr], [8.18, 16.0, 11.0]),
+                    ([7.82, 6.6, hz - hr], [8.18, hy - hr, hz + hr]), ([7.82, hy + hr, hz - hr], [8.18, 16.0, hz + hr])):
         b.put(frm, to, "blade_d", name="blade")
+    w = hr * math.tan(math.radians(22.5))
+    for (dy, dz) in ((1, 1), (1, -1), (-1, 1), (-1, -1)):   # 구멍 네 모서리를 45° 판으로 막아 팔각 구멍
+        b.put([7.82, hy + dy * hr - 0.18, hz + dz * hr - 0.18], [8.18, hy + dy * hr + 0.18, hz + dz * hr + 0.18], "blade_d",
+              Xf.rot("x", 45, (8, hy + dy * hr, hz + dz * hr)), name="hole_corner")
     b.put([7.86, 6.6, 10.95], [8.14, 16.0, 11.45], "ground", name="bevel")
-    b.put([7.9, 6.6, 11.4], [8.1, 16.0, 11.65], "edge", name="edge")
+    b.put([7.9, 6.6, 11.4], [8.1, 16.0, 11.65], "hone", name="hone")
     b.chamfer_box([7.72, 6.6, 5.6], [8.28, 16.1, 6.25], 0.1, "steel_k", name="spine")
 
 
@@ -122,20 +137,18 @@ def katana(b):
     b.oct("y", 8, 8, 2.3, 7.0, 7.6, "black", name="tsuba")
     b.oct("y", 8, 8, 2.35, 7.25, 7.35, "gold", name="tsuba_rim")
     b.chamfer_box([7.3, 7.6, 7.2], [8.7, 8.6, 8.8], 0.12, "gold", name="habaki")
-    # 칼날: 5마디, 마디마다 2.5°씩 칼등(z+) 쪽으로 누적되어 휨 (소리)
+    # 칼날 (얇은 판 0.4): 5마디, 마디마다 2.5°씩 칼등(z+) 쪽으로 누적되어 휨 (소리), 날 쪽 연마선
     xf = Xf(); y = 8.6; segs = (5.2, 4.6, 4.2, 3.8, 3.4)
     for k, L in enumerate(segs):
         if k:
             xf = xf * Xf.rot("x", 2.5, (8, y, 8.0))
-        b.put([7.72, y - 0.05, 7.25], [8.28, y + L, 8.75], "blade", xf, name="blade")
-        b.put([7.7, y - 0.05, 7.25], [8.3, y + L, 7.5], "edge", xf, name="hamon")
-        b.put([7.7, y - 0.05, 8.55], [8.3, y + L, 8.78], "blade_d", xf, name="mune")
-        if k % 2 == 0:
-            b.put([7.7, y + L * 0.3, 7.48], [8.3, y + L * 0.7, 7.62], "edge", xf, name="hamon_wave")
+        b.put([7.8, y - 0.08, 7.3], [8.2, y + L, 8.75], "blade", xf, name="blade")
+        b.put([7.83, y - 0.08, 7.22], [8.17, y + L, 7.55], "hone", xf, name="hamon")
+        b.put([7.78, y - 0.08, 8.55], [8.22, y + L, 8.78], "blade_d", xf, name="mune")
         y += L
     kx = xf * Xf.rot("x", 30, (8, y, 8.75))
-    b.put([7.72, y - 0.3, 7.25], [8.28, y + 1.6, 8.75], "blade", kx, name="kissaki")
-    b.put([7.7, y - 0.3, 7.25], [8.3, y + 1.5, 7.5], "edge", kx, name="kissaki_edge")
+    b.put([7.8, y - 0.7, 7.3], [8.2, y + 1.6, 8.75], "blade", kx, name="kissaki")
+    b.put([7.83, y - 0.7, 7.22], [8.17, y + 1.5, 7.55], "hone", kx, name="kissaki_edge")
 
 
 # ───────── 둔기 ─────────
@@ -143,9 +156,10 @@ def bat(b):
     rod(b, 0, 0.8, 1.3, "wood_d", name="knob")
     rod(b, 0.8, 7.5, 0.75, "tape", name="grip")
     rings(b, _ys(1.2, 7.1, 6), 0.8, "tape_d", name="tape_wrap")
-    taper(b, 7.4, 17.2, 0.76, 1.2, "wood", name="taper")
-    taper(b, 17.0, 28.0, 1.2, 1.55, "wood_l", name="barrel")
-    rod(b, 27.95, 28.6, 1.4, "wood_l", name="cap")
+    taper(b, 7.4, 15.0, 0.76, 1.0, "wood", name="taper")
+    taper(b, 14.95, 21.0, 1.0, 1.38, "wood", name="taper")
+    taper(b, 20.95, 28.0, 1.38, 1.55, "wood_l", name="barrel")
+    rod(b, 27.95, 28.6, 1.42, "wood_l", name="cap")
 
 
 def baton(b):
@@ -165,8 +179,6 @@ def baton(b):
 
 def pipe(b):
     rod(b, 1.6, 20.6, 0.85, "pipe_s", name="pipe")
-    for (y, h, k) in ((6.2, 0.5, 0), (13.6, 0.7, 3)):
-        b.put([7.3, y, 7.12], [7.9, y + h, 7.2], "rust", Xf.rot("y", k * 45, (8, 0, 8)), name="rust")
     rings(b, [0.25, 0.6, 0.95, 1.3], 0.95, "steel", h=0.18, name="thread")
     rod(b, 0, 1.7, 0.8, "pipe_s", name="pipe_end")
     rings(b, [20.75, 21.1, 21.45, 21.8], 0.95, "steel", h=0.18, name="thread")
@@ -189,36 +201,37 @@ def golf_club(b):
         rod(b, y, y + 0.06, 0.82, "rubber_t", name="grip_line")
     rod(b, 7.9, 8.4, 0.55, "black", name="ferrule")
     taper(b, 8.2, 23.0, 0.42, 0.32, "chrome", name="shaft")
-    taper(b, 22.6, 25.2, 0.34, 0.56, "steel", name="hosel")
-    # 아이언 헤드: 얇은 판(두께 1), 토(z+) 쪽이 높아지는 윤곽, 앞(+x) 면에 그루브
-    hx = Xf.rot("x", 8, (8, 24.2, 7.6))
-    b.chamfer_box([7.5, 24.2, 7.4], [8.5, 25.9, 12.6], 0.25, "steel", hx, name="head")
-    b.chamfer_box([7.52, 25.4, 10.4], [8.48, 26.7, 12.7], 0.3, "steel", hx, name="toe")
-    b.chamfer_box([7.4, 24.0, 7.6], [8.6, 24.6, 12.4], 0.15, "steel_d", hx, name="sole")
+    taper(b, 22.6, 25.0, 0.34, 0.5, "steel", name="hosel")
+    # 아이언 헤드: 얇은 판(두께 0.8), 토(z+)가 둥글게 높아짐, 앞(+x) 면에 그루브, 로프트 10°
+    hx = Xf.rot("z", -10, (8, 24.2, 8)) * Xf.rot("x", 8, (8, 24.2, 7.6))
+    b.put([7.6, 24.1, 7.4], [8.4, 25.8, 12.4], "steel", hx, name="head")
+    b.put([7.6, 25.0, 10.6], [8.4, 26.3, 12.4], "steel", hx * Xf.rot("x", 22.5, (8, 26.3, 12.4)), name="toe")
+    b.put([7.5, 24.0, 7.5], [8.5, 24.35, 12.3], "steel_d", hx, name="sole")
     for k in range(5):
-        y = 24.7 + k * 0.32
-        b.put([8.48, y, 8.2], [8.54, y + 0.1, 11.8], "steel_d", hx, name="groove")
-    b.put([7.46, 24.8, 9.0], [7.5, 25.6, 11.8], "steel_l", hx, name="cavity")
+        y = 24.55 + k * 0.28
+        b.put([8.38, y, 8.0], [8.43, y + 0.08, 11.6], "steel_d", hx, name="groove")
+    b.put([7.56, 24.6, 9.0], [7.6, 25.5, 11.8], "steel_l", hx, name="cavity")
 
 
 def crowbar(b):
-    b.oct("y", 8, 8, 0.62, 0.8, 21.7, "red", name="shaft")
-    # 위: 거위목 갈고리 — 반지름 1.6 반원을 5마디로 (각 마디는 호의 접선 방향)
+    # 검게 산화된 쇠 몸통 + 가운데 빨간 도장 띠(포인트) + 양 끝 갈아낸 쇠
+    b.oct("y", 8, 8, 0.62, 0.8, 21.7, "steel_k", name="shaft")
+    b.oct("y", 8, 8, 0.64, 9.0, 13.0, "red", name="paint_band")
     R = 1.6; cy, cz = 21.6, 8 + R
     for k in range(5):
         ph = math.radians((k + 0.5) * 36)
         py, pz = cy + R * math.sin(ph), cz - R * math.cos(ph)
-        L = 2 * R * math.sin(math.radians(18)) + 0.35
-        b.chamfer_box([7.4, py - L / 2, pz - 0.6], [8.6, py + L / 2, pz + 0.6], 0.2, "red", Xf.rot("x", math.degrees(ph), (8, py, pz)), name="hook")
-    b.chamfer_box([7.4, 20.0, cz + R - 0.6], [8.6, 21.7, cz + R + 0.6], 0.2, "red", name="hook_down")
+        L = 2 * R * math.sin(math.radians(18)) + 0.5
+        b.put([7.38, py - L / 2, pz - 0.62], [8.62, py + L / 2, pz + 0.62], "steel_k", Xf.rot("x", math.degrees(ph), (8, py, pz)), name="hook")
+    b.put([7.38, 20.0, cz + R - 0.62], [8.62, 21.75, cz + R + 0.62], "steel_k", name="hook_down")
     tx = Xf.rot("x", 12, (8, 20.0, cz + R))
-    for sx in (7.42, 8.1):   # 쪼개진 노루발 (끝으로 얇아짐, 칠 벗겨진 쇠)
-        b.chamfer_box([sx, 18.4, cz + R - 0.45], [sx + 0.48, 20.2, cz + R + 0.45], 0.1, "steel_d", tx, name="claw")
-    # 아래: 납작 끌 (꺾임) + 얇아지는 쇠 끝
+    for sx in (7.4, 8.12):   # 쪼개진 노루발: 끝으로 얇아지는 쐐기
+        b.put([sx, 18.6, cz + R - 0.5], [sx + 0.48, 20.2, cz + R + 0.5], "steel", tx, name="claw")
+        b.put([sx + 0.06, 17.8, cz + R - 0.3], [sx + 0.42, 18.7, cz + R + 0.3], "steel", tx, name="claw_tip")
     cx_ = Xf.rot("x", -22.5, (8, 0.8, 8))
-    b.chamfer_box([7.45, 0, 7.45], [8.55, 1.2, 10.2], 0.2, "red", cx_, name="chisel")
-    b.chamfer_box([7.5, 0.1, 10.0], [8.5, 1.0, 11.0], 0.12, "steel_d", cx_, name="chisel_tip")
-    b.chamfer_box([7.6, 0.25, 10.9], [8.4, 0.75, 11.5], 0.08, "steel_d", cx_, name="chisel_edge")
+    b.chamfer_box([7.45, 0, 7.45], [8.55, 1.2, 10.2], 0.2, "steel_k", cx_, name="chisel")
+    b.put([7.5, 0.15, 10.0], [8.5, 1.05, 11.2], "steel", cx_, name="chisel_tip")
+    b.put([7.55, 0.3, 11.1], [8.45, 0.9, 11.9], "steel", cx_, name="chisel_edge")
 
 
 def hammer(b, top=15.0, short=False):
@@ -230,12 +243,13 @@ def hammer(b, top=15.0, short=False):
     b.chamfer_box([7.0, top - 0.6, 6.0], [9.0, top + 2.2, 11.0], 0.3, "steel_d", name="head")
     b.oct("z", 8, top + 0.8, 1.1, 10.8, 11.2, "steel_k", name="neck")
     b.oct("z", 8, top + 0.8, 1.0, 11.1, 12.6, "steel", name="face")
-    # 노루발: 머리에서 이어져 두 마디로 아래로 휨, 두 갈래
+    # 노루발: 머리에서 이어져 두 마디로 아래로 휨, 두 갈래가 V 로 벌어지며 끝으로 얇아지는 쐐기
     c1 = Xf.rot("x", -15, (8, top + 1.8, 6.2))
     c2 = c1 * Xf.rot("x", -20, (8, top + 1.6, 4.4))
-    for sx in (7.3, 8.2):
-        b.chamfer_box([sx, top + 0.2, 4.3], [sx + 0.5, top + 1.9, 6.4], 0.15, "steel_d", c1, name="claw")
-        b.chamfer_box([sx + 0.05, top + 0.5, 2.6], [sx + 0.45, top + 1.7, 4.5], 0.12, "steel_d", c2, name="claw_tip")
+    for sx, sg in ((7.2, 1), (8.3, -1)):
+        sp = Xf.rot("y", sg * 6, (sx + 0.25, 0, 6.2))
+        b.chamfer_box([sx, top + 0.2, 4.3], [sx + 0.5, top + 1.9, 6.4], 0.15, "steel_d", c1 * sp, name="claw")
+        b.chamfer_box([sx + 0.08, top + 0.6, 2.6], [sx + 0.42, top + 1.6, 4.5], 0.1, "steel_d", c2 * sp, name="claw_tip")
 
 
 def sledgehammer(b):
@@ -250,16 +264,24 @@ def sledgehammer(b):
 
 
 # ───────── 생활용품 ─────────
+def ring_z(b, cx, cy, r_out, th, z0, z1, mat, name):
+    """z축 팔각 고리 (판 8장)"""
+    w = r_out * math.tan(math.radians(22.5)) * 1.04
+    for k in range(8):
+        b.put([cx - w, cy + r_out - th, z0], [cx + w, cy + r_out, z1], mat, Xf.rot("z", k * 45 + 22.5, (cx, cy, 0)), name=name)
+
+
 def pot(b):
     rod(b, 0, 9.6, 0.62, "black", name="handle")
     b.oct("x", 0.9, 8, 0.45, 7.3, 8.7, "steel", name="hang_ring")
     b.chamfer_box([7.3, 9.3, 7.3], [8.7, 11.0, 8.7], 0.15, "pot", name="bracket")
     for z in (7.5, 8.5):
         b.oct("x", 10.6, z, 0.16, 7.25, 8.75, "steel_l", name="rivet")
-    b.oct("z", 8, 15.4, 5.0, 4.4, 11.0, "pot", name="body")
-    b.oct("z", 8, 15.4, 5.4, 10.6, 11.3, "steel", name="rim")
-    b.oct("z", 8, 15.4, 4.5, 11.3, 11.36, "pan_in", name="inside")
-    b.oct("z", 8, 15.4, 4.6, 4.0, 4.45, "steel_k", name="bottom")
+    # 속 빈 몸통: 팔각 벽(판 8장) + 안쪽 바닥(깊이 있음) + 바깥 바닥
+    ring_z(b, 8, 15.4, 5.0, 0.45, 4.4, 11.0, "pot", "wall")
+    ring_z(b, 8, 15.4, 5.4, 0.55, 10.6, 11.3, "steel", "rim")
+    b.oct("z", 8, 15.4, 4.7, 4.45, 4.9, "pan_in", name="inside_bottom")
+    b.oct("z", 8, 15.4, 4.6, 4.0, 4.5, "steel_k", name="bottom")
     b.chamfer_box([2.0, 14.6, 7.0], [3.0, 16.2, 9.0], 0.2, "black", name="side_handle")
 
 
@@ -270,9 +292,8 @@ def frying_pan(b):
     for y in (11.0, 11.8):
         b.oct("x", y, 8.0, 0.16, 7.36, 8.64, "steel_l", name="rivet")
     b.oct("z", 8, 18.5, 6.2, 7.6, 8.6, "anod", name="base")
-    b.oct("z", 8, 18.5, 5.4, 8.6, 8.66, "pan_in", name="surface")
-    for k in range(8):   # 테두리 (안쪽 면 위로 솟은 고리)
-        b.put([8 - 2.6, 18.5 + 5.4, 8.55], [8 + 2.6, 18.5 + 6.2, 9.3], "anod", Xf.rot("z", k * 45 + 22.5, (8, 18.5, 0)), name="rim")
+    b.oct("z", 8, 18.5, 5.5, 8.55, 8.62, "pan_in", name="surface")
+    ring_z(b, 8, 18.5, 6.2, 0.75, 8.55, 9.3, "steel_d", "rim")
 
 
 def briefcase(b):
@@ -280,16 +301,16 @@ def briefcase(b):
     for x in (6.0, 9.2):
         b.chamfer_box([x, 0.4, 7.45], [x + 0.8, 2.7, 8.55], 0.25, "leather_d", name="handle_post")
         b.chamfer_box([x - 0.1, 2.3, 7.3], [x + 0.9, 2.8, 8.7], 0.1, "brass", name="handle_mount")
-    b.chamfer_box([1.5, 2.6, 6.4], [14.5, 14.6, 9.6], 0.5, "leather", name="body")
-    b.put([1.45, 2.55, 7.9], [14.55, 14.65, 8.1], "leather_d", name="seam")
+    b.chamfer_box([1.5, 2.6, 6.4], [14.5, 12.6, 9.6], 0.5, "leather", name="body")
+    b.put([1.45, 2.55, 7.9], [14.55, 12.65, 8.1], "leather_d", name="seam")
     for z in (6.38, 9.58):   # 테두리 파이핑
         b.put([1.6, 2.7, z - 0.04], [14.4, 2.85, z + 0.04], "leather_d", name="piping")
-        b.put([1.6, 14.35, z - 0.04], [14.4, 14.5, z + 0.04], "leather_d", name="piping")
+        b.put([1.6, 12.35, z - 0.04], [14.4, 12.5, z + 0.04], "leather_d", name="piping")
     for x in (4.0, 11.0):
-        b.chamfer_box([x, 14.5, 7.4], [x + 1.0, 14.8, 8.6], 0.08, "brass", name="hinge")
-    for x in (1.3, 13.9):
-        for y in (2.3, 13.8):
-            b.chamfer_box([x, y, 6.2], [x + 0.8, y + 1.1, 9.8], 0.15, "brass", name="corner")
+        b.chamfer_box([x, 12.5, 7.4], [x + 1.0, 12.8, 8.6], 0.08, "brass", name="hinge")
+    for x in (1.35, 14.05):
+        for y in (2.4, 11.9):
+            b.chamfer_box([x, y, 6.25], [x + 0.6, y + 0.8, 9.75], 0.12, "brass", name="corner")
     for x in (4.0, 10.6):
         b.chamfer_box([x, 3.0, 6.2], [x + 1.4, 4.2, 6.45], 0.08, "brass", name="latch")
         b.chamfer_box([x + 0.3, 4.1, 6.25], [x + 1.1, 4.6, 6.45], 0.06, "brass", name="latch_lever")
@@ -307,13 +328,14 @@ def pool_cue(b, short=False):
     rod(b, 13.1, 13.7, 0.68, "ivory", name="joint")
     if short:
         rod(b, 13.6, 15.2, 0.56, "maple", name="shaft")
-        # 부러진 끝: 굵기·높이·기울기가 다른 파편들
-        for (x0, z0, w, d, h, ax, ang) in ((7.5, 7.6, 0.45, 0.4, 2.4, "z", 10), (8.0, 7.55, 0.4, 0.5, 1.6, "x", -14),
-                                           (7.6, 8.1, 0.5, 0.35, 1.9, "x", 18), (8.1, 8.1, 0.35, 0.35, 1.1, "z", -22),
-                                           (7.85, 7.85, 0.3, 0.3, 2.9, "z", -6)):
+        # 부러진 끝: 얇은 파편 여러 개 (굵기·높이·기울기 제각각, 끝은 생나무색)
+        for (x0, z0, w, d, h, ax, ang) in ((7.45, 7.5, 0.28, 0.22, 2.6, "z", 8), (7.95, 7.45, 0.22, 0.3, 1.5, "x", -12),
+                                           (7.6, 8.2, 0.3, 0.2, 1.9, "x", 16), (8.2, 8.0, 0.2, 0.25, 1.1, "z", -18),
+                                           (7.8, 7.8, 0.18, 0.2, 3.0, "z", -5), (8.1, 7.6, 0.16, 0.18, 2.2, "x", -6),
+                                           (7.5, 8.0, 0.2, 0.2, 0.9, "z", 24)):
             xf = Xf.rot(ax, ang, (x0 + w / 2, 15.1, z0 + d / 2))
             b.put([x0, 15.0, z0], [x0 + w, 15.0 + h, z0 + d], "maple", xf, name="splinter")
-            b.put([x0 + 0.02, 15.0 + h - 0.15, z0 + 0.02], [x0 + w - 0.02, 15.0 + h, z0 + d - 0.02], "wood_raw", xf, name="splinter_end")
+            b.put([x0 + 0.02, 15.0 + h - 0.12, z0 + 0.02], [x0 + w - 0.02, 15.0 + h, z0 + d - 0.02], "wood_raw", xf, name="splinter_end")
         b.put([7.5, 15.1, 7.5], [8.5, 15.2, 8.5], "wood_raw", name="break")
     else:
         taper(b, 13.6, 30.5, 0.58, 0.42, "maple", name="shaft")
@@ -333,12 +355,14 @@ def fire_axe(b):
     # 눈 (자루 끼우는 통) + 쐐기
     b.chamfer_box([7.1, 20.8, 6.9], [8.9, 25.2, 9.1], 0.25, "red", name="eye")
     b.chamfer_box([7.84, 25.0, 7.35], [8.16, 25.35, 8.65], 0.06, "steel", name="wedge")
-    # 날 (−z): 한 장으로 이어진 판 — 가운데 판 + 위/아래로 벌어지는 판(가운데와 겹쳐 틈 없음)
+    # 날 (−z): 가운데 판 + 위/아래로 벌어지는 판(빨강 볼만), 연마면·칼날선은 위아래 한 장으로 이어진 띠
     secs = ((Xf(), 21.7, 24.3), (Xf.rot("x", 14, (8, 24.3, 7.0)), 22.9, 24.7), (Xf.rot("x", -14, (8, 21.7, 7.0)), 21.3, 23.1))
     for xf, y0, y1 in secs:
-        b.put([7.72, y0, 4.4], [8.28, y1, 7.2], "red", xf, name="cheek")
-        b.put([7.8, y0, 3.1], [8.2, y1, 4.5], "ground", xf, name="bevel")
-        b.put([7.88, y0, 2.7], [8.12, y1, 3.15], "edge", xf, name="edge")
+        b.put([7.72, y0, 4.3], [8.28, y1, 7.2], "red", xf, name="cheek")
+    b.put([7.78, 21.0, 3.05], [8.22, 25.0, 4.45], "ground", name="bevel")
+    b.put([7.86, 20.95, 2.7], [8.14, 25.05, 3.1], "hone", name="edge")
+    for sg, yy in ((1, 25.0), (-1, 21.0)):   # 날 위아래 끝 모서리 (45° 깎기)
+        b.put([7.78, yy - 0.2, 2.75], [8.22, yy + 0.2, 4.4], "ground", Xf.rot("x", sg * 20, (8, yy, 4.4)), name="bevel_tip")
     # 곡괭이 뿔 (+z, 11.25° 아래로): 위·아래 판이 끝점으로 모이는 쐐기
     pk = Xf.rot("x", 11.25, (8, 23.0, 9.0))
     b.chamfer_box([7.55, 22.3, 8.8], [8.45, 23.7, 11.0], 0.2, "red", pk, name="pick")
@@ -347,7 +371,7 @@ def fire_axe(b):
         f = pk * Xf.rot("x", sgn * 10, (8, 23.0, tip))
         y0, y1 = (23.0, 23.6) if sgn > 0 else (22.4, 23.0)
         b.put([7.6, y0, 10.9], [8.4, y1, tip], "ground", f, name="pick_face")
-    for (z0, z1, h) in ((10.9, 12.0, 0.5), (11.9, 13.0, 0.33), (12.9, 13.7, 0.16)):   # 두 판 사이 속채움 (끝으로 갈수록 얇게)
+    for (z0, z1, h) in ((10.9, 12.0, 0.58), (11.9, 13.0, 0.4), (12.9, 13.8, 0.22)):   # 두 판 사이 속채움 (끝으로 갈수록 얇게)
         b.put([7.62, 23.0 - h, z0], [8.38, 23.0 + h, z1], "ground", pk, name="pick_core")
 
 
@@ -359,15 +383,81 @@ WEAPONS = {
 }
 
 
+GRAIN = {"wood": "wood_g", "wood_l": "wood_lg", "maple": "maple_g", "wood_d": "wood_dg", "wood_raw": "wood_rg"}
+
+
+def painter(p, f, i, j, tw, th):
+    """3회차~: 나무 면에 길이 방향 결(1텍셀 줄, 끊긴 마디), 파이프에 녹 얼룩(2x2), 삼단봉 손잡이 널링(2x2 체크)"""
+    from bbkit import _hash
+    fi = "nsewud".index(f[0]) if f[0] in "nsewud" else 0
+    pid = int(sum(p.frm) * 7 + sum(p.to) * 13)
+    mat = p.mat.split("@")[0]
+    tl = "@t" if p.mat.endswith("@t") else ""
+    if mat in GRAIN and max(tw, th) >= 8:
+        vert = th >= tw
+        L, W_ = (th, tw) if vert else (tw, th)
+        a, c = (j, i) if vert else (i, j)       # a: 길이 방향, c: 폭 방향
+        for k in range(max(1, W_ // 3)):
+            col = _hash(pid, fi, k, 11) % W_
+            st0 = _hash(pid, fi, k, 12) % max(1, L // 2)
+            ln = 4 + _hash(pid, fi, k, 13) % max(1, L - 4)
+            if c == col and st0 <= a < st0 + ln:
+                return GRAIN[mat] + tl
+    if mat == "pipe_s":
+        h = _hash(pid, fi, i // 2, j // 3, 21)
+        if h % 23 == 0:
+            return "rust_s" + tl
+    if mat == "foam":
+        if ((i // 2) + (j // 2)) % 2 == 0:
+            return "rubber_t" + tl
+    return None
+
+
+def _fake_model(parts, uvs):
+    return {"elements": [{"from": pt.frm, "to": pt.to, "faces": {f: {"uv": uvs[k][f]} for f in ("north", "south", "east", "west", "up", "down")}}
+                         for k, pt in enumerate(parts)]}
+
+
+def pick_topline(parts):
+    """윗모서리 밝은 줄 비율이 TACZ 범위(0.04~0.30) 가운데쯤(0.14) 오도록, 줄을 칠할 부품 묶음(이름별)을 고름.
+    고른 부품은 재질 이름에 '@t' 를 붙여(색은 같음) 그 재질만 윗줄을 칠한다."""
+    sys.path.insert(0, os.path.join(HERE, ".."))
+    import tacz_texstats as T
+    def run(sel):
+        for pt in parts:
+            base = pt.mat.split("@")[0]
+            pt.mat = base + "@t" if pt.name in sel else base
+        img, uvs = atlas(parts, PAL, density=2, painter=painter, style="tacz2", step=14, topline=TL)
+        r = T.stats(T.rects_java(_fake_model(parts, uvs), *img.size), img)
+        return r["topline_ratio"] or 0, img, uvs
+    for m in list(PAL):
+        PAL[m + "@t"] = PAL[m]
+    TL = tuple(m + "@t" for m in PAL if "@" not in m)
+    names = sorted(set(pt.name for pt in parts))
+    contrib = {n: run({n})[0] for n in names}
+    sel = set(); cur = 0.0
+    for n in sorted(names, key=lambda n: -contrib[n]):
+        if contrib[n] > 0 and cur + contrib[n] <= 0.2:
+            sel.add(n); cur += contrib[n]
+    if not sel:
+        pos = [n for n in names if 0 < contrib[n] <= 0.3]
+        if pos:
+            sel = {min(pos, key=lambda n: contrib[n])}
+    tl, img, uvs = run(sel)
+    return None, tuple(sorted(sel)), img, uvs, tl
+
+
 def build(name, render_dir=None, stem=None):
     bbkit.DOT_MODE = "cell"
-    bbkit.GRAD = False   # 2회차~: 실제로 끔 (1회차는 공용 도구 되돌림으로 켜져 있었음 → 면 반쪽 두 톤)
+    bbkit.GRAD = "jag"   # 3회차~: 긴 면 2단 그라데이션을 다시 켜되 경계를 줄마다 ±1텍셀 흔듦 (곧은 두 톤 경계 없이 길이 방향 명암)
     bbkit.OCT_STAGGER = True   # 2회차~: 팔각 판 끝면 겹침 깜빡임 제거
+    bbkit.ROT_NORMALIZE = True   # 3회차~: 45° 넘는 한 축 회전은 90° 배수를 상자 크기 교환으로 (프라이팬 테두리 튀어나옴)
+    bbkit.DOT_MIX = True   # 3회차~: 점 모양 가로2·가로3·세로2 섞기 (같은 크기 사각 반복 지적)
     bbkit.DOT_P = 0.35   # 작은 막대 면이 많아 점이 촘촘하면 얼룩이 TACZ보다 세짐
     b = Builder()
     WEAPONS[name](b)
     out = os.path.join(HERE, "out", name); os.makedirs(out, exist_ok=True)
-    img, uvs = atlas(b.parts, PAL, density=2, style="tacz2", step=14, topline=TOPLINE)
+    _, tl_mats, img, uvs, tl = pick_topline(b.parts)
     png = os.path.join(out, name + ".png"); img.save(png)
     bb = os.path.join(out, name + ".bbmodel")
     build_bbmodel(bb, name, b.parts, png, uvs, name)
@@ -375,7 +465,7 @@ def build(name, render_dir=None, stem=None):
     export_java(bb, os.path.join(out, name + ".json"))
     if render_dir:
         render_views(bb, render_dir, stem or name, views=("right", "front", "three-quarter", "top"))
-    print(f"{name}: parts={len(b.parts)} tex={img.size}")
+    print(f"{name}: parts={len(b.parts)} tex={img.size} topline={tl_mats}->{tl}")
 
 
 if __name__ == "__main__":
