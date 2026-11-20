@@ -13,35 +13,42 @@
      "property": "minecraft:cooldown",
      "entries": [
       {
-       "threshold": 0.137,
+       "threshold": 0.118,
+       "model": {
+        "type": "minecraft:model",
+        "model": "violence:item/weapon/shotgun_fp_r6"
+       }
+      },
+      {
+       "threshold": 0.235,
        "model": {
         "type": "minecraft:model",
         "model": "violence:item/weapon/shotgun_fp_r5"
        }
       },
       {
-       "threshold": 0.274,
+       "threshold": 0.353,
        "model": {
         "type": "minecraft:model",
         "model": "violence:item/weapon/shotgun_fp_r4"
        }
       },
       {
-       "threshold": 0.411,
+       "threshold": 0.47,
        "model": {
         "type": "minecraft:model",
         "model": "violence:item/weapon/shotgun_fp_r3"
        }
       },
       {
-       "threshold": 0.549,
+       "threshold": 0.588,
        "model": {
         "type": "minecraft:model",
         "model": "violence:item/weapon/shotgun_fp_r2"
        }
       },
       {
-       "threshold": 0.686,
+       "threshold": 0.705,
        "model": {
         "type": "minecraft:model",
         "model": "violence:item/weapon/shotgun_fp_r1"

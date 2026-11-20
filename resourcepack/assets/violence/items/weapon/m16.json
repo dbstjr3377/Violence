@@ -13,35 +13,42 @@
      "property": "minecraft:cooldown",
      "entries": [
       {
-       "threshold": 0.11,
+       "threshold": 0.094,
+       "model": {
+        "type": "minecraft:model",
+        "model": "violence:item/weapon/m16_fp_r6"
+       }
+      },
+      {
+       "threshold": 0.188,
        "model": {
         "type": "minecraft:model",
         "model": "violence:item/weapon/m16_fp_r5"
        }
       },
       {
-       "threshold": 0.219,
+       "threshold": 0.282,
        "model": {
         "type": "minecraft:model",
         "model": "violence:item/weapon/m16_fp_r4"
        }
       },
       {
-       "threshold": 0.329,
+       "threshold": 0.375,
        "model": {
         "type": "minecraft:model",
         "model": "violence:item/weapon/m16_fp_r3"
        }
       },
       {
-       "threshold": 0.438,
+       "threshold": 0.469,
        "model": {
         "type": "minecraft:model",
         "model": "violence:item/weapon/m16_fp_r2"
        }
       },
       {
-       "threshold": 0.547,
+       "threshold": 0.563,
        "model": {
         "type": "minecraft:model",
         "model": "violence:item/weapon/m16_fp_r1"

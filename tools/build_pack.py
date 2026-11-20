@@ -344,7 +344,13 @@ def weapons():
         align = gid not in custom
         rest_disp = aim_at_crosshair(fp_display(base_cfg, right, align=align), models_guns.MUZZLE[gid], right)
         base = rest_disp["firstperson_righthand"]
-        recoil = [anim.apply(base, dr, dt) for _, dr, dt in anim.RECOIL]
+        tclip = anim.GUN_CLIP.get(gid) if anim.TACZ else None
+        if tclip:   # TACZ 발사 애니메이션 (tools/loop/anim/tacz_import.py)
+            recoil = anim.tacz_disps(base, tclip, right)
+            rel = anim.tacz_thresholds(tclip, gun=True)
+        else:
+            recoil = [anim.apply(base, dr, dt) for _, dr, dt in anim.RECOIL]
+            rel = [k[0] for k in anim.RECOIL]
         # 플레이어 스킨 팔: 오른손은 손잡이, 양손 총은 왼손이 총열 아래 (권총은 한 손)
         hands = {"r": right} if gid in ("magnum", "silenced_pistol") else {"r": right, "l": left}
         arms = arm_specs([base] + recoil, hands)
@@ -352,9 +358,9 @@ def weapons():
         # 화염 프레임은 쏜 뒤 정확히 1틱만 (쿨다운 T틱 중 첫 틱), 반동 프레임은 그 아래로 비율을 맞춤
         T = fire_anim_ticks(gid)
         fire_th = round((T - 1) / T - 0.01, 3)
-        ths = [round(fire_th * k[0], 3) for k in anim.RECOIL]   # 첫 값 = 1 (화염), 나머지는 화염 임계값 대비 비율
+        ths = [round(fire_th * k, 3) for k in rel]   # 첫 값 = 1 (화염), 나머지는 화염 임계값 대비 비율
         frames = []
-        for i, (_, dr, dt) in enumerate(anim.RECOIL):
+        for i in range(len(recoil)):
             th = ths[i]
             d = recoil[i]
             if i == 0:
@@ -387,6 +393,22 @@ def weapons():
             keys_b = anim.SWING_L2R if animated and wid not in STAB_WEAPONS else []
             disps_a = [anim.apply(rest_fr, dr, dt) for _, dr, dt in keys]
             disps_b = [anim.apply(rest_fr, dr, dt) for _, dr, dt in keys_b]
+            if animated and wid not in STAB_WEAPONS and anim.TACZ:
+                # LRTactical 근접 공격 (단검류 = dagger, 나머지 = baseball_bat). 이동은 우리 화면 크기에 맞춰 절반
+                fam = anim.MELEE_FAMILY.get(wid, "BAT")
+                if fam == "BAT":
+                    # 둔기류: 원본 무기 자세(눈 기준)를 그대로. 쉬는 자세도 원본 첫 프레임
+                    ab_a = anim.tacz_abs(rest_fr, fam + "_A", grip)
+                    ab_b = anim.tacz_abs(rest_fr, fam + "_B", grip)
+                    rest_fr = ab_a[0]
+                    rest_disp = {**rest_disp, "firstperson_righthand": rest_fr}
+                    disps_a, disps_b = ab_a[1:], ab_b[1:]
+                else:
+                    # 단검류: 원본 무기의 움직임(변화량)을 우리 쉬는 자세에 합성, 이동은 화면 크기에 맞춰 절반
+                    disps_a = anim.tacz_disps(rest_fr, fam + "_A", grip, k=0.5)
+                    disps_b = anim.tacz_disps(rest_fr, fam + "_B", grip, k=0.5)
+                keys = [(th, None, None) for th in anim.tacz_thresholds(fam + "_A")]
+                keys_b = [(th, None, None) for th in anim.tacz_thresholds(fam + "_B")]
             # 오른손(플레이어 스킨 팔)이 손잡이를 쥠. 프레임마다 팔꿈치를 다시 풀어 휘두를 때 팔이 굽혀졌다 펴짐
             arms = arm_specs([rest_fr] + disps_a + disps_b, {"r": grip})
             fp_mj = save_model_arms("weapon", wid + "_fp", make(), rest_disp, arms)

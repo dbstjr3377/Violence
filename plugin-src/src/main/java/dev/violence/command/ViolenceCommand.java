@@ -296,7 +296,8 @@ public final class ViolenceCommand implements TabExecutor {
                     l.setYaw(p.getLocation().getYaw() + 180);
                     l.setPitch(0);
                     best.teleport(l);
-                    best.actionLockUntil = plugin.now() + 60;   // 3초 동안 공격하지 않음 (촬영용)
+                    int lockTicks = args.length > 3 ? Math.max(20, Math.min(1200, intArg(args, 3, 60))) : 60;   // /vio test near <무기> <틱>: 촬영용 멈춤 시간
+                    best.actionLockUntil = plugin.now() + lockTicks;   // 기본 3초 동안 공격하지 않음 (촬영용)
                     org.bukkit.Location me = p.getLocation().clone();
                     me.setPitch(5);
                     if (args.length > 2) {
@@ -306,7 +307,7 @@ public final class ViolenceCommand implements TabExecutor {
                             pc.weapon = wt.isFist() ? null : new WeaponInstance(wt);
                             pc.refreshEquipment();
                         }
-                        best.moveLockUntil = plugin.now() + 60;
+                        best.moveLockUntil = plugin.now() + lockTicks;
                         dev.violence.math.Vec3 d = best.feet().add(0, 1.2 * best.scale(), 0).sub(pc.eye()).normalize();
                         me.setYaw((float) d.yaw());
                         me.setPitch((float) d.pitch());
