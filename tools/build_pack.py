@@ -387,11 +387,17 @@ def weapons():
         mz, gz = models_guns.MUZZLE[gid][2], right[2]
         FP_MUZZLES[gid] = {"fp": [round(v, 4) for v in fp_sim.muzzle_screen(base, models_guns.MUZZLE[gid])[0]],
                            "tp": round((mz - gz) / 16 * M.GUN_DISPLAY["thirdperson_righthand"]["scale"][0], 3)}   # 3인칭: 손에서 총구까지 (블록)
-        # 2/3인칭(F5) 자기 모습: 애니메이션 없이 석궁 조준 자세로 정면을 겨눈 정지 자세
+        # 2/3인칭(F5) 자기 모습: 석궁 조준 자세로 정면을 겨눈 정지 자세 + 쏜 틱에만 총구 화염 (움직임 없음)
+        # 쏘는 순간엔 바닐라가 '휘두르는 중'으로 팔을 내리므로 화염 프레임은 내린 팔 기준으로 정면을 겨눔
+        tfire = make()
+        models_flash.add_flash(tfire, models_guns.MUZZLE[gid], {"silenced_pistol": 1.5, "silenced_uzi": 1.5, "magnum": 4.2, "shotgun": 4.4,
+                                                                 "double_barrel": 4.4, "uzi": 2.8, "mp5": 3.0}.get(gid, 3.4))
+        fire_disp = self_tp_display(_rx(0.0), right, M.GUN_DISPLAY["thirdperson_righthand"]["scale"][0], arm=ITEM_ARM)
+        save_model("weapon", gid + "_tp_fire", tfire, {**M.GUN_DISPLAY, "thirdperson_righthand": fire_disp, "thirdperson_lefthand": fire_disp})
         write(os.path.join(NS, "models", "item", "weapon", f"{gid}_tp_self.json"),
               {"parent": "violence:item/weapon/" + gid, "display": {"thirdperson_righthand": tp_kick(right, 0.0), "thirdperson_lefthand": tp_kick(right, 0.0)}})
         write(os.path.join(NS, "items", "weapon", gid + ".json"),
-              select_by_context(dispatch(frames, gid + "_fp"), ref(f"violence:item/weapon/{gid}_tp_self")))
+              select_by_context(dispatch(frames, gid + "_fp"), dispatch([(ths[0], gid + "_tp_fire")], gid + "_tp_self")))
         # 다른 플레이어/NPC 용 3인칭 표시: 양손 총은 석궁 자세, 권총은 한 팔 조준 자세
         tp = TP_ONE_ARM if gid in ONE_HANDED else TP_CROSSBOW
         write(os.path.join(NS, "models", "item", "weapon", gid + "_tp.json"),

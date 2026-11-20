@@ -70,8 +70,21 @@
    }
   ],
   "fallback": {
-   "type": "minecraft:model",
-   "model": "violence:item/weapon/double_barrel_tp_self"
+   "type": "minecraft:range_dispatch",
+   "property": "minecraft:cooldown",
+   "entries": [
+    {
+     "threshold": 0.823,
+     "model": {
+      "type": "minecraft:model",
+      "model": "violence:item/weapon/double_barrel_tp_fire"
+     }
+    }
+   ],
+   "fallback": {
+    "type": "minecraft:model",
+    "model": "violence:item/weapon/double_barrel_tp_self"
+   }
   }
  }
 }
