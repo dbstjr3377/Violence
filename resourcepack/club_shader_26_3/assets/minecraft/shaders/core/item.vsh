@@ -57,6 +57,7 @@ void main() {
     #endif
 
     texCoord0 = UV0;
+    if (violencePersp > 0.5 && violence_self_flash_hidden(UV2, Position)) gl_Position = vec4(0.0, 0.0, 2.0, 1.0);  // VIOLENCE: 1인칭 자기 총구 화염 숨김
     #ifdef GLINT
     #ifdef GLINT_SPECIAL
     texCoordGlint = (TextureMat * vec4(UV3, 0.0, 1.0)).xy;

@@ -70,21 +70,8 @@
    }
   ],
   "fallback": {
-   "type": "minecraft:range_dispatch",
-   "property": "minecraft:cooldown",
-   "entries": [
-    {
-     "threshold": 0.49,
-     "model": {
-      "type": "minecraft:model",
-      "model": "violence:item/weapon/uzi_tp_fire"
-     }
-    }
-   ],
-   "fallback": {
-    "type": "minecraft:model",
-    "model": "violence:item/weapon/uzi_tp_self"
-   }
+   "type": "minecraft:model",
+   "model": "violence:item/weapon/uzi_tp_self"
   }
  }
 }

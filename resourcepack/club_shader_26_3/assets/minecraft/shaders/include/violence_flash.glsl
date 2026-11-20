@@ -49,4 +49,11 @@ vec3 violence_flash(vec3 c, float a) {
 float violence_env_start(float flag) { return flag > 0.5 ? 1.0e6 : FogEnvironmentalStart; }
 float violence_env_end(float flag) { return flag > 0.5 ? 1.0e6 + 1.0 : FogEnvironmentalEnd; }
 
+// 쏜 사람에게도 보내는 3인칭 총구 화염 (dev.violence.fx.Fx.muzzle, 밝기 블록 15·하늘 12).
+// 1인칭이면 화염이 카메라(=눈)에서 총 길이(1~2블록) 앞이라 2.05블록 안 → 지움 (1인칭 총 모델의 화염 프레임이 대신 보임).
+// F5(2·3인칭)에선 카메라가 4블록 떨어져 있어 그대로 보인다. pos = 카메라 기준 정점 좌표
+bool violence_self_flash_hidden(ivec2 uv2, vec3 pos) {
+    return uv2.x >= 240 && uv2.y == 192 && length(pos) < 2.05;
+}
+
 #endif

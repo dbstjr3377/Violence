@@ -124,13 +124,18 @@ public final class Fx {
      * 쏜 사람의 화염은 1인칭 총 모델의 화염 프레임(쏜 뒤 정확히 1틱, tools/build_pack.py)이 총구에 붙어 나온다.
      * @param big 산탄총 등 큰 화염
      */
+    /** 쏜 사람 자기 화염 표시 (쉐이더 violence_self_flash_hidden) */
+    private static final org.bukkit.entity.Display.Brightness SELF_FLASH = new org.bukkit.entity.Display.Brightness(15, 12);
+
     public void muzzle(Arena a, Vec3 at, Vec3 dir, boolean silenced, boolean big, org.bukkit.entity.Player shooter) {
         ItemDisplay d = spawnDisplay(a, at, silenced ? "violence:fx/muzzle_small" : "violence:fx/muzzle", true);
         d.setBillboard(Display.Billboard.CENTER);
         d.setViewRange(4.0f);
         float s = silenced ? 0.22f : (big ? 0.62f : 0.42f) + rnd.nextFloat() * 0.12f;
         d.setTransformation(new Transformation(new Vector3f(), new Quaternionf().rotateZ(rnd.nextFloat() * 6.28f), new Vector3f(s, s, s), new Quaternionf()));
-        if (shooter != null) shooter.hideEntity(plugin, d);
+        // 쏜 사람에게도 보냄 (F5 2·3인칭에서 총구 화염이 보이게). 1인칭에선 총 모델의 화염 프레임이 따로 있으므로
+        // 이 표시를 밝기 (블록 15, 하늘 12) 로 표시해 두면 쉐이더가 카메라 2블록 안(= 1인칭 자기 화염)일 때만 지운다 (violence_flash.glsl)
+        if (shooter != null) d.setBrightness(SELF_FLASH);
         removeLater(a, d, 1);
     }
 
