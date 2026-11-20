@@ -120,13 +120,24 @@ public final class CombatService {
         int pellets = t.pelletsMin() + (t.pelletsMax() > t.pelletsMin() ? plugin.random().nextInt(t.pelletsMax() - t.pelletsMin() + 1) : 0);
         boolean silenced = t.silenced() || c.mask == Mask.PETER;
         Vec3 right = dir.cross(Vec3.UP).normalize();
-        // 궤적 시작점: 1인칭 총 모델의 총구가 보이는 방향 (화면 중앙에서 오른쪽 아래)
         Vec3 camUp = right.cross(dir).normalize();
-        Vec3 muzzle = eye.add(dir.mul(0.6)).add(right.mul(leftHand ? -0.15 : 0.15)).add(camUp.mul(-0.13));
+        // 궤적 시작점: 다른 사람에게는 3인칭 손에 든 총의 총구, 쏜 사람에게는 1인칭 총 모델의 총구 (총마다 다름)
+        Vec3 tpMuzzle = eye.add(dir.mul(0.62 + FpMuzzle.tpLength(t.id()))).add(right.mul(leftHand ? -0.3 : 0.3)).add(0, -0.32, 0);
+        org.bukkit.entity.Player shooterPlayer = c instanceof PlayerCombatant ps ? ps.player() : null;
+        Vec3 fpMuzzle = null;
+        if (shooterPlayer != null) {
+            double[] v = FpMuzzle.fp(t.id(), plugin.getConfig().getDouble("fx.view-fov", 70));
+            if (v != null) fpMuzzle = eye.add(right.mul(leftHand ? -v[0] : v[0])).add(camUp.mul(v[1])).add(dir.mul(-v[2]));
+        }
         for (int i = 0; i < pellets; i++) {
             Vec3 d = Spread.jitter(dir, spread, plugin.random());
             TraceResult r = hitscan(a, c, eye, d, t.range(), t.pierce());
-            plugin.fx().tracer(a, muzzle, r.end, t.tracer());
+            if (fpMuzzle != null) {
+                plugin.fx().tracer(a, fpMuzzle, r.end, t.tracer(), shooterPlayer, null);   // 쏜 사람에게만
+                plugin.fx().tracer(a, tpMuzzle, r.end, t.tracer(), null, shooterPlayer);   // 나머지에게
+            } else {
+                plugin.fx().tracer(a, tpMuzzle, r.end, t.tracer(), null, null);
+            }
             for (TraceResult.EntityHit h : r.hits) {
                 bulletHit(h.target(), h.part(), c, d, h.point());
             }
@@ -134,7 +145,6 @@ public final class CombatService {
             else if (r.wallNormal != null && i < 6) plugin.fx().bulletHole(a, r.end, r.wallNormal);
         }
         // 총구 화염: 다른 사람에게는 3인칭 총구 자리에 1틱 (쏜 사람은 1인칭 총 모델의 화염 프레임)
-        Vec3 tpMuzzle = eye.add(dir.mul(0.95)).add(right.mul(leftHand ? -0.3 : 0.3)).add(0, -0.32, 0);
         plugin.fx().muzzle(a, tpMuzzle, dir, silenced, pellets > 1, c instanceof PlayerCombatant shooter ? shooter.player() : null);
         if (c instanceof PlayerCombatant pcs && !leftHand) {
             // 1인칭: 총구 화염 → 반동 → 반동 잡기 키프레임 (조준점은 움직이지 않음)
@@ -309,7 +319,6 @@ public final class CombatService {
                 (t.meleeCooldown() <= 6 ? 1.4f : 1.0f) * (backhand ? 1.08f : 1.0f));
         Vec3 eye = c.eye();
         Vec3 dir = c.look();
-        if (swings) plugin.fx().slash(arena(), eye, dir, backhand, (float) c.scale());
         double range = t.meleeRange();
         // 유리 깨기 / 벽까지 거리
         double wallDist = range;

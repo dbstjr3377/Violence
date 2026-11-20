@@ -70,8 +70,63 @@
    }
   ],
   "fallback": {
-   "type": "minecraft:model",
-   "model": "violence:item/weapon/mp5"
+   "type": "minecraft:range_dispatch",
+   "property": "minecraft:cooldown",
+   "entries": [
+    {
+     "threshold": 0.07,
+     "model": {
+      "type": "minecraft:model",
+      "model": "violence:item/weapon/mp5_tp_r6"
+     }
+    },
+    {
+     "threshold": 0.14,
+     "model": {
+      "type": "minecraft:model",
+      "model": "violence:item/weapon/mp5_tp_r5"
+     }
+    },
+    {
+     "threshold": 0.21,
+     "model": {
+      "type": "minecraft:model",
+      "model": "violence:item/weapon/mp5_tp_r4"
+     }
+    },
+    {
+     "threshold": 0.28,
+     "model": {
+      "type": "minecraft:model",
+      "model": "violence:item/weapon/mp5_tp_r3"
+     }
+    },
+    {
+     "threshold": 0.35,
+     "model": {
+      "type": "minecraft:model",
+      "model": "violence:item/weapon/mp5_tp_r2"
+     }
+    },
+    {
+     "threshold": 0.42,
+     "model": {
+      "type": "minecraft:model",
+      "model": "violence:item/weapon/mp5_tp_r1"
+     }
+    },
+    {
+     "threshold": 0.49,
+     "model": {
+      "type": "minecraft:model",
+      "model": "violence:item/weapon/mp5_tp_fire"
+     }
+    }
+   ],
+   "fallback": {
+    "type": "minecraft:model",
+    "model": "violence:item/weapon/mp5"
+   }
   }
  }
 }

@@ -212,3 +212,13 @@ def arm(disp, hand_model, side, l1, l2, thick=THICK):
 def lengths(disps_hands, side):
     """위팔·아래팔 길이와 굵기 (시점 좌표, 블록): 바닐라 팔 그대로 고정"""
     return UPPER, LOWER, THICK
+
+
+def straight_arm(disp, side, a_cam, b_cam, thick=THICK):
+    """원본(TACZ/LRTactical) 1인칭 팔 그대로: 몸 쪽 끝 a → 손 끝 b 를 곧은 팔로 (위·아래 마디는 반씩)"""
+    mid = _mul(_add(a_cam, b_cam), 0.5)
+    out = []
+    for layer in ("base", "over"):
+        out.append(_segment(disp, a_cam, mid, thick, side, (0, 6), "up", layer))
+        out.append(_segment(disp, mid, b_cam, thick, side, (6, 12), "down", layer))
+    return out

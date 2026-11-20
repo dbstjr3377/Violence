@@ -126,6 +126,20 @@ def tacz_abs(base, clip, grip, axis=(0, 1, 0), k=1.0):
         rot = _euler_xyz(R, prev)
         prev = rot
         rg = _mv(R, gl)
-        t = [round(k * f["g"][i] - HAND[i] - rg[i], 3) for i in range(3)]
+        g = f.get("hand", f["g"])
+        t = [round(k * g[i] - HAND[i] - rg[i], 3) for i in range(3)]
         out.append({"rotation": rot, "translation": t, "scale": s})
+    return out
+
+
+def tacz_arms(clip):
+    """프레임마다 원본 팔 [(쪽, 몸 쪽 끝, 손 끝)] (시점 좌표, 블록). [0] = 쉬는 자세"""
+    out = []
+    for f in TACZ[clip]["abs"]:
+        arms = []
+        for side in ("r", "l"):
+            if "arm_" + side in f:
+                a, b = f["arm_" + side]
+                arms.append((side, [v / 16 for v in a], [v / 16 for v in b]))
+        out.append(arms)
     return out

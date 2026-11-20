@@ -24,8 +24,8 @@ OUT = os.path.join(HERE, "out")
 FRAMES = os.path.join(OUT, "tacz_frames.json")
 TACZ = os.environ.get("TACZ_DIR", "")
 LR = os.environ.get("LR_DIR", "")
-# 애니메이션 회전 부호 (블록벤치 내부값 기준). 반동은 총구가 들리고(x), 배트 예비 동작은 오른쪽 위로 감겨야 한다 → 렌더로 확인해 정함
-ROT_SIGN = [float(v) for v in os.environ.get("ROT_SIGN", "-1,1,-1").split(",")]
+# 애니메이션 회전 부호 (블록벤치 내부값 기준). 원본 모델+애니메이션을 bbmodel_render 로 렌더해 비교해 1,1,1 로 확인함
+ROT_SIGN = [float(v) for v in os.environ.get("ROT_SIGN", "1,1,1").split(",")]
 
 # 우리 클립 이름 → (원본, geo 종류, 원본 모델, 원본 클립, 무기 뼈, 프레임 수)
 SOURCES = {
@@ -114,11 +114,11 @@ def build(bb):
     return geos
 
 
-def world(bones, model, wbone, pose):
-    """무기 뼈 월드 행렬 (4x4, 블록벤치 내부 좌표, 단위 px)"""
+def bone_matrix(bones, model, name, pose):
+    """뼈 월드 행렬 (4x4, 블록벤치 내부 좌표, 단위 px). 그룹 = T(P+pos)·R·S·T(-P)"""
     pre = model + "__"
     chain = []
-    b = bones[wbone]
+    b = bones[name]
     while b is not None:
         chain.append(b)
         b = bones.get(b.get("parent"))
@@ -127,21 +127,43 @@ def world(bones, model, wbone, pose):
         p = b.get("pivot", [0, 0, 0]); r0 = b.get("rotation", [0, 0, 0])
         P = np.array([-p[0], p[1], p[2]], float)
         rot = np.array([-r0[0], -r0[1], r0[2]], float)
-        pos = np.zeros(3)
+        pos = np.zeros(3); sc = np.ones(3)
         if pre + b["name"] in pose:
-            ar, ap = pose[pre + b["name"]]
-            rot = rot + np.array(ar) * np.array(ROT_SIGN); pos = np.array(ap)
+            v = pose[pre + b["name"]]
+            rot = rot + np.array(v[0]) * np.array(ROT_SIGN); pos = np.array(v[1])
+            if len(v) > 2:
+                sc = np.array(v[2], float)
         L = np.eye(4)
-        R = rot_zyx(rot)
-        L[:3, :3] = R
-        L[:3, 3] = P + pos - R @ P
+        RS = rot_zyx(rot) @ np.diag(sc)
+        L[:3, :3] = RS
+        L[:3, 3] = P + pos - RS @ P
         M = M @ L
-    return M, M @ np.append(np.array([-bones[wbone].get("pivot", [0, 0, 0])[0], *bones[wbone].get("pivot", [0, 0, 0])[1:]], float), 1.0)
+    return M
+
+
+def world(bones, model, wbone, pose):
+    M = bone_matrix(bones, model, wbone, pose)
+    pv = bones[wbone].get("pivot", [0, 0, 0])
+    return M, M @ np.array([-pv[0], pv[1], pv[2], 1.0])
+
+
+def arm_ends(bones, model, name, pose):
+    """팔 큐브(…hand_pos) 의 긴 축 양 끝 (월드 px). 큐브가 없으면 None"""
+    b = bones.get(name)
+    if not b or not b.get("cubes"):
+        return None
+    c = b["cubes"][0]
+    o, sz = c["origin"], c["size"]
+    ctr = np.array([-(o[0] + sz[0] / 2), o[1] + sz[1] / 2, o[2] + sz[2] / 2, 1.0])
+    ax = int(np.argmax(sz))
+    d = np.zeros(4); d[ax] = sz[ax] / 2
+    M = bone_matrix(bones, model, name, pose)
+    return (M @ (ctr - d))[:3], (M @ (ctr + d))[:3]
 
 
 def sample(bb, clip, t):
     out = json.loads(mcp("bbmodel_sample_pose", {"file": bb, "animation": clip, "time": round(t, 4)}))
-    return {b["bone"]: (b["rotation"], b["position"]) for b in out["bones"]}
+    return {b["bone"]: (b["rotation"], b["position"], b.get("scale", [1, 1, 1])) for b in out["bones"]}
 
 
 def main():
@@ -201,13 +223,43 @@ def finish(res, geos):
                     if ch.get("parent") == b["name"]:
                         collect(ch)
             collect(wb)
-            tip = np.mean(cs, axis=0) - P
-            tip = tip / np.linalg.norm(tip)
+            # 길이 방향 = 큐브 상자에서 피벗으로부터 가장 먼 끝 (손잡이 쪽 작은 큐브가 많아도 날 쪽을 가리키게)
+            lo = np.min([c - 0 for c in cs], axis=0)
+            pts = []
+            def corners(b):
+                for c in b.get("cubes", []):
+                    o, sz = c["origin"], c["size"]
+                    for dx in (0, sz[0]):
+                        for dy in (0, sz[1]):
+                            for dz in (0, sz[2]):
+                                pts.append(np.array([-(o[0] + dx), o[1] + dy, o[2] + dz]))
+                for ch in bones.values():
+                    if ch.get("parent") == b["name"]:
+                        corners(ch)
+            corners(wb)
+            far = max(pts, key=lambda q: np.linalg.norm(q - P))
+            tip = (far - P) / np.linalg.norm(far - P)
             ab = []
             for i in sorted(poses[clip]):
                 t, pose = poses[clip][i]
                 M, g = world(bones, model, wbone, pose)
-                ab.append({"t": round(t, 4), "R": [[round(x, 5) for x in row] for row in M[:3, :3]], "g": [round(x, 3) for x in (g[:3] - E)]})
+                fr = {"t": round(t, 4), "R": [[round(x, 5) for x in row] for row in M[:3, :3]], "g": [round(x, 3) for x in (g[:3] - E)]}
+                Rn = M[:3, :3] / np.linalg.norm(M[:3, :3], axis=0)   # 크기 빼고 회전만
+                fr["R"] = [[round(x, 5) for x in row] for row in Rn]
+                for side, bn in (("r", "righthand_pos"), ("l", "lefthand_pos")):
+                    e = arm_ends(bones, model, bn, pose)
+                    if e is None:
+                        continue
+                    a, b2 = e
+                    # 1인칭 팔은 눈 쪽에서 앞으로 뻗는다: 눈에서 먼 끝 = 손
+                    if np.linalg.norm(a - E) > np.linalg.norm(b2 - E):
+                        a, b2 = b2, a
+                    u = (b2 - a) / np.linalg.norm(b2 - a)
+                    near = a                    # 원본 팔 그대로
+                    fr["arm_" + side] = [[round(x, 3) for x in (near - E)], [round(x, 3) for x in (b2 - E)]]
+                    if side == "r":
+                        fr["hand"] = [round(x, 3) for x in (b2 - u * 2 - E)]   # 주먹 가운데 (끝에서 굵기 절반 안쪽)
+                ab.append(fr)
             entry["abs"] = ab
             entry["tip"] = [round(x, 4) for x in tip]
         data[clip] = entry

@@ -50,7 +50,12 @@ public final class Fx {
     }
 
     private ItemDisplay spawnDisplay(Arena a, Vec3 at, String model, boolean bright) {
+        return spawnDisplay(a, at, model, bright, d -> { });
+    }
+
+    private ItemDisplay spawnDisplay(Arena a, Vec3 at, String model, boolean bright, java.util.function.Consumer<ItemDisplay> extra) {
         return a.track(a.world.spawn(loc(a.world, at), ItemDisplay.class, d -> {
+            extra.accept(d);
             d.setItemStack(model(model));
             d.setItemDisplayTransform(ItemDisplay.ItemDisplayTransform.NONE);
             d.setPersistent(false);
@@ -84,6 +89,11 @@ public final class Fx {
      * 쏜 사람 시선과 거의 같은 방향이라 너무 가늘면 안 보이므로 굵게, 낮은 프레임에서도 보이게 4틱 동안 남김.
      */
     public void tracer(Arena a, Vec3 from, Vec3 to, String color) {
+        tracer(a, from, to, color, null, null);
+    }
+
+    /** @param onlyFor 이 사람에게만 보임 (null = 모두) @param hideFrom 이 사람에게는 안 보임 */
+    public void tracer(Arena a, Vec3 from, Vec3 to, String color, org.bukkit.entity.Player onlyFor, org.bukkit.entity.Player hideFrom) {
         Vec3 diff = to.sub(from);
         double len = diff.length();
         if (len < 0.5) return;
@@ -91,7 +101,11 @@ public final class Fx {
         String model = "orange".equals(color) ? "violence:fx/tracer_orange" : "violence:fx/tracer";
         float width = "orange".equals(color) ? 0.07f : 0.055f;
         double streak = Math.min(len, 4.0);
-        ItemDisplay d = spawnDisplay(a, from, model, true);
+        ItemDisplay d = spawnDisplay(a, from, model, true, e -> {
+            if (onlyFor != null) e.setVisibleByDefault(false);
+        });
+        if (onlyFor != null) onlyFor.showEntity(plugin, d);
+        if (hideFrom != null) hideFrom.hideEntity(plugin, d);
         d.setViewRange(4.0f);
         d.setTransformation(segment(dir, 0.15, streak - 0.15, width));
         plugin.later(1, () -> {

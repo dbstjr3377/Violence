@@ -48,6 +48,8 @@ spawn:
   los-checks: 10
 
 fx:
+  # 탄 궤적을 1인칭 총구에 맞출 때 쓰는 시야각(클라이언트 FOV 설정). 손 모델은 70 고정으로 그려짐
+  view-fov: 70
   max-decals: 450
   max-corpses: 30
   corpse-seconds: 20
