@@ -17,6 +17,7 @@ class BlockbenchModel:
         self.name = name
         self.dir = os.path.join(ROOT, name)
         self.extra = None
+        self.attached = []   # [(원소 목록, 텍스처 이미지)] — 블록벤치로 만든 덧붙임 모델 (총구 화염 등)
 
     def box(self, *a, **k):
         """덧붙이는 상자 (총구 화염 등) — voxel.Model 로 그린다"""
@@ -24,6 +25,23 @@ class BlockbenchModel:
             from voxel import Model
             self.extra = Model(self.name + "_extra", seed=1)
         self.extra.box(*a, **k)
+        return self
+
+    def attach(self, json_path, png_path, offset, scale):
+        """다른 블록벤치 모델(원점 기준)을 offset 자리에 scale=(sx,sy,sz) 배로 붙인다. 원소 좌표는 -16~32 안이어야 함"""
+        src = json.load(open(json_path, encoding="utf-8"))
+        img = Image.open(png_path).convert("RGBA")
+        els = []
+        for e in src["elements"]:
+            e = json.loads(json.dumps(e))
+            e["from"] = [round(offset[i] + e["from"][i] * scale[i], 4) for i in range(3)]
+            e["to"] = [round(offset[i] + e["to"][i] * scale[i], 4) for i in range(3)]
+            if "rotation" in e and "origin" in e["rotation"]:
+                e["rotation"]["origin"] = [round(offset[i] + e["rotation"]["origin"][i] * scale[i], 4) for i in range(3)]
+            e["shade"] = False
+            e["light_emission"] = 15
+            els.append(e)
+        self.attached.append((els, img))
         return self
 
     def build(self, tex_ref):
@@ -36,6 +54,26 @@ class BlockbenchModel:
             for fv in e.get("faces", {}).values():
                 fv["texture"] = "#t"
             els.append(e)
+        for a_els, a_img in self.attached:          # 덧붙임 블록벤치 모델: 텍스처를 아래에 이어 붙이고 UV 를 옮김
+            W1, H1 = img.size; W2, H2 = a_img.size
+            S = 1
+            while S < max(W1, W2, H1 + H2):
+                S *= 2
+            out = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+            out.paste(img, (0, 0)); out.paste(a_img, (0, H1))
+            for e in els:
+                for fv in e["faces"].values():
+                    u0, v0, u1, v1 = fv["uv"]
+                    fv["uv"] = [round(u0 * W1 / S, 5), round(v0 * H1 / S, 5), round(u1 * W1 / S, 5), round(v1 * H1 / S, 5)]
+            for e in a_els:
+                e = json.loads(json.dumps(e))
+                for fv in e["faces"].values():
+                    u0, v0, u1, v1 = fv["uv"]
+                    fv["uv"] = [round(u0 * W2 / S, 5), round((v0 * H2 / 16 + H1) / S * 16, 5),
+                                round(u1 * W2 / S, 5), round((v1 * H2 / 16 + H1) / S * 16, 5)]
+                    fv["texture"] = "#t"
+                els.append(e)
+            img = out
         if self.extra is None or not self.extra.boxes:
             return {"textures": {"t": tex_ref, "particle": tex_ref}, "elements": els}, img
         xmj, ximg = self.extra.build(tex_ref)

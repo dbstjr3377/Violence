@@ -1,0 +1,34 @@
+{
+ "pass": true,
+ "fails": [],
+ "stats": {
+  "SWING": {
+   "frames": 15,
+   "max_rot_jump_deg": 25.02,
+   "max_move_jump": 3.67,
+   "median_rot_jump_deg": 12.97,
+   "direction_reversals": 10
+  },
+  "SWING_L2R": {
+   "frames": 15,
+   "max_rot_jump_deg": 26.0,
+   "max_move_jump": 3.0,
+   "median_rot_jump_deg": 7.72,
+   "direction_reversals": 10
+  },
+  "STAB": {
+   "frames": 13,
+   "max_rot_jump_deg": 6.5,
+   "max_move_jump": 5.35,
+   "median_rot_jump_deg": 1.31,
+   "direction_reversals": 6
+  },
+  "RECOIL": {
+   "frames": 6,
+   "max_rot_jump_deg": 2.74,
+   "max_move_jump": 0.9,
+   "median_rot_jump_deg": 1.69,
+   "direction_reversals": 1
+  }
+ }
+}

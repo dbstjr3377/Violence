@@ -1,5 +1,6 @@
 """1인칭 사격 순간의 총구 화염 (노란색, 빛남)."""
 import math
+import os
 
 from voxel import Material
 
@@ -33,7 +34,16 @@ def cone(face, pt, fu, fv, mz, length, r, axis):
     return (0, 0, 0, 0)
 
 
+FX = os.path.join(os.path.dirname(os.path.abspath(__file__)), "loop", "fx", "out")
+
+
 def add_flash(m, muzzle, size=3.2):
+    """블록벤치 MCP 로 만든 화염(tools/loop/fx/out/muzzle_fp)이 있고 모델이 블록벤치 모델이면 그것을 붙임"""
+    if hasattr(m, "attach") and os.path.exists(os.path.join(FX, "muzzle_fp.json")):
+        k = size / 3.4
+        kz = min(k, (31.8 - muzzle[2]) / 6.0)     # 원소 좌표 한계(z ≤ 32) 안으로 불꽃 길이만 줄임
+        m.attach(os.path.join(FX, "muzzle_fp.json"), os.path.join(FX, "muzzle_fp.png"), muzzle, (k, k, max(0.25, kz)))
+        return
     x, y, z = muzzle
     length = min(6.5, 31.8 - z)
     cone.cy = y

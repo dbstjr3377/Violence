@@ -754,10 +754,46 @@ def cube_model(tex, light=False):
     return {"textures": {"t": tex, "particle": tex}, "elements": [e]}
 
 
+def fx_from_blockbench(T):
+    """tools/loop/fx/out 의 블록벤치 MCP 결과(탄 궤적·3인칭 화염)가 있으면 그것으로 모델을 씀"""
+    src = os.path.join(TOOLS, "loop", "fx", "out")
+    done = set()
+    for name, outs in (("tracer", ("tracer", "tracer_orange")), ("muzzle", ("muzzle", "muzzle_small"))):
+        j, p = os.path.join(src, name + ".json"), os.path.join(src, name + ".png")
+        if not (os.path.exists(j) and os.path.exists(p)):
+            continue
+        m = json.load(open(j, encoding="utf-8"))
+        for out in outs:
+            img = Image.open(p).convert("RGBA")
+            if out == "tracer_orange":   # 매그넘: 주황으로 (노랑 → 주황 색조)
+                px = img.load()
+                for yy in range(img.height):
+                    for xx in range(img.width):
+                        r, g, b, a = px[xx, yy]
+                        if a:
+                            px[xx, yy] = (r, int(g * 0.62), int(b * 0.4), a)
+            save_png(img, os.path.join(T, out + ".png"))
+            els = []
+            for e in m["elements"]:
+                e = json.loads(json.dumps(e))
+                e["shade"] = False
+                e["light_emission"] = 15
+                for fv in e["faces"].values():
+                    fv["texture"] = "#t"
+                els.append(e)
+            write(os.path.join(NS, "models", "fx", out + ".json"),
+                  {"textures": {"t": "violence:fx/" + out, "particle": "violence:fx/" + out}, "elements": els})
+            done.add(out)
+    return done
+
+
 def fx():
     T = os.path.join(NS, "textures", "fx")
     # 탄환 궤적: 노란색 / 매그넘 주황색 (가운데가 밝은 선)
+    bb_done = fx_from_blockbench(T)
     for name, core, edge in [("tracer", (255, 250, 200), (255, 205, 40)), ("tracer_orange", (255, 230, 170), (255, 120, 20))]:
+        if name in bb_done:
+            continue
         img = Image.new("RGBA", (4, 16))
         for y in range(16):
             for x in range(4):
@@ -766,6 +802,8 @@ def fx():
         write(os.path.join(NS, "models", "fx", name + ".json"), cube_model("violence:fx/" + name, light=True))
     # 총구 화염
     for name, scale in [("muzzle", 1.0), ("muzzle_small", 0.6)]:
+        if name in bb_done:
+            continue
         img = Image.new("RGBA", (32, 32), (0, 0, 0, 0))
         d = ImageDraw.Draw(img)
         for i in range(8):
