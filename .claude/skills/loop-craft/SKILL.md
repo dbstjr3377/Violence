@@ -17,6 +17,7 @@ description: 사용자가 "루프로 진행해줘"(또는 "루프로 해줘", "�
 
 ## 도구 규칙
 - 모델 작업(제작·수정·검사·렌더·내보내기)은 **블록벤치 MCP(blockbench-headless)** 로만 한다.
+- 루프 시작 전에 `blockbench-use` 와 `blockbench-modeling`(텍스처 작업이면 `blockbench-texturing`도) 스킬을 먼저 불러온다.
   원본은 `loop_runs/<slug>` 스냅샷에 `.bbmodel` 로 남기고, 심사용 렌더는 `bbmodel_render`/`bbmodel_contact_sheet`,
   검사는 `bbmodel_validate`, 팩용 JSON 은 `bbmodel_export_java_block` 으로 만든다.
 
