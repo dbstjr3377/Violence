@@ -30,12 +30,15 @@ description: 사용자가 "루프로 진행해줘"(또는 "루프로 해줘", "�
 2. **잡티 검사(코드)**:
    `python3 tools/loop/speck_check.py --model <모델> <텍스처.png> --json <scratchpad>/speck_N.json`
    (모델 없는 이미지·맵 텍스처는 `--model` 없이). 고립 픽셀, 면 안 구멍, 반투명, 노이즈·디더링, 5색+ 면 비율을 본다.
+   **TACZ 텍스처 수치 검사(코드)**: `python3 tools/loop/tacz_texstats.py --model <모델.json> <텍스처.png> --json <scratchpad>/texstats_N.json`
+   (큰 면 단색 비율·얼룩/그라데이션·윗모서리 줄·텍셀 밀도·평균 V. 5개 중 1개까지 어긋나도 통과). 불합격이면 최종 통과 불가.
 3. **AI 심사**: 렌더 이미지(측면, 3/4 사선, 텍스처 원본 최소 3장)를 만들고,
-   `tools/loop/judge_prompt.md` 본문을 채워 **새 서브에이전트**에 넘긴다. 이전 점수·제작 의도·내 자평은 주지 않는다.
+   `tools/loop/judge_prompt.md`(2판) 본문을 채워 **새 서브에이전트**에 넘긴다. 이전 점수·제작 의도·내 자평은 주지 않는다.
+   **TACZ 참고 렌더**(`tools/loop/tacz_ref.py`, 같은 렌더러·조명)와 **텍스처 수치 검사 JSON** 을 함께 준다.
    돌려받은 JSON을 `<scratchpad>/judge_N.json`으로 저장.
    - AI티(ai_ness) 0.0~10.0, **통과 ≤ 3.0**
    - TACZ 화풍(tacz_fit) 0.0~10.0, **통과 ≥ 7.0**
-   - 잡티 검사도 통과해야 최종 통과.
+   - 잡티 검사와 TACZ 텍스처 수치 검사도 통과해야 최종 통과.
 4. **기록**:
    `python3 tools/loop/loop_snap.py record <slug> <N> --speck <speck_N.json> --judge <judge_N.json> --ai <x> --tacz <y> --blocker "<막힌 곳>" --fix "<이번 회차에 뭘 왜 고쳤나>" --next "<다음 회차 계획>"`
    → `loop_runs/<slug>/LOG.md`(항목별 점수·막힌 곳·수정 이유), `PASSED.md`(통과 스냅샷 목록)가 자동 갱신된다.
