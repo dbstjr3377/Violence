@@ -174,7 +174,7 @@ def atlas(parts, palette, density=2, painter=None, style="tacz2", topline=("stee
             if style == "flat":
                 kf = sum(n[a] ** 2 * DIR[AXDIR[(a, 1 if n[a] >= 0 else -1)]] for a in range(3))
             side = abs(n[1]) < 0.5
-            big = tw >= 4 and th >= 4
+            big = tw * th >= 16 and min(tw, th) >= 3      # 얇고 긴 면(리시버 옆면 17x3 등)도 칠함
             for j in range(th):
                 for i in range(tw):
                     mat = (painter(p, f, i, j, tw, th) if painter else None) or p.mat
@@ -186,8 +186,11 @@ def atlas(parts, palette, density=2, painter=None, style="tacz2", topline=("stee
                         if big:
                             # 긴 방향을 따라 (TACZ: 대부분 가로 그라데이션)
                             t = (i / max(1, tw - 1)) if tw >= th else (j / max(1, th - 1))   # 세로로 긴 면은 아래로 갈수록 밝게 (윗줄 밝은 선과 섞이지 않게)
-                            off += step if t >= 0.5 else 0       # 2단 그라데이션 (폭 ≈ step)
-                            off += step if (_hash(pi, fi, i, j) & 1) else -step   # 텍셀마다 ±step (0 없음 → 같은 값끼리 뭉쳐 블롭이 되지 않음)
+                            st_ = max(7, round(step * max(c) / 70))   # 점 세기를 밝기에 비례 (어두운 그립에서 고대비 위장무늬 방지), 최소 7
+                            if max(tw, th) >= 8:
+                                off += st_ if t >= 0.5 else 0    # 긴 면만 2단 그라데이션 (TACZ 중앙 0.014 V)
+                            r_ = _hash(pi, fi, i, j) % 10        # TACZ식 드문 점 얼룩: 텍셀 20% 만 ±st_ (얼룩 σ ≈ 0.013 V)
+                            off += -st_ if r_ == 0 else (st_ if r_ == 9 else 0)
                             if side and j == 0 and mat in topline:
                                 off += int(step * 2.5)
                         col = tuple(max(0, min(255, v + off)) for v in c)

@@ -3,8 +3,8 @@
 
 사용: python3 tools/loop/tacz_texstats.py --model <Java 모델.json> <텍스처.png> [--json out.json]
       python3 tools/loop/tacz_texstats.py --geo <베드락 geo.json> <텍스처.png>   (TACZ 원본 비교용)
-4×4텍셀 이상 큰 면만 잰다: 단색 비율, 색 수, 그라데이션 폭, 그라데이션 뺀 얼룩, 윗줄 밝음, 텍셀 밀도, 평균 V, 면끼리 명도 대비.
-통과: 5개 검사 중 1개까지 어긋나도 됨 (TACZ 원본 71정 중 61정 통과, 1판 기준으로 만든 우지·소방도끼는 3~4개 어긋나 불합격).
+16텍셀 이상·짧은 변 3텍셀 이상인 큰 면만 잰다(얇고 긴 리시버 옆면도 포함): 단색 비율, 색 수, 그라데이션 폭, 그라데이션 뺀 얼룩, 윗줄 밝음, 텍셀 밀도, 평균 V, 면끼리 명도 대비.
+통과: 5개 검사 중 1개까지 어긋나도 됨 (TACZ 원본 71정 중 57정 통과).
 """
 import argparse, json, math, statistics as st, sys
 from PIL import Image
@@ -53,7 +53,7 @@ def stats(rects, im):
         if dims[0] >= 1 and x1 - x0 >= 1:
             dens.append((x1 - x0) / dims[0])
         xa, ya, xb, yb = int(math.floor(x0 + 1e-6)), int(math.floor(y0 + 1e-6)), int(math.ceil(x1 - 1e-6)), int(math.ceil(y1 - 1e-6))
-        if xb - xa < 4 or yb - ya < 4:
+        if (xb - xa) * (yb - ya) < 16 or min(xb - xa, yb - ya) < 3:   # 큰 면 = 16텍셀 이상·짧은 변 3 이상 (얇고 긴 면 포함)
             continue
         grid = [[px[min(x, W - 1), min(y, H - 1)] for x in range(xa, xb)] for y in range(ya, yb)]
         if all(p[3] == 0 for r in grid for p in r):
@@ -83,17 +83,18 @@ def stats(rects, im):
          "texel_per_px_median": round(st.median(dens), 2) if dens else None,
          "face_contrast": round(st.pstdev(fmeans), 3) if len(fmeans) > 1 else None,
          "mean_V": round(st.mean(_V(p) for p in allpx), 3) if allpx else None}
-    # TACZ 기본 건팩 71정 분포의 p10~p90 (docs/TACZ_STYLE.md 2판)
+    # TACZ 기본 건팩 71정 분포의 p10~p90 (docs/TACZ_STYLE.md 2판, 큰 면 = 16텍셀 이상·짧은 변 3 이상)
+    m = r["mottle_std_median"] or 0
     checks = {
-        "flat_ratio<=0.62": r["flat_ratio"] is not None and r["flat_ratio"] <= 0.62,
-        "mottle>=0.01 or gradient>=0.02": (r["mottle_std_median"] or 0) >= 0.01 or (r["gradient_span_median"] or 0) >= 0.02,
-        "topline 0.05~0.37": r["topline_ratio"] is not None and 0.05 <= r["topline_ratio"] <= 0.37,
+        "flat_ratio<=0.67": r["flat_ratio"] is not None and r["flat_ratio"] <= 0.67,
+        "texture: mottle 0.005~0.03 (or gradient>=0.01), not stronger": m <= 0.03 and (m >= 0.005 or (r["gradient_span_median"] or 0) >= 0.01),
+        "topline 0.04~0.30": r["topline_ratio"] is not None and 0.04 <= r["topline_ratio"] <= 0.30,
         "texel/px 1.5~4.5": r["texel_per_px_median"] is not None and 1.5 <= r["texel_per_px_median"] <= 4.5,
         "mean_V 0.2~0.39": r["mean_V"] is not None and 0.2 <= r["mean_V"] <= 0.39,
     }
     r["checks"] = checks
     r["fails"] = sum(1 for v in checks.values() if not v)
-    r["pass"] = r["fails"] <= 1          # TACZ 71정 중 61정(86%)이 통과하는 선
+    r["pass"] = r["fails"] <= 1          # TACZ 71정 중 57정(80%)이 통과하는 선
     return r
 
 
