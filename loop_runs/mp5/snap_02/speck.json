@@ -1,0 +1,43 @@
+{
+  "pass": true,
+  "limits": {
+    "speck_ratio": 0.004,
+    "pinhole": 0,
+    "semi_alpha_ratio": 0.001,
+    "near_dup_ratio": 0.3,
+    "noisy_face_ratio": 0.12
+  },
+  "files": [
+    {
+      "file": "tools/loop/guns/out/mp5/mp5.png",
+      "model": "tools/loop/guns/out/mp5/mp5.json",
+      "size": [
+        256,
+        256
+      ],
+      "faces": 3444,
+      "pixels": 14122,
+      "speck": 2,
+      "speck_ratio": 0.00014,
+      "pinhole": 0,
+      "semi_alpha": 0,
+      "semi_alpha_ratio": 0.0,
+      "near_dup_ratio": 0.0,
+      "noisy_face_ratio": 0.0026,
+      "examples": [
+        [
+          "speck",
+          147,
+          30
+        ],
+        [
+          "speck",
+          235,
+          43
+        ]
+      ],
+      "fails": [],
+      "pass": true
+    }
+  ]
+}

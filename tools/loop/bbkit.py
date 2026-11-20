@@ -137,6 +137,9 @@ def _hash(*a):
     return (h ^ (h >> 16)) & 0xFFFF
 
 
+DOT_MOD = 10
+
+
 def atlas(parts, palette, density=2, painter=None, style="tacz2", topline=("steel",), step=7):
     """면마다 고유 UV (모델 1px = density 텍셀).
     style="tacz2" (docs/TACZ_STYLE.md 2판): 면 방향 명암은 미리 칠하지 않고, 큰 면에
@@ -189,8 +192,8 @@ def atlas(parts, palette, density=2, painter=None, style="tacz2", topline=("stee
                             st_ = min(10, max(7, round(step * max(c) / 70)))   # 점 세기: 밝기에 비례, 7~10 (밝은 강철·나무가 지저분해지지 않게)
                             if max(tw, th) >= 8:
                                 off += st_ if t >= 0.5 else 0    # 긴 면만 2단 그라데이션 (TACZ 중앙 0.014 V)
-                            r_ = _hash(pi, fi, (i + (j % 2)) // 2, j) % 10   # TACZ식 드문 점 얼룩: 가로 2텍셀 묶음 20% 만 ±st_ (1텍셀 고립 점 = 잡티 방지)
-                            off += -st_ if r_ == 0 else (st_ if r_ == 9 else 0)
+                            r_ = _hash(pi, fi, (i + (j % 2)) // 2, j) % DOT_MOD   # TACZ식 드문 점 얼룩: 가로 2텍셀 묶음 2/DOT_MOD 만 ±st_ (1텍셀 고립 점 = 잡티 방지)
+                            off += -st_ if r_ == 0 else (st_ if r_ == DOT_MOD - 1 else 0)
                             if side and j == 0 and mat in topline:
                                 off += int(step * 2.5)
                         col = tuple(max(0, min(255, v + off)) for v in c)
