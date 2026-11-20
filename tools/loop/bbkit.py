@@ -96,6 +96,18 @@ class Builder:
         """정팔각 단면 원통: 폭 2r·두께 2r·tan22.5 직사각 4장(0/45/90/135°)"""
         xf = xf or Xf()
         w = r * math.tan(math.radians(22.5))
+        if OCT_STAGGER:
+            # 판 4장의 끝면이 한 평면에 겹치면 렌더에서 깜빡임(z-fighting) → 판마다 끝을 아주 조금 어긋나게
+            for k, (rr, hh) in enumerate(((0, 0), (0, 1), (45, 0), (45, 1))):
+                e = 0.006 * k
+                ha, hb = ((r, w) if hh == 0 else (w, r))
+                if axis == "z":
+                    self.put([c1 - ha, c2 - hb, a0 - e], [c1 + ha, c2 + hb, a1 + e], mat, xf * Xf.rot("z", rr, (c1, c2, 0)), name)
+                elif axis == "y":
+                    self.put([c1 - ha, a0 - e, c2 - hb], [c1 + ha, a1 + e, c2 + hb], mat, xf * Xf.rot("y", rr, (c1, 0, c2)), name)
+                else:
+                    self.put([a0 - e, c1 - ha, c2 - hb], [a1 + e, c1 + ha, c2 + hb], mat, xf * Xf.rot("x", rr, (0, c1, c2)), name)
+            return
         if axis == "z":
             for rr, (hx, hy) in ((0, (r, w)), (0, (w, r)), (45, (r, w)), (45, (w, r))):
                 self.put([c1 - hx, c2 - hy, a0], [c1 + hx, c2 + hy, a1], mat, xf * Xf.rot("z", rr, (c1, c2, 0)), name)
@@ -137,6 +149,8 @@ def _hash(*a):
     return (h ^ (h >> 16)) & 0xFFFF
 
 
+OCT_STAGGER = False
+GRAD = True   # 긴 면 2단 그라데이션 (반쪽이 통째로 밝아져 큰 두 톤 면으로 보임 — 근접 2회차~ 끔)
 DOT_MOD = 10
 DOT_MODE = "pair"   # pair: 해시 2텍셀 묶음 / cell: 4x2 칸마다 점 하나
 DOT_P = 0.55
@@ -192,7 +206,7 @@ def atlas(parts, palette, density=2, painter=None, style="tacz2", topline=("stee
                             # 긴 방향을 따라 (TACZ: 대부분 가로 그라데이션)
                             t = (i / max(1, tw - 1)) if tw >= th else (j / max(1, th - 1))   # 세로로 긴 면은 아래로 갈수록 밝게 (윗줄 밝은 선과 섞이지 않게)
                             st_ = min(10, max(7, round(step * max(c) / 70)))   # 점 세기: 밝기에 비례, 7~10 (밝은 강철·나무가 지저분해지지 않게)
-                            if max(tw, th) >= 8:
+                            if GRAD and max(tw, th) >= 8:
                                 off += st_ if t >= 0.5 else 0    # 긴 면만 2단 그라데이션 (TACZ 중앙 0.014 V)
                             if DOT_MODE == "cell":
                                 # 4x2 칸마다 가로 2텍셀 점 하나(확률 DOT_P) — 점끼리 붙어 사각 덩어리가 되지 않게

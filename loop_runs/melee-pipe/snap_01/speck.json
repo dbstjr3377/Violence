@@ -1,0 +1,32 @@
+{
+  "pass": true,
+  "limits": {
+    "speck_ratio": 0.004,
+    "pinhole": 0,
+    "semi_alpha_ratio": 0.001,
+    "near_dup_ratio": 0.3,
+    "noisy_face_ratio": 0.12
+  },
+  "files": [
+    {
+      "file": "tools/loop/melee/out/pipe/pipe.png",
+      "model": "tools/loop/melee/out/pipe/pipe.json",
+      "size": [
+        128,
+        128
+      ],
+      "faces": 642,
+      "pixels": 6660,
+      "speck": 0,
+      "speck_ratio": 0.0,
+      "pinhole": 0,
+      "semi_alpha": 0,
+      "semi_alpha_ratio": 0.0,
+      "near_dup_ratio": 0.0,
+      "noisy_face_ratio": 0.0,
+      "examples": [],
+      "fails": [],
+      "pass": true
+    }
+  ]
+}

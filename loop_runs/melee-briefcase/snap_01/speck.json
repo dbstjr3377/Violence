@@ -1,0 +1,48 @@
+{
+  "pass": true,
+  "limits": {
+    "speck_ratio": 0.004,
+    "pinhole": 0,
+    "semi_alpha_ratio": 0.001,
+    "near_dup_ratio": 0.3,
+    "noisy_face_ratio": 0.12
+  },
+  "files": [
+    {
+      "file": "tools/loop/melee/out/briefcase/briefcase.png",
+      "model": "tools/loop/melee/out/briefcase/briefcase.json",
+      "size": [
+        256,
+        256
+      ],
+      "faces": 1098,
+      "pixels": 11280,
+      "speck": 3,
+      "speck_ratio": 0.00027,
+      "pinhole": 0,
+      "semi_alpha": 0,
+      "semi_alpha_ratio": 0.0,
+      "near_dup_ratio": 0.0,
+      "noisy_face_ratio": 0.0,
+      "examples": [
+        [
+          "speck",
+          135,
+          5
+        ],
+        [
+          "speck",
+          135,
+          13
+        ],
+        [
+          "speck",
+          162,
+          17
+        ]
+      ],
+      "fails": [],
+      "pass": true
+    }
+  ]
+}
