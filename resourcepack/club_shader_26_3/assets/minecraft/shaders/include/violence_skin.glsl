@@ -8,7 +8,14 @@
 
 int violence_skin_part(ivec2 uv2) {
     int sky = uv2.y / 16;
-    return (uv2.x >= 240 && uv2.y % 16 == 0 && sky >= 1 && sky <= 10) ? sky : 0;
+    return (uv2.x >= 240 && uv2.y % 16 == 0 && sky >= 1 && sky <= 11) ? sky : 0;   // 11 = 공격 인형의 무기·가면 (스킨 UV 그대로)
+}
+
+// 공격 인형(dev.violence.fx.FallService 공격 상체 인형)은 자기 화면에도 보내므로, 1인칭 카메라 둘레(자기 몸 자리)에 있는
+// 인형 부위는 그리지 않는다: 카메라에서 0.95 블록 안, 또는 카메라 바로 아래 기둥(수평 0.45 블록 안). F5(2·3인칭)에선 카메라가 멀어 다 보임.
+// pos = 카메라 기준 좌표 (entity 정점 Position)
+bool violence_puppet_hidden(ivec2 uv2, vec3 pos) {
+    return violence_skin_part(uv2) > 0 && (length(pos) < 0.95 || length(pos.xz) < 0.45);
 }
 
 // 인형을 비출 밝기 (보통 실내 밝기: 블록 11)

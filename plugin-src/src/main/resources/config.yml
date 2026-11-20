@@ -50,6 +50,8 @@ spawn:
 fx:
   # 탄 궤적을 1인칭 총구에 맞출 때 쓰는 시야각(클라이언트 FOV 설정). 손 모델은 70 고정으로 그려짐
   view-fov: 70
+  # 공격하는 동안 실제 몸 대신 스킨 인형이 상체 동작(총 조준·반동, 휘두르기)을 함 (2·3인칭에서 보임)
+  attack-puppet: true
   max-decals: 450
   max-corpses: 30
   corpse-seconds: 20

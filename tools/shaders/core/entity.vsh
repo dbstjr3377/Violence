@@ -83,6 +83,7 @@ void main() {
 
     texCoord0 = UV0;
     violenceSkinPart = violence_skin_part(UV2);  // VIOLENCE
+    if (violencePersp > 0.5 && violence_puppet_hidden(UV2, Position)) gl_Position = vec4(0.0, 0.0, 2.0, 1.0);  // VIOLENCE: 1인칭 자기 인형 숨김
 
 #ifdef APPLY_TEXTURE_MATRIX
     texCoord0 = (TextureMat * vec4(UV0, 0.0, 1.0)).xy;

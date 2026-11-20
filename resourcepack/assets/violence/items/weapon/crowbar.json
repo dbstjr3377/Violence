@@ -165,6 +165,94 @@
       "model": "violence:item/weapon/crowbar_fp"
      }
     }
+   },
+   {
+    "when": [
+     "thirdperson_righthand",
+     "thirdperson_lefthand"
+    ],
+    "model": {
+     "type": "minecraft:condition",
+     "property": "minecraft:custom_model_data",
+     "index": 0,
+     "on_true": {
+      "type": "minecraft:model",
+      "model": "violence:misc/blank"
+     },
+     "on_false": {
+      "type": "minecraft:range_dispatch",
+      "property": "minecraft:cooldown",
+      "entries": [
+       {
+        "threshold": 0.1,
+        "model": {
+         "type": "minecraft:model",
+         "model": "violence:item/weapon/crowbar_tps_a8"
+        }
+       },
+       {
+        "threshold": 0.2,
+        "model": {
+         "type": "minecraft:model",
+         "model": "violence:item/weapon/crowbar_tps_a7"
+        }
+       },
+       {
+        "threshold": 0.3,
+        "model": {
+         "type": "minecraft:model",
+         "model": "violence:item/weapon/crowbar_tps_a6"
+        }
+       },
+       {
+        "threshold": 0.4,
+        "model": {
+         "type": "minecraft:model",
+         "model": "violence:item/weapon/crowbar_tps_a5"
+        }
+       },
+       {
+        "threshold": 0.5,
+        "model": {
+         "type": "minecraft:model",
+         "model": "violence:item/weapon/crowbar_tps_a4"
+        }
+       },
+       {
+        "threshold": 0.6,
+        "model": {
+         "type": "minecraft:model",
+         "model": "violence:item/weapon/crowbar_tps_a3"
+        }
+       },
+       {
+        "threshold": 0.7,
+        "model": {
+         "type": "minecraft:model",
+         "model": "violence:item/weapon/crowbar_tps_a2"
+        }
+       },
+       {
+        "threshold": 0.8,
+        "model": {
+         "type": "minecraft:model",
+         "model": "violence:item/weapon/crowbar_tps_a1"
+        }
+       },
+       {
+        "threshold": 0.9,
+        "model": {
+         "type": "minecraft:model",
+         "model": "violence:item/weapon/crowbar_tps_a0"
+        }
+       }
+      ],
+      "fallback": {
+       "type": "minecraft:model",
+       "model": "violence:item/weapon/crowbar_tps_rest"
+      }
+     }
+    }
    }
   ],
   "fallback": {

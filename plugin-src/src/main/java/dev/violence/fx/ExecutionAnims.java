@@ -116,6 +116,11 @@ public final class ExecutionAnims {
         return a;
     }
 
+    /** 프레임 목록 → Track (공격 애니메이션도 같은 형식) */
+    public static Track trackOf(JsonArray frames) {
+        return track(frames);
+    }
+
     private static Track track(JsonArray frames) {
         JsonObject wrap = new JsonObject();
         wrap.add("frames", frames);

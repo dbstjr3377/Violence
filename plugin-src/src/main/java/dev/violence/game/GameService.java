@@ -492,6 +492,7 @@ public final class GameService {
         if (a == null) return;
         WeaponType held = n.weaponType(plugin.weapons().fist());
         if (swingShowing(n, held)) return;
+        if (plugin.falls().hiding(n)) return;   // 인형이 실제 몸 대신 보이는 중
         boolean using = usingPose(n, held);
         if (!dev.violence.weapon.WeaponItems.swings(held)) n.tpStanceLeft = false;
         if (!using && !n.poseSent) return;
@@ -542,6 +543,7 @@ public final class GameService {
     private void sendHand(Arena a, Combatant c, org.bukkit.inventory.ItemStack item, boolean restart) {
         org.bukkit.entity.LivingEntity e = c.entity();
         if (e == null) return;
+        if (plugin.falls().hiding(c)) return;   // 인형이 실제 몸 대신 보이는 중 (손 아이템도 숨김)
         java.util.Map<org.bukkit.inventory.EquipmentSlot, org.bukkit.inventory.ItemStack> eq = new java.util.EnumMap<>(org.bukkit.inventory.EquipmentSlot.class);
         eq.put(org.bukkit.inventory.EquipmentSlot.HAND, item);
         for (PlayerCombatant viewer : a.players.values()) {
