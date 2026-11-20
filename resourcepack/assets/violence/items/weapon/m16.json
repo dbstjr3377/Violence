@@ -70,63 +70,8 @@
    }
   ],
   "fallback": {
-   "type": "minecraft:range_dispatch",
-   "property": "minecraft:cooldown",
-   "entries": [
-    {
-     "threshold": 0.094,
-     "model": {
-      "type": "minecraft:model",
-      "model": "violence:item/weapon/m16_tp_r6"
-     }
-    },
-    {
-     "threshold": 0.188,
-     "model": {
-      "type": "minecraft:model",
-      "model": "violence:item/weapon/m16_tp_r5"
-     }
-    },
-    {
-     "threshold": 0.282,
-     "model": {
-      "type": "minecraft:model",
-      "model": "violence:item/weapon/m16_tp_r4"
-     }
-    },
-    {
-     "threshold": 0.375,
-     "model": {
-      "type": "minecraft:model",
-      "model": "violence:item/weapon/m16_tp_r3"
-     }
-    },
-    {
-     "threshold": 0.469,
-     "model": {
-      "type": "minecraft:model",
-      "model": "violence:item/weapon/m16_tp_r2"
-     }
-    },
-    {
-     "threshold": 0.563,
-     "model": {
-      "type": "minecraft:model",
-      "model": "violence:item/weapon/m16_tp_r1"
-     }
-    },
-    {
-     "threshold": 0.657,
-     "model": {
-      "type": "minecraft:model",
-      "model": "violence:item/weapon/m16_tp_fire"
-     }
-    }
-   ],
-   "fallback": {
-    "type": "minecraft:model",
-    "model": "violence:item/weapon/m16_tp_self"
-   }
+   "type": "minecraft:model",
+   "model": "violence:item/weapon/m16_tp_self"
   }
  }
 }

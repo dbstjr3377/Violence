@@ -168,77 +168,8 @@
    }
   ],
   "fallback": {
-   "type": "minecraft:range_dispatch",
-   "property": "minecraft:cooldown",
-   "entries": [
-    {
-     "threshold": 0.1,
-     "model": {
-      "type": "minecraft:model",
-      "model": "violence:item/weapon/briefcase_tps_b8"
-     }
-    },
-    {
-     "threshold": 0.2,
-     "model": {
-      "type": "minecraft:model",
-      "model": "violence:item/weapon/briefcase_tps_b7"
-     }
-    },
-    {
-     "threshold": 0.3,
-     "model": {
-      "type": "minecraft:model",
-      "model": "violence:item/weapon/briefcase_tps_b6"
-     }
-    },
-    {
-     "threshold": 0.4,
-     "model": {
-      "type": "minecraft:model",
-      "model": "violence:item/weapon/briefcase_tps_b5"
-     }
-    },
-    {
-     "threshold": 0.5,
-     "model": {
-      "type": "minecraft:model",
-      "model": "violence:item/weapon/briefcase_tps_b4"
-     }
-    },
-    {
-     "threshold": 0.6,
-     "model": {
-      "type": "minecraft:model",
-      "model": "violence:item/weapon/briefcase_tps_b3"
-     }
-    },
-    {
-     "threshold": 0.7,
-     "model": {
-      "type": "minecraft:model",
-      "model": "violence:item/weapon/briefcase_tps_b2"
-     }
-    },
-    {
-     "threshold": 0.8,
-     "model": {
-      "type": "minecraft:model",
-      "model": "violence:item/weapon/briefcase_tps_b1"
-     }
-    },
-    {
-     "threshold": 0.9,
-     "model": {
-      "type": "minecraft:model",
-      "model": "violence:item/weapon/briefcase_tps_b0"
-     }
-    }
-   ],
-   "fallback": {
-    "type": "minecraft:model",
-    "model": "violence:item/weapon/briefcase_tps_rest"
-   }
+   "type": "minecraft:model",
+   "model": "violence:item/weapon/briefcase_tps_rest"
   }
  },
  "hand_animation_on_swap": false
