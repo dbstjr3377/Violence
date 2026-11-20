@@ -352,7 +352,7 @@ def weapons():
         # 화염 프레임은 쏜 뒤 정확히 1틱만 (쿨다운 T틱 중 첫 틱), 반동 프레임은 그 아래로 비율을 맞춤
         T = fire_anim_ticks(gid)
         fire_th = round((T - 1) / T - 0.01, 3)
-        ths = [fire_th, round(fire_th * 0.62, 3), round(fire_th * 0.3, 3)]
+        ths = [round(fire_th * k[0], 3) for k in anim.RECOIL]   # 첫 값 = 1 (화염), 나머지는 화염 임계값 대비 비율
         frames = []
         for i, (_, dr, dt) in enumerate(anim.RECOIL):
             th = ths[i]

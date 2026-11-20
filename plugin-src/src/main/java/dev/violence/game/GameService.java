@@ -52,8 +52,6 @@ public final class GameService {
     private boolean watchMode;
     private final List<java.util.UUID> watchers = new ArrayList<>();
     private NpcCombatant watched;
-    private org.bukkit.entity.ItemDisplay watchCam;
-    private Vec3 camPos;
 
     public GameService(ViolencePlugin plugin) {
         this.plugin = plugin;
@@ -243,50 +241,30 @@ public final class GameService {
         });
     }
 
-    // ───────── 관전 카메라 ─────────
+    // ───────── 관전: 강화 NPC 몸에 관전 모드로 붙음 (그 NPC 의 눈으로 봄) ─────────
 
     private void startWatchCam(Arena a) {
-        Vec3 want = watchCamTarget(a);
-        camPos = want;
-        Location l = new Location(a.world, want.x(), want.y(), want.z());
-        watchCam = plugin.camera().spawnCamera(l, 2);
+        Location l = watched.entity().getLocation();
         for (java.util.UUID id : watchers) {
             Player p = plugin.getServer().getPlayer(id);
             if (p == null) continue;
             p.setGameMode(org.bukkit.GameMode.SPECTATOR);
             p.teleport(l);
-            plugin.later(5, () -> { if (p.isOnline() && watchCam != null) p.setSpectatorTarget(watchCam); });
+            plugin.later(5, () -> { if (p.isOnline() && watched != null) p.setSpectatorTarget(watched.entity()); });
         }
-    }
-
-    /** 강화 NPC 뒤 위쪽 (벽에 막히면 당겨 옴) */
-    private Vec3 watchCamTarget(Arena a) {
-        NpcCombatant n = watched;
-        Vec3 head = n.feet().add(0, 1.7, 0);
-        Vec3 back = Vec3.fromYawPitch(n.yaw(), 0).horizontal().normalize().mul(-1);
-        double dist = 3.6;
-        Vec3 best = head.add(0, 0.6, 0);
-        for (double d = dist; d >= 0.8; d -= 0.4) {
-            Vec3 c = head.add(back.mul(d)).add(0, 0.9, 0);
-            if (plugin.combat().lineOfSight(a, head, c)) { best = c; break; }
-        }
-        return best;
     }
 
     private void tickWatchCam(Arena a) {
-        if (watched == null || watchCam == null || !watchCam.isValid()) return;
-        Vec3 want = watchCamTarget(a);
-        camPos = camPos == null ? want : camPos.add(want.sub(camPos).mul(0.35));   // 부드럽게 따라감
-        Vec3 look = watched.feet().add(0, 1.3, 0).sub(camPos);
-        Location l = new Location(a.world, camPos.x(), camPos.y(), camPos.z(), (float) look.yaw(), (float) look.pitch());
-        watchCam.teleport(l);
+        if (watched == null) return;
+        org.bukkit.entity.Entity body = watched.entity();
+        if (body == null || !body.isValid()) return;
         for (java.util.UUID id : watchers) {
             Player p = plugin.getServer().getPlayer(id);
             if (p == null || !p.isOnline()) continue;
             if (p.getGameMode() != org.bukkit.GameMode.SPECTATOR) p.setGameMode(org.bukkit.GameMode.SPECTATOR);
-            if (p.getSpectatorTarget() != watchCam) {
-                if (!p.getWorld().equals(a.world)) p.teleport(l);
-                p.setSpectatorTarget(watchCam);
+            if (p.getSpectatorTarget() != body) {
+                if (!p.getWorld().equals(a.world)) p.teleport(body.getLocation());
+                p.setSpectatorTarget(body);
             }
             if (plugin.now() % 10 == 0) p.sendActionBar(Component.text("관전: " + watched.name() + " (강화 NPC)  " + watched.kills + "킬", NamedTextColor.GOLD));
         }
@@ -689,8 +667,6 @@ public final class GameService {
             watchers.clear();
             watchMode = false;
             watched = null;
-            watchCam = null;
-            camPos = null;
         });
         try {
             if (a != null) {

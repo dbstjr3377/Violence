@@ -14,9 +14,17 @@ SWING_L2R = [(0.82, (-20, -20, -75), (-9.0, 1.2, 0.0)),
 STAB = [(0.75, (8, 0, 0), (-2.4, 0.6, -7.0)),
         (0.5, (6, 0, 0), (-1.8, 0.4, -4.0)),
         (0.25, (2, 0, 0), (-0.6, 0.1, -1.4))]
-RECOIL = [(0.78, (7, 0, 1.5), (0.0, 0.5, 2.0)),
-          (0.55, (4.5, 0, -1.0), (0.0, 0.3, 1.2)),
+# RECOIL 의 첫 값은 화염 프레임 임계값에 곱하는 상대값 (1 = 화염 프레임)
+RECOIL = [(1.0, (7, 0, 1.5), (0.0, 0.5, 2.0)),
+          (0.62, (4.5, 0, -1.0), (0.0, 0.3, 1.2)),
           (0.3, (1.5, 0, 0.6), (0.0, 0.05, 0.4))]
+
+# 블록벤치 MCP 로 만든 키프레임 (tools/loop/anim/gen.py → fp_frames.json) 이 있으면 그것을 쓴다
+import json as _json, os as _os
+_F = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "loop", "anim", "out", "fp_frames.json")
+if _os.path.exists(_F):
+    _c = _json.load(open(_F, encoding="utf-8"))["clips"]
+    SWING, SWING_L2R, STAB, RECOIL = ([(e[0], tuple(e[1]), tuple(e[2])) for e in _c[k]] for k in ("SWING", "SWING_L2R", "STAB", "RECOIL"))
 
 
 def apply(base, delta_rot, delta_t):

@@ -13,14 +13,35 @@
      "property": "minecraft:cooldown",
      "entries": [
       {
-       "threshold": 0.247,
+       "threshold": 0.137,
+       "model": {
+        "type": "minecraft:model",
+        "model": "violence:item/weapon/double_barrel_fp_r5"
+       }
+      },
+      {
+       "threshold": 0.274,
+       "model": {
+        "type": "minecraft:model",
+        "model": "violence:item/weapon/double_barrel_fp_r4"
+       }
+      },
+      {
+       "threshold": 0.411,
+       "model": {
+        "type": "minecraft:model",
+        "model": "violence:item/weapon/double_barrel_fp_r3"
+       }
+      },
+      {
+       "threshold": 0.549,
        "model": {
         "type": "minecraft:model",
         "model": "violence:item/weapon/double_barrel_fp_r2"
        }
       },
       {
-       "threshold": 0.51,
+       "threshold": 0.686,
        "model": {
         "type": "minecraft:model",
         "model": "violence:item/weapon/double_barrel_fp_r1"

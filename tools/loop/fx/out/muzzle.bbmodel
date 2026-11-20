@@ -1,0 +1,143 @@
+{
+	"meta": {
+		"format_version": "5.0",
+		"model_format": "free",
+		"box_uv": false
+	},
+	"name": "muzzle",
+	"model_identifier": "",
+	"visible_box": [
+		1,
+		1,
+		0
+	],
+	"resolution": {
+		"width": 64,
+		"height": 64
+	},
+	"elements": [
+		{
+			"uuid": "c0c3b3bd-7ada-44cb-9870-dd6609691167",
+			"name": "muzzle",
+			"origin": [
+				8,
+				8,
+				8.005
+			],
+			"color": 0,
+			"type": "cube",
+			"from": [
+				0,
+				0,
+				8
+			],
+			"to": [
+				16,
+				16,
+				8.01
+			],
+			"box_uv": false,
+			"faces": {
+				"north": {
+					"uv": [
+						0,
+						0,
+						32,
+						32
+					],
+					"texture": 0
+				},
+				"east": {
+					"uv": [
+						32,
+						0,
+						33,
+						1
+					],
+					"texture": 0
+				},
+				"south": {
+					"uv": [
+						0,
+						0,
+						32,
+						32
+					],
+					"texture": 0
+				},
+				"west": {
+					"uv": [
+						32,
+						0,
+						33,
+						1
+					],
+					"texture": 0
+				},
+				"up": {
+					"uv": [
+						32,
+						0,
+						33,
+						1
+					],
+					"texture": 0
+				},
+				"down": {
+					"uv": [
+						32,
+						0,
+						33,
+						1
+					],
+					"texture": 0
+				}
+			},
+			"rescale": false,
+			"locked": false,
+			"light_emission": 0,
+			"render_order": "default",
+			"allow_mirror_modeling": true,
+			"autouv": 0
+		}
+	],
+	"groups": [],
+	"outliner": [
+		"c0c3b3bd-7ada-44cb-9870-dd6609691167"
+	],
+	"textures": [
+		{
+			"uuid": "eef83a03-effd-4e4d-a141-fd3a35188ae4",
+			"name": "muzzle",
+			"source": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAABrklEQVR4nO2YP27DIBTGH1UPkM2oQ+fMPUPUOVNPYWWseoTKY5VTeMoc5QyZM3eo8JYb0KHCAYwNpCGB9vttIBu9772Pv0QAJEPUXN46Bh93qQYuQXwyRM1lKQm4uANEzWW1mF162HzwVVZu5lJu5kVUn+hMB4wlQfV3u+MvQroufQJi56z9fanWZ3pDieJrwdyfa0Kfno3+rmmpWsyo2x0n/8+NQaB6JV1i5Odq0ild05adAKKTE1RFiX5c4RPfD/r4UXYCFHoibMvTw5vZ/no3ml3TGu1cXTG5C6igB6u6Ld7Rpy+IuYon8jhAYVjfJV5Hc0IJ60GyuwBR3pVXJE1ACXgTUMql5lwmE9CL329PndZqb2DN/xKSN5oAPfjBLuBKgtWndoHckxC1SMUchMYOU7EBpiYqIFFzWb2+TA9onQJ9R+tbE78L7LeDU95UP18LxpYHxpYHRpTflLgP/dC+7uqVDhWlqi9qLnNxQrQDXDaOFZOL+ChCnrpys3cIQQ4IfeoqsbLBUyDHFfwqlPTGn4R/LR4AAAAAAAAAAAAAAAAAAAAAAAAAAPwBvgFeQc7A/vmf+wAAAABJRU5ErkJggg==",
+			"path": "",
+			"width": 64,
+			"height": 64,
+			"uv_width": 64,
+			"uv_height": 64,
+			"folder": "",
+			"namespace": "",
+			"id": "0",
+			"particle": false,
+			"use_as_default": false,
+			"layers_enabled": false,
+			"sync_to_project": "",
+			"render_mode": "emissive",
+			"render_sides": "auto",
+			"frame_time": 1,
+			"frame_order_type": "loop",
+			"frame_order": "",
+			"frame_interpolate": false,
+			"visible": true,
+			"internal": true,
+			"saved": false,
+			"relative_path": ""
+		}
+	],
+	"variable_placeholders": "",
+	"variable_placeholder_buttons": [],
+	"timeline_setups": [],
+	"unhandled_root_fields": {},
+	"ai_used": true,
+	"ai_agents": "headless-call"
+}

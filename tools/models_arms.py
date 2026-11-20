@@ -16,9 +16,10 @@ import fp_sim
 SKIN = "violence:skin/self"
 
 # 어깨 관절 자리 (시점 좌표, 블록): 화면 밖 오른쪽/왼쪽 아래
-SHOULDER = {"r": (0.40, -0.66, -0.06), "l": (-0.34, -0.70, -0.06)}
-# 팔 굵기 (시점 좌표, 블록): 예전 1인칭 소매 굵기 정도
-THICK = 0.13
+SHOULDER = {"r": (0.485, -0.831, -0.525), "l": (-0.485, -0.831, -0.525)}   # 바닐라 1인칭 팔(renderPlayerArm)의 어깨 자리
+# 팔 크기: 바닐라 플레이어 팔과 똑같이 (4x12x4 px = 굵기 0.25블록, 길이 0.75블록 → 위팔 6px + 아래팔 6px)
+THICK = 4 / 16
+UPPER = LOWER = 6 / 16
 # 팔꿈치가 굽는 쪽 (바깥 아래)
 POLE = {"r": (1.0, -1.0, 0.3), "l": (-1.0, -1.0, 0.3)}
 
@@ -189,12 +190,18 @@ def _place(mid, rot, center=(8.0, 8.0, 8.0)):
 
 
 def arm(disp, hand_model, side, l1, l2, thick=THICK):
-    """한 팔 (위팔 + 아래팔, 각각 바닥 층 + 겉옷 층) 원소 목록. 손잡이가 주먹 가운데에 오게 손끝을 조금 더 뻗음"""
-    s_cam = list(SHOULDER[side])
+    """한 팔 (위팔 + 아래팔, 각각 바닥 층 + 겉옷 층) 원소 목록.
+    팔 길이는 바닐라 그대로 고정. 손잡이(주먹 가운데)가 아래팔 끝에서 굵기 절반 안쪽에 오도록 IK 를 풀고,
+    손이 닿지 않으면 팔을 늘이지 않고 (화면 밖) 어깨 자리를 손 쪽으로 옮긴다."""
     h_cam = to_cam(disp, hand_model)
-    e_cam, h_cam = solve(s_cam, h_cam, l1, l2, list(POLE[side]))
-    lo = _norm(_sub(h_cam, e_cam))
-    end = _add(h_cam, _mul(lo, thick * 0.5))
+    reach = l1 + l2 - thick * 0.5
+    s_cam = list(SHOULDER[side])
+    d = _sub(h_cam, s_cam)
+    if _len(d) > reach * 0.92:
+        s_cam = _sub(h_cam, _mul(_norm(d), reach * 0.92))
+    e_cam, g_cam = solve(s_cam, h_cam, l1, l2 - thick * 0.5, list(POLE[side]))
+    lo = _norm(_sub(g_cam, e_cam))
+    end = _add(g_cam, _mul(lo, thick * 0.5))
     out = []
     for layer in ("base", "over"):
         out.append(_segment(disp, s_cam, e_cam, thick, side, (0, 6), "up", layer))
@@ -203,8 +210,5 @@ def arm(disp, hand_model, side, l1, l2, thick=THICK):
 
 
 def lengths(disps_hands, side):
-    """무기 하나의 모든 프레임에서 손이 닿도록 위팔·아래팔 길이와 굵기 (시점 좌표, 블록)"""
-    s = SHOULDER[side]
-    ds = [_len(_sub(to_cam(d, h), s)) for d, h in disps_hands]
-    seg = max(ds[0] * 0.58, max(ds) * 0.505)
-    return seg, seg, THICK
+    """위팔·아래팔 길이와 굵기 (시점 좌표, 블록): 바닐라 팔 그대로 고정"""
+    return UPPER, LOWER, THICK

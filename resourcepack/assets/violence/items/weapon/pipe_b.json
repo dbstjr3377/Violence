@@ -13,28 +13,105 @@
      "property": "minecraft:cooldown",
      "entries": [
       {
-       "threshold": 0.18,
+       "threshold": 0.0625,
+       "model": {
+        "type": "minecraft:model",
+        "model": "violence:item/weapon/pipe_fp_b14"
+       }
+      },
+      {
+       "threshold": 0.125,
+       "model": {
+        "type": "minecraft:model",
+        "model": "violence:item/weapon/pipe_fp_b13"
+       }
+      },
+      {
+       "threshold": 0.1875,
+       "model": {
+        "type": "minecraft:model",
+        "model": "violence:item/weapon/pipe_fp_b12"
+       }
+      },
+      {
+       "threshold": 0.25,
+       "model": {
+        "type": "minecraft:model",
+        "model": "violence:item/weapon/pipe_fp_b11"
+       }
+      },
+      {
+       "threshold": 0.3125,
+       "model": {
+        "type": "minecraft:model",
+        "model": "violence:item/weapon/pipe_fp_b10"
+       }
+      },
+      {
+       "threshold": 0.375,
+       "model": {
+        "type": "minecraft:model",
+        "model": "violence:item/weapon/pipe_fp_b9"
+       }
+      },
+      {
+       "threshold": 0.4375,
+       "model": {
+        "type": "minecraft:model",
+        "model": "violence:item/weapon/pipe_fp_b8"
+       }
+      },
+      {
+       "threshold": 0.5,
+       "model": {
+        "type": "minecraft:model",
+        "model": "violence:item/weapon/pipe_fp_b7"
+       }
+      },
+      {
+       "threshold": 0.5625,
+       "model": {
+        "type": "minecraft:model",
+        "model": "violence:item/weapon/pipe_fp_b6"
+       }
+      },
+      {
+       "threshold": 0.625,
+       "model": {
+        "type": "minecraft:model",
+        "model": "violence:item/weapon/pipe_fp_b5"
+       }
+      },
+      {
+       "threshold": 0.6875,
+       "model": {
+        "type": "minecraft:model",
+        "model": "violence:item/weapon/pipe_fp_b4"
+       }
+      },
+      {
+       "threshold": 0.75,
        "model": {
         "type": "minecraft:model",
         "model": "violence:item/weapon/pipe_fp_b3"
        }
       },
       {
-       "threshold": 0.42,
+       "threshold": 0.8125,
        "model": {
         "type": "minecraft:model",
         "model": "violence:item/weapon/pipe_fp_b2"
        }
       },
       {
-       "threshold": 0.62,
+       "threshold": 0.875,
        "model": {
         "type": "minecraft:model",
         "model": "violence:item/weapon/pipe_fp_b1"
        }
       },
       {
-       "threshold": 0.82,
+       "threshold": 0.9375,
        "model": {
         "type": "minecraft:model",
         "model": "violence:item/weapon/pipe_fp_b0"

@@ -1,0 +1,36 @@
+{
+ "pass": false,
+ "fails": [
+  "SWING_L2R: 한 프레임 회전 >40° 또는 이동 >6"
+ ],
+ "stats": {
+  "SWING": {
+   "frames": 13,
+   "max_rot_jump_deg": 33.83,
+   "max_move_jump": 4.3,
+   "median_rot_jump_deg": 17.29,
+   "direction_reversals": 11
+  },
+  "SWING_L2R": {
+   "frames": 13,
+   "max_rot_jump_deg": 79.07,
+   "max_move_jump": 9.39,
+   "median_rot_jump_deg": 8.66,
+   "direction_reversals": 10
+  },
+  "STAB": {
+   "frames": 11,
+   "max_rot_jump_deg": 5.45,
+   "max_move_jump": 4.0,
+   "median_rot_jump_deg": 1.33,
+   "direction_reversals": 5
+  },
+  "RECOIL": {
+   "frames": 5,
+   "max_rot_jump_deg": 2.5,
+   "max_move_jump": 0.6,
+   "median_rot_jump_deg": 1.62,
+   "direction_reversals": 2
+  }
+ }
+}

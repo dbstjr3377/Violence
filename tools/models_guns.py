@@ -361,8 +361,9 @@ def silenced_pistol():
 
 from bb_adapter import BlockbenchModel  # noqa: E402
 
-# 블록벤치 MCP 원본 tools/blockbench/<총>/<총>.bbmodel (총기 루프 최고 스냅샷: m16·mp5·shotgun·double_barrel·magnum=snap_03, silenced_pistol=snap_02)
-BB_GUNS = ("m16", "mp5", "shotgun", "double_barrel", "magnum", "silenced_pistol")
+# 블록벤치 MCP 원본 tools/blockbench/<총>/<총>.bbmodel (총기 루프 최고 스냅샷: m16·mp5·shotgun·double_barrel·magnum=snap_03, silenced_pistol=snap_02,
+#  uzi=loop_runs/uzi snap_12, silenced_uzi=uzi snap_12 + 소음기)
+BB_GUNS = ("m16", "mp5", "shotgun", "double_barrel", "magnum", "silenced_pistol", "uzi", "silenced_uzi")
 GUNS = {
     "m16": m16, "uzi": lambda: uzi(False), "silenced_uzi": lambda: uzi(True), "mp5": mp5,
     "shotgun": shotgun, "double_barrel": double_barrel, "magnum": magnum, "silenced_pistol": silenced_pistol,
@@ -373,8 +374,8 @@ for _g in BB_GUNS:
 # 그립(오른손) / 앞손(왼손) 위치: (x, y, z) 모델 좌표
 HAND_POS = {
     "m16": ((8, 6.0, 4.0), (8, 8.4, 15.0)),
-    "uzi": ((8, 5.0, 8.4), (8, 7.1, 12.2)),
-    "silenced_uzi": ((8, 5.0, 8.4), (8, 7.1, 12.2)),
+    "uzi": ((8, 5.0, 8.4), (8, 6.58, 11.25)),            # 새 블록벤치 모델(그립 기준 0.75배)
+    "silenced_uzi": ((8, 5.0, 8.4), (8, 6.58, 11.25)),
     "mp5": ((8, 6.0, 4.4), (8, 7.6, 15.0)),
     "shotgun": ((8, 7.6, 1.2), (8, 7.9, 16.6)),
     "double_barrel": ((8, 7.6, 1.4), (8, 8.0, 12.4)),
@@ -382,6 +383,6 @@ HAND_POS = {
     "silenced_pistol": ((8, 6.6, 5.4), (8, 5.6, 4.4)),
 }
 MUZZLE = {
-    "m16": (8, 9.6, 29.4), "uzi": (8, 9.5, 17.6), "silenced_uzi": (8, 9.5, 24.0), "mp5": (8, 9.35, 21.6),
+    "m16": (8, 9.6, 29.4), "uzi": (8, 8.375, 15.3), "silenced_uzi": (8, 8.375, 20.1), "mp5": (8, 9.35, 21.6),
     "shotgun": (8, 10.3, 30.0), "double_barrel": (8, 9.9, 29.0), "magnum": (8, 10.2, 21.6), "silenced_pistol": (8, 10.2, 22.0),
 }
