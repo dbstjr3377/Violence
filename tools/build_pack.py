@@ -387,20 +387,21 @@ def weapons():
         FP_MUZZLES[gid] = {"fp": [round(v, 4) for v in fp_sim.muzzle_screen(base, models_guns.MUZZLE[gid])[0]],
                            "tp": round((mz - gz) / 16 * M.GUN_DISPLAY["thirdperson_righthand"]["scale"][0], 3)}   # 3인칭: 손에서 총구까지 (블록)
         # 2/3인칭(F5) 자기 모습: 3인칭 손 표시에도 화염 1틱 + 반동 프레임 (쿨다운 진행률)
-        tp_base = M.GUN_DISPLAY["thirdperson_righthand"]
         tfire = make()
         models_flash.add_flash(tfire, models_guns.MUZZLE[gid], {"silenced_pistol": 1.5, "silenced_uzi": 1.5, "magnum": 4.2, "shotgun": 4.4,
                                                                  "double_barrel": 4.4, "uzi": 2.8, "mp5": 3.0}.get(gid, 3.4))
-        save_model("weapon", gid + "_tp_fire", tfire, {**M.GUN_DISPLAY, "thirdperson_righthand": tp_kick(tp_base, 1.0),
-                                                        "thirdperson_lefthand": tp_kick(tp_base, 1.0)})
+        save_model("weapon", gid + "_tp_fire", tfire, {**M.GUN_DISPLAY, "thirdperson_righthand": tp_kick(right, 1.0),
+                                                        "thirdperson_lefthand": tp_kick(right, 1.0)})
         tp_frames = [(ths[0], gid + "_tp_fire")]
         for i in range(1, len(ths)):
             k = max(0.0, 1.0 - i / max(1, len(ths) - 1))
             write(os.path.join(NS, "models", "item", "weapon", f"{gid}_tp_r{i}.json"),
-                  {"parent": "violence:item/weapon/" + gid, "display": {"thirdperson_righthand": tp_kick(tp_base, k), "thirdperson_lefthand": tp_kick(tp_base, k)}})
+                  {"parent": "violence:item/weapon/" + gid, "display": {"thirdperson_righthand": tp_kick(right, k), "thirdperson_lefthand": tp_kick(right, k)}})
             tp_frames.append((ths[i], f"{gid}_tp_r{i}"))
+        write(os.path.join(NS, "models", "item", "weapon", f"{gid}_tp_self.json"),
+              {"parent": "violence:item/weapon/" + gid, "display": {"thirdperson_righthand": tp_kick(right, 0.0), "thirdperson_lefthand": tp_kick(right, 0.0)}})
         write(os.path.join(NS, "items", "weapon", gid + ".json"),
-              select_by_context(dispatch(frames, gid + "_fp"), dispatch(tp_frames, gid)))
+              select_by_context(dispatch(frames, gid + "_fp"), dispatch(tp_frames, gid + "_tp_self")))
         # 다른 플레이어/NPC 용 3인칭 표시: 양손 총은 석궁 자세, 권총은 한 팔 조준 자세
         tp = TP_ONE_ARM if gid in ONE_HANDED else TP_CROSSBOW
         write(os.path.join(NS, "models", "item", "weapon", gid + "_tp.json"),
@@ -498,40 +499,64 @@ def weapons():
 FP_MUZZLES = {}
 
 
-def tp_kick(base, k):
-    """3인칭 손 표시 + 반동 (k=1 쏜 순간 → 0 원래 자리): 총구가 들리고 뒤로 밀림"""
-    r, t = base["rotation"], base["translation"]
-    return {"rotation": [round(r[0] - 14 * k, 2), r[1], r[2]], "translation": [t[0], round(t[1] + 0.6 * k, 3), round(t[2] - 2.2 * k, 3)],
-            "scale": base["scale"]}
+def self_tp_display(R_world, grip, scale, back=0.0):
+    """F5 로 보는 자기 모습: 무기를 든 오른팔은 바닐라 '아이템 든 팔'(조금 앞으로 내린 팔)이고 공격 동작은 끔.
+    무기 모델 축의 개체 공간 방향 R_world (열 = 모델 x,y,z) 와 손잡이(모델 px)가 오른손 주먹에 오도록 3인칭 표시 변환을 푼다.
+    back: 반동으로 뒤로 밀리는 거리 (블록)"""
+    import numpy as np
+    import melee_tp as MT
+    import tp_sim as T
+    ra = T.entity_root(0) @ T.part(-5, 2, 0, -math.pi / 10, 0, 0)
+    H = ra @ T.rx(math.radians(-90)) @ T.ry(math.radians(180)) @ T.tr(1 / 16, 0.125, -0.625)
+    A = H[:3, :3].T @ R_world
+    hand = (ra @ np.array([-1 / 16, 9 / 16, 0, 1]))[:3] - np.array([0, 0, back])
+    target = (np.linalg.inv(H) @ np.array([*hand, 1.0]))[:3]
+    g = np.array(grip, float) / 16 - 0.5
+    t = target - A @ (scale * g)
+    return {"rotation": MT.euler_xyz(A), "translation": [round(float(v) * 16, 3) for v in t], "scale": [scale] * 3}
 
 
-# 3인칭 휘두르기 키 (진행률, 표시 회전 차이): A = 오른쪽 위에서 내려치며 가로지름, B = 반대, STAB = 앞으로 찌르기
-TP_SWING = {
-    "A": [(0.0, (0, 0, 0)), (0.18, (-35, 0, 45)), (0.38, (70, 0, -55)), (0.55, (85, 0, -70)), (0.8, (35, 0, -25)), (1.0, (0, 0, 0))],
-    "B": [(0.0, (0, 0, 0)), (0.18, (-30, 0, -45)), (0.38, (70, 0, 55)), (0.55, (85, 0, 70)), (0.8, (35, 0, 25)), (1.0, (0, 0, 0))],
-    "STAB": [(0.0, (0, 0, 0)), (0.2, (20, 0, 0)), (0.4, (80, 0, 0)), (0.6, (80, 0, 0)), (1.0, (0, 0, 0))],
-}
+def _rx(a):
+    import numpy as np
+    c, s_ = math.cos(a), math.sin(a)
+    return np.array([[1, 0, 0], [0, c, -s_], [0, s_, c]])
+
+
+def tp_kick(grip, k):
+    """F5 자기 모습의 총: 앞을 겨눈 총 (총열 = 개체 앞), 반동 k=1 쏜 순간 → 0: 총구가 들리고 뒤로 밀림"""
+    return self_tp_display(_rx(-math.radians(16) * k), grip, M.GUN_DISPLAY["thirdperson_righthand"]["scale"][0], back=0.09 * k)
+
+
 TP_SWING_N = 10
 
 
 def tp_swing(wid, tag, kind):
-    keys = TP_SWING[kind]
-    base = M.MELEE_DISPLAY["thirdperson_righthand"]
+    """F5 자기 모습 근접: 오른손 주먹에 손잡이를 두고 무기 방향만 휘두르기 경로를 따라감 (melee_tp 의 개체 공간 경로)
+    kind: A = 오→왼, B = 왼→오, STAB = 앞으로 찌르기"""
+    import numpy as np
+    import melee_tp as MT
+    import models_melee
+    grip = models_melee.GRIP[wid]
+    sc = M.MELEE_DISPLAY["thirdperson_righthand"]["scale"][0]
+    rest = MT.frame(0.9 * MT.UP + 0.45 * MT.FW, MT.FW)
     frames = []
     for k in range(TP_SWING_N - 1):
         p = (k + 0.5) / TP_SWING_N
-        for (p0, r0), (p1, r1) in zip(keys, keys[1:]):
-            if p <= p1:
-                u = (p - p0) / (p1 - p0)
-                u = u * u * (3 - 2 * u)
-                dr = [r0[i] + (r1[i] - r0[i]) * u for i in range(3)]
-                break
-        disp = {"rotation": [round(base["rotation"][i] + dr[i], 2) for i in range(3)], "translation": base["translation"], "scale": base["scale"]}
+        if kind == "STAB":
+            u = math.sin(min(1.0, p / 0.7) * math.pi)
+            R = MT.frame((0.9 - 0.9 * u) * MT.UP + (0.45 + 0.9 * u) * MT.FW, MT.FW - u * MT.UP)
+        else:
+            R, _ = MT.path(MT.SWINGS["r2l" if kind == "A" else "l2r"], p)
+        disp = self_tp_display(np.asarray(R), grip, sc)
         name = f"{wid}_tps_{tag}{k}"
         write(os.path.join(NS, "models", "item", "weapon", name + ".json"),
               {"parent": "violence:item/weapon/" + wid, "display": {"thirdperson_righthand": disp, "thirdperson_lefthand": disp}})
         frames.append((round(1 - (k + 1) / TP_SWING_N, 4), name))
-    return dispatch(frames, wid)
+    rest_name = f"{wid}_tps_rest"
+    write(os.path.join(NS, "models", "item", "weapon", rest_name + ".json"),
+          {"parent": "violence:item/weapon/" + wid, "display": {"thirdperson_righthand": self_tp_display(rest, grip, sc),
+                                                                  "thirdperson_lefthand": self_tp_display(rest, grip, sc)}})
+    return dispatch(frames, rest_name)
 
 
 def melee_third_person(wid, grip):
