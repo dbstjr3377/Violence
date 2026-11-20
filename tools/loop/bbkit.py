@@ -129,8 +129,22 @@ def _world_normal(p, f):
     return n
 
 
-def atlas(parts, palette, density=4, painter=None):
-    """면마다 고유 UV (모델 1px = density 텍셀). 면은 단색 × 월드 법선 명암. painter(part, face, i, j, tw, th) → 색 이름 or None"""
+def _hash(*a):
+    h = 2166136261
+    for v in a:
+        h = ((h ^ (int(v) & 0xFFFFFFFF)) * 16777619) & 0xFFFFFFFF
+    h ^= h >> 13; h = (h * 1274126177) & 0xFFFFFFFF
+    return (h ^ (h >> 16)) & 0xFFFF
+
+
+def atlas(parts, palette, density=2, painter=None, style="tacz2", topline=("steel",), step=7):
+    """면마다 고유 UV (모델 1px = density 텍셀).
+    style="tacz2" (docs/TACZ_STYLE.md 2판): 면 방향 명암은 미리 칠하지 않고, 큰 면에
+      - 긴 방향(세로 면은 위→아래) 그라데이션: step 단위로 끊은 2~3단
+      - 텍셀 단위 밝기 얼룩: {-step, 0, +step} (색상은 그대로, 밝기만)
+      - topline 재질의 옆면 윗줄: +2.5 step 밝은 줄
+    step=7 이면 이웃 텍셀 차이가 0 또는 7 이상 → 잡티 검사의 '거의 같은 색' 판정에 걸리지 않음.
+    style="flat": 1판 (면 단색 × 방향 명암)."""
     faces = []
     for pi, p in enumerate(parts):
         for f in FACES:
@@ -154,17 +168,34 @@ def atlas(parts, palette, density=4, painter=None):
     k16 = 16.0 / size
     for pi, p in enumerate(parts):
         uvs[pi] = {}
-        for f in FACES:
+        for fi, f in enumerate(FACES):
             x0, y0, tw, th = placed[(pi, f)]
             n = _world_normal(p, f)
-            kf = sum(n[a] ** 2 * DIR[AXDIR[(a, 1 if n[a] >= 0 else -1)]] for a in range(3))
+            if style == "flat":
+                kf = sum(n[a] ** 2 * DIR[AXDIR[(a, 1 if n[a] >= 0 else -1)]] for a in range(3))
+            side = abs(n[1]) < 0.5
+            big = tw >= 4 and th >= 4
             for j in range(th):
                 for i in range(tw):
                     mat = (painter(p, f, i, j, tw, th) if painter else None) or p.mat
                     c = palette[mat]
-                    px[x0 + i, y0 + j] = tuple(max(0, min(255, int(round(v * kf)))) for v in c) + (255,)
+                    if style == "flat":
+                        col = tuple(max(0, min(255, int(round(v * kf)))) for v in c)
+                    else:
+                        off = 0
+                        if big:
+                            # 긴 방향을 따라 (TACZ: 대부분 가로 그라데이션)
+                            t = (i / max(1, tw - 1)) if tw >= th else (j / max(1, th - 1))   # 세로로 긴 면은 아래로 갈수록 밝게 (윗줄 밝은 선과 섞이지 않게)
+                            off += step if t >= 0.5 else 0       # 2단 그라데이션 (폭 ≈ step)
+                            off += step if (_hash(pi, fi, i, j) & 1) else -step   # 텍셀마다 ±step (0 없음 → 같은 값끼리 뭉쳐 블롭이 되지 않음)
+                            if side and j == 0 and mat in topline:
+                                off += int(step * 2.5)
+                        col = tuple(max(0, min(255, v + off)) for v in c)
+                    px[x0 + i, y0 + j] = col + (255,)
             w, h = _face_dims(p.frm, p.to, f)
-            uw, vh = max(w * density, 0.05), max(h * density, 0.05)
+            # 1텍셀 이상인 면은 UV 를 정수 텍셀에 맞춤 (텍셀 경계가 면 경계와 일치 → 렌더에서 텍셀이 또렷), 더 작은 면은 실제 크기
+            uw = tw if w * density >= 1 else max(w * density, 0.05)
+            vh = th if h * density >= 1 else max(h * density, 0.05)
             uvs[pi][f] = [round(x0 * k16, 5), round(y0 * k16, 5), round((x0 + uw) * k16, 5), round((y0 + vh) * k16, 5)]
     return img, uvs
 
@@ -182,14 +213,18 @@ def mcp(tool, args):
     return r.stdout
 
 
-def build_bbmodel(bbfile, name, parts, img_path, uvs, tex_name):
-    mcp("bbmodel_create", {"file": bbfile, "format": "java_block", "name": name, "overwrite": True,
-                           "resolution": {"width": 16, "height": 16}})
+def build_bbmodel(bbfile, name, parts, img_path, uvs, tex_name, fmt="java_block"):
+    """프로젝트 해상도 = 텍스처 크기 (UV 를 텍셀 단위로). 해상도를 16 으로 두면 bb-render 가 텍셀을 흐리게 그린다.
+    Java 내보내기는 해상도로 나눠 16 단위 UV 로 바꾸므로 결과는 같다."""
+    W, H = Image.open(img_path).size
+    mcp("bbmodel_create", {"file": bbfile, "format": fmt, "name": name, "overwrite": True,
+                           "resolution": {"width": W, "height": H}})
     mcp("bbmodel_add_texture", {"file": bbfile, "image": img_path, "name": tex_name})
     ops = []
     for pi, p in enumerate(parts):
         op = {"op": "add_cube", "name": p.name, "from": p.frm, "to": p.to,
-              "faces": {f: {"uv": uvs[pi][f], "texture": tex_name} for f in FACES}}
+              "faces": {f: {"uv": [uvs[pi][f][0] * W / 16, uvs[pi][f][1] * H / 16, uvs[pi][f][2] * W / 16, uvs[pi][f][3] * H / 16],
+                            "texture": tex_name} for f in FACES}}
         if p.rot:
             op["origin"] = p.origin; op["rotation"] = p.rot
         ops.append(op)

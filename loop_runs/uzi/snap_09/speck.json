@@ -1,0 +1,58 @@
+{
+  "pass": true,
+  "limits": {
+    "speck_ratio": 0.004,
+    "pinhole": 0,
+    "semi_alpha_ratio": 0.001,
+    "near_dup_ratio": 0.3,
+    "noisy_face_ratio": 0.12
+  },
+  "files": [
+    {
+      "file": "tools/loop/uzi/out/uzi.png",
+      "model": "tools/loop/uzi/out/uzi.json",
+      "size": [
+        256,
+        256
+      ],
+      "faces": 3522,
+      "pixels": 11776,
+      "speck": 5,
+      "speck_ratio": 0.00042,
+      "pinhole": 0,
+      "semi_alpha": 0,
+      "semi_alpha_ratio": 0.0,
+      "near_dup_ratio": 0.0003,
+      "noisy_face_ratio": 0.0068,
+      "examples": [
+        [
+          "speck",
+          17,
+          32
+        ],
+        [
+          "speck",
+          6,
+          33
+        ],
+        [
+          "speck",
+          41,
+          32
+        ],
+        [
+          "speck",
+          235,
+          3
+        ],
+        [
+          "speck",
+          83,
+          21
+        ]
+      ],
+      "fails": [],
+      "pass": true
+    }
+  ]
+}

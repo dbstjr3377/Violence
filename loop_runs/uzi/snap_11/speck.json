@@ -1,0 +1,93 @@
+{
+  "pass": true,
+  "limits": {
+    "speck_ratio": 0.004,
+    "pinhole": 0,
+    "semi_alpha_ratio": 0.001,
+    "near_dup_ratio": 0.3,
+    "noisy_face_ratio": 0.12
+  },
+  "files": [
+    {
+      "file": "tools/loop/uzi/out/uzi.png",
+      "model": "tools/loop/uzi/out/uzi.json",
+      "size": [
+        256,
+        256
+      ],
+      "faces": 3444,
+      "pixels": 12798,
+      "speck": 12,
+      "speck_ratio": 0.00094,
+      "pinhole": 0,
+      "semi_alpha": 0,
+      "semi_alpha_ratio": 0.0,
+      "near_dup_ratio": 0.0,
+      "noisy_face_ratio": 0.0006,
+      "examples": [
+        [
+          "speck",
+          106,
+          36
+        ],
+        [
+          "speck",
+          119,
+          36
+        ],
+        [
+          "speck",
+          41,
+          20
+        ],
+        [
+          "speck",
+          47,
+          20
+        ],
+        [
+          "speck",
+          146,
+          20
+        ],
+        [
+          "speck",
+          69,
+          20
+        ],
+        [
+          "speck",
+          157,
+          24
+        ],
+        [
+          "speck",
+          162,
+          23
+        ],
+        [
+          "speck",
+          161,
+          24
+        ],
+        [
+          "speck",
+          73,
+          21
+        ],
+        [
+          "speck",
+          74,
+          24
+        ],
+        [
+          "speck",
+          171,
+          24
+        ]
+      ],
+      "fails": [],
+      "pass": true
+    }
+  ]
+}

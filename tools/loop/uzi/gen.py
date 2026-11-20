@@ -9,24 +9,34 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, ".."))
 from bbkit import Builder, Xf, atlas, build_bbmodel, export_java, validate, render_views  # noqa: E402
 
-PAL = {                         # 검은 회색 (사용자 지정: 더 검게, 파란 기 없이)
-    "steel":   (34, 35, 38),    # 리시버
-    "steel_t": (40, 41, 44),    # 윗덮개 (한 단계 밝게)
-    "steel_b": (29, 30, 33),    # 아래 부품 (방아쇠울·총열 너트·가늠자쇠)
-    "steel_d": (21, 21, 23),    # 홈·이음선
-    "steel_l": (56, 58, 62),    # 핀·노브
-    "poly":    (22, 22, 24),    # 폴리머 그립·앞손잡이
-    "poly_d":  (15, 15, 16),
+PAL = {                         # 검은 회색 + 부품별 명도 단계 (그립·탄창 어둡게 / 리시버 중간 / 총열·가늠자 밝게)
+    "steel":   (50, 51, 55),    # 리시버
+    "steel_t": (74, 75, 80),    # 윗덮개 (밝은 단)
+    "steel_b": (96, 98, 104),    # 총열 너트·가늠자쇠·방아쇠울 (밝은 단)
+    "steel_d": (24, 24, 26),    # 홈·이음선
+    "steel_l": (92, 94, 99),    # 핀·노브
+    "poly":    (22, 22, 24),    # 폴리머 그립·앞손잡이 (가장 어두운 단)
+    "poly_d":  (16, 16, 17),
     "bore":    (8, 8, 9),
-    "mag":     (31, 32, 35),
-    "polish":  (84, 87, 92),    # 연마 금속 (총구 끝·장전 손잡이 머리·방아쇠)
+    "mag":     (34, 35, 38),
+    "steel_lo": (38, 39, 42),   # 아래 프레임
+    "polish":  (110, 113, 119), # 연마 금속 (총구 끝·장전 손잡이 머리·방아쇠)
+    "brass":   (150, 118, 52),  # 포인트: 그립 황동 띠
+    "sight_g": (70, 190, 90),   # 포인트: 가늠쇠 초록 점
 }
 
 SCALE, PIVOT = 0.75, (8, 5.0, 8.4)     # 그립 손 자리 기준 0.75배 (길이 ~12px). 팩 적용 시 손·총구 좌표도 같은 변환
 b = Builder(SCALE, PIVOT)
 X0, X1 = 7.1, 8.9                     # 리시버 폭
 # ── 리시버 (프레스 강판 상자) ──
-b.chamfer_box([X0, 8.0, 1.6], [X1, 11.0, 14.0], 0.177, "steel", name="receiver")   # 뒤로 길게 (높이:길이 ≈0.65)
+# 윗리시버 (모서리 크게 깎음) + 좁은 아래 프레임 (단차) — 상자 하나가 아니라 두 단
+b.chamfer_box([X0, 8.7, 2.1], [X1, 11.0, 13.45], 0.3, "steel", name="receiver")
+b.chamfer_box([7.3, 7.95, 2.3], [8.7, 8.8, 13.6], 0.15, "steel_lo", name="lower_frame")
+# 앞코: 낮은 앞 블록 + 45° 경사 (윗리시버 → 총열 너트로 내려감)
+b.chamfer_box([X0 + 0.05, 8.7, 13.4], [X1 - 0.05, 10.3, 14.05], 0.2, "steel", name="receiver_nose")
+b.put([X0 + 0.08, 10.25 - 0.42, 13.45 - 0.42], [X1 - 0.08, 10.25 + 0.42, 13.45 + 0.42], "steel", Xf.rot("x", 45, (8, 10.25, 13.45)), name="nose_slope")
+# 뒤 끝: 둥근 원통 캡 (x축 팔각, 반지름 1.15)
+b.oct("x", 9.85, 2.1, 1.12, X0 + 0.04, X1 - 0.04, "steel", name="rear_round")
 for sx in (-1, 1):                      # 옆면 프레스 리브 2줄: 0.18 돌출 + 45° 깎은 모서리
     xa = X0 - 0.18 if sx < 0 else X1
     for y0 in (8.75, 10.05):
@@ -53,35 +63,39 @@ for z in (2.05, 13.3):
     b.chamfer_box([7.2, 10.75, z], [8.8, 11.2, z + 0.3], 0.06, "steel", name="cover_hinge")
 # ── 가늠자 / 가늠쇠 ──
 b.chamfer_box([7.4, 11.45, 2.15], [8.6, 12.0, 2.95], 0.1, "steel_b", name="rear_sight")
-for x in (7.4, 8.4):
-    b.chamfer_box([x, 12.0, 2.2], [x + 0.2, 12.45, 2.9], 0.06, "steel", name="rear_sight_ear")
+for x in (7.5, 8.5):                    # 가늠자 귀: 둥근 원통 (z축 팔각)
+    b.oct("z", x, 12.05, 0.3, 2.2, 2.9, "steel_b", name="rear_sight_ear")
 b.chamfer_box([7.35, 11.0, 13.0], [8.65, 11.6, 13.75], 0.1, "steel_b", name="front_sight_base")
-for x in (7.35, 8.45):
-    b.chamfer_box([x, 11.6, 13.05], [x + 0.2, 12.5, 13.7], 0.06, "steel", name="front_sight_ear")
-b.chamfer_box([7.35, 12.5, 13.1], [8.65, 12.7, 13.65], 0.06, "steel", name="front_sight_hood")   # 보호 후드 (두 귀를 잇는 다리)
+for x in (7.48, 8.52):                  # 가늠쇠 보호 귀: 둥근 원통 (z축 팔각)
+    b.oct("z", x, 12.0, 0.3, 13.05, 13.7, "steel_b", name="front_sight_ear")
 b.put([7.92, 11.6, 13.25], [8.08, 12.3, 13.45], "steel_l", name="front_sight_post")
+b.put([7.9, 12.18, 13.22], [8.1, 12.34, 13.48], "sight_g", name="front_sight_dot")      # 포인트 색
 # ── 총열 너트 + 총열 ──
 b.oct("z", 8.0, 9.5, 0.85, 14.0, 14.3, "steel_b", name="barrel_nut")
 b.oct("z", 8.0, 9.5, 0.78, 14.3, 14.45, "steel_d", name="barrel_nut_groove")
 b.oct("z", 8.0, 9.5, 0.85, 14.45, 14.75, "steel_b", name="barrel_nut")
-b.oct("z", 8.0, 9.5, 0.42, 14.75, 17.2, "steel", name="barrel")
+b.oct("z", 8.0, 9.5, 0.42, 14.75, 17.2, "steel_b", name="barrel")
 b.oct("z", 8.0, 9.5, 0.42, 17.2, 17.6, "polish", name="barrel_crown")
 b.oct("z", 8.0, 9.5, 0.22, 17.58, 17.62, "bore", name="muzzle_bore")
 # ── 그립 겸 탄창집 ──
-b.chamfer_box([7.2, 2.2, 7.0], [8.8, 7.95, 9.8], 0.177, "poly", name="grip")
+GRIPX = Xf.rot("x", -6, (8, 7.9, 8.4))    # 손잡이 아래쪽이 살짝 뒤로
+b.chamfer_box([7.2, 2.2, 7.0], [8.8, 7.95, 9.8], 0.25, "poly", GRIPX, name="grip")
 for sx in (-1, 1):                      # 그립 판: 돌출 패널 + 가로 미끄럼 방지 마디 (마디 사이가 홈)
     xa = 7.2 - 0.12 if sx < 0 else 8.8
-    b.chamfer_box([xa, 2.6, 7.3], [xa + 0.12, 7.3, 9.5], 0.05, "poly", name="grip_panel", edges="y")
+    b.chamfer_box([xa, 2.6, 7.3], [xa + 0.12, 7.3, 9.5], 0.05, "poly", GRIPX, name="grip_panel", edges="y")
     xb = xa - 0.1 if sx < 0 else xa + 0.12
-    for y in (3.0, 3.65, 4.3, 4.95, 5.6, 6.25):
-        b.chamfer_box([xb, y, 7.45], [xb + 0.1, y + 0.32, 9.35], 0.045, "poly", name="grip_rib", edges="z")
+    for y in (2.9, 3.45, 4.25, 4.8, 5.6, 6.15):     # 두 줄씩 짝 (손가락 자리)
+        b.chamfer_box([xb, y, 7.45], [xb + 0.1, y + 0.32, 9.35], 0.045, "poly", GRIPX, name="grip_rib", edges="z")
 b.chamfer_box([7.15, 7.5, 6.6], [8.85, 7.95, 10.2], 0.1, "poly", name="grip_cap")
-b.chamfer_box([7.4, 4.6, 6.8], [8.6, 7.4, 7.45], 0.08, "steel_b", name="grip_safety")   # 손잡이 뒷면에 박힘 (0.45 겹침)
+b.chamfer_box([7.4, 4.6, 6.8], [8.6, 7.4, 7.45], 0.08, "steel_b", GRIPX, name="grip_safety")   # 손잡이 뒷면에 박힘 (0.45 겹침)
+for sx in (-1, 1):                      # 그립 위쪽 황동 띠 (포인트 색)
+    xa = 7.2 - 0.14 if sx < 0 else 8.8
+    b.put([xa, 7.0, 7.4], [xa + 0.14, 7.3, 9.4], "brass", GRIPX, name="grip_band")
 # ── 탄창 + 바닥판 ──
-b.chamfer_box([7.45, 0.45, 7.4], [8.55, 2.25, 9.4], 0.1, "mag", name="magazine")   # 손잡이 아래로 짧게만 노출
+b.chamfer_box([7.45, 0.45, 7.4], [8.55, 2.25, 9.4], 0.1, "mag", GRIPX, name="magazine")   # 손잡이 아래로 짧게만 노출
 for x in (7.35, 8.55):
-    b.chamfer_box([x, 0.6, 8.2], [x + 0.1, 2.15, 8.6], 0.04, "mag", name="mag_rib", edges="y")
-b.chamfer_box([7.3, 0.0, 7.2], [8.7, 0.45, 9.6], 0.1, "steel", name="mag_floor")
+    b.chamfer_box([x, 0.6, 8.2], [x + 0.1, 2.15, 8.6], 0.04, "mag", GRIPX, name="mag_rib", edges="y")
+b.chamfer_box([7.3, 0.0, 7.2], [8.7, 0.45, 9.6], 0.1, "steel", GRIPX, name="mag_floor")
 # ── 방아쇠울 + 방아쇠 ──
 # 방아쇠울: 둥근 고리 — 아래판 → 22.5° 씩 꺾인 판 3장(반지름 0.75 호) → 앞기둥. 하부 프레임과 같은 폴리머
 GT, GZ, GY, GR = 0.34, 11.75, 6.6, 0.75          # 두께, 호 중심 z·y, 반지름
@@ -101,11 +115,12 @@ b.chamfer_box([7.05, 7.3, 10.4], [8.95, 8.05, 12.7], 0.12, "poly", name="forend_
 b.oct("x", 7.4, 7.7, 0.28, 6.98, 7.12, "steel", name="selector_hub")
 b.put([6.98, 7.25, 7.6], [7.06, 7.55, 8.55], "steel_l", Xf.rot("x", -20, (7.0, 7.4, 7.7)), name="selector_lever")
 # ── 접이식 개머리판 (접힘) ──
-# 리시버 뒤 캡 + 슬링 고리 (뒤·앞)
-b.chamfer_box([7.25, 8.15, 1.35], [8.75, 10.85, 1.62], 0.1, "steel_b", name="rear_cap")
-for (y, z) in ((8.5, 1.15), (8.3, 14.35)):
-    b.oct("x", y, z, 0.26, 7.75, 8.25, "steel_b", name="sling_loop")
-    b.oct("x", y, z, 0.12, 7.7, 8.3, "bore", name="sling_hole")
+# 접이식 개머리판 (접힘): 뒤 경첩 → 양옆 원통 지지대가 아래 프레임 옆을 따라 → 앞쪽 아래 개머리 판
+b.oct("x", 8.1, 2.0, 0.28, 6.95, 9.05, "steel_l", name="stock_hinge")
+for x in (6.98, 9.02):
+    b.oct("z", x, 8.15, 0.16, 2.0, 12.9, "steel_b", name="stock_strut")
+b.chamfer_box([6.82, 6.55, 12.6], [9.18, 8.35, 13.25], 0.22, "steel_b", name="stock_butt")
+b.chamfer_box([6.92, 6.3, 12.65], [9.08, 6.6, 13.2], 0.1, "poly", name="stock_butt_pad")
 # ── 핀 (팔각) ──
 for (y, z) in ((9.0, 5.0), (9.0, 12.4), (8.4, 7.6)):
     b.oct("x", y, z, 0.16, X0 - 0.06, X1 + 0.06, "steel_l", name="pin")
@@ -117,7 +132,7 @@ def build(out_dir=os.path.join(HERE, "out"), render_dir=None, stem="uzi"):
         if p.name == "top_cover" and f in ("east", "west", "north", "south") and th >= 2 and j == th - 1:
             return "steel_d"
         return None
-    img, uvs = atlas(b.parts, PAL, painter=seam)
+    img, uvs = atlas(b.parts, PAL, painter=seam, density=2, style="tacz2", step=14, topline=("steel", "steel_t"))
     png = os.path.join(out_dir, "uzi.png"); img.save(png)
     bb = os.path.join(out_dir, "uzi.bbmodel")
     build_bbmodel(bb, "uzi", b.parts, png, uvs, "uzi")
