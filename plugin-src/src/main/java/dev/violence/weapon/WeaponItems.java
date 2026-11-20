@@ -55,6 +55,19 @@ public final class WeaponItems {
     }
 
     public static ItemStack create(WeaponType type, int ammo) {
+        ItemStack it = createBase(type, ammo);
+        if (type.isGun()) {
+            // 총은 "장전된 석궁"으로 들려 줌: 자기 몸(F5 2·3인칭)도 바닐라 석궁 조준 자세(두 팔을 앞으로)가 된다.
+            // 1인칭에서 바닐라가 장전된 석궁에 더하는 이동·회전은 리소스팩 1인칭 표시 변환이 거꾸로 상쇄한다 (build_pack.crossbow_comp).
+            // 쏘기(우클릭 사용)는 PlayerListener 가 상호작용을 모두 취소하므로 화살이 나가지 않는다.
+            it = it.withType(Material.CROSSBOW);
+            it.setData(DataComponentTypes.CHARGED_PROJECTILES,
+                    io.papermc.paper.datacomponent.item.ChargedProjectiles.chargedProjectiles(java.util.List.of(new ItemStack(Material.ARROW))));
+        }
+        return it;
+    }
+
+    private static ItemStack createBase(WeaponType type, int ammo) {
         ItemStack it = new ItemStack(Material.STICK);
         it.setData(DataComponentTypes.ITEM_MODEL, Key.key(type.model()));
         // 손에 든 무기 이름은 화면에 띄우지 않음 (핫바 위 이름이 빈 글자로 나옴). 이름은 바닥 정보 카드에만
@@ -104,7 +117,7 @@ public final class WeaponItems {
             it.setData(DataComponentTypes.ATTACK_ANIMATION, SwingAnimation.swingAnimation().type(SwingAnimation.Animation.NONE).duration(1).build());
             return it;
         }
-        ItemStack it = create(type, 0);
+        ItemStack it = createBase(type, 0);
         if (type.isGun()) {
             // 권총: 한 팔 조준 자세용 (보는 사람에게 "사용 중" 상태를 함께 보냄, 소리/입자 없음)
             it.setData(DataComponentTypes.ITEM_MODEL, Key.key(type.model() + "_world"));

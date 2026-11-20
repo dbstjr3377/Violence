@@ -262,17 +262,18 @@ def fire_anim_ticks(gid):
     return int(max(2, min(6, round(interval * 2))))
 
 
-def save_model_arms(kind, name, vm, display, arms):
+def save_model_arms(kind, name, vm, display, arms, comp=False):
     """1인칭 모델 + 스킨 팔. arms: [(손 모델 좌표, 'r'/'l', 위팔, 아래팔, 굵기)]. 무기 원소(JSON)를 돌려줌 (프레임에서 재사용)"""
     tex_ref = f"violence:item/{kind}/{name}"
     mj, img = vm.build(tex_ref)
     save_png(img, os.path.join(NS, "textures", "item", kind, name + ".png"))
-    write_arms_frame(name, mj, display, arms)
+    write_arms_frame(name, mj, display, arms, comp)
     return mj
 
 
-def write_arms_frame(name, base_mj, display, arms):
-    """무기 원소는 base_mj 그대로, 팔은 이 프레임의 표시 변환으로 다시 IK 를 풀어 붙인 1인칭 모델"""
+def write_arms_frame(name, base_mj, display, arms, comp=False):
+    """무기 원소는 base_mj 그대로, 팔은 이 프레임의 표시 변환으로 다시 IK 를 풀어 붙인 1인칭 모델.
+    comp: 총(장전된 석궁 아이템) → 오른손 표시 변환에 바닐라 석궁 1인칭 보정의 역을 넣음"""
     import models_arms
     fr = display["firstperson_righthand"]
     left = {"rotation": [fr["rotation"][0], 360 - fr["rotation"][1], -fr["rotation"][2]],
@@ -285,7 +286,7 @@ def write_arms_frame(name, base_mj, display, arms):
         for hand, side, l1, l2, thick in arms:
             els += models_arms.arm(fr, hand, side, l1, l2, thick)
     mj = {"textures": dict(base_mj["textures"], skin=models_arms.SKIN), "elements": els,
-          "display": {"firstperson_righthand": fr, "firstperson_lefthand": left}}
+          "display": {"firstperson_righthand": crossbow_comp(fr) if comp else fr, "firstperson_lefthand": left}}
     write(os.path.join(NS, "models", "item", "weapon", name + ".json"), mj)
 
 
@@ -361,7 +362,7 @@ def weapons():
         llow = (left[0], left[1] - 3.2, left[2])
         hands = {"r": rlow} if gid in ("magnum", "silenced_pistol") else {"r": rlow, "l": llow}
         arms = arm_specs([base] + recoil, hands)
-        fp_mj = save_model_arms("weapon", gid + "_fp", make(), rest_disp, arms)
+        fp_mj = save_model_arms("weapon", gid + "_fp", make(), rest_disp, arms, comp=True)
         # 화염 프레임은 쏜 뒤 정확히 1틱만 (쿨다운 T틱 중 첫 틱), 반동 프레임은 그 아래로 비율을 맞춤
         T = fire_anim_ticks(gid)
         fire_th = round((T - 1) / T - 0.01, 3)
@@ -376,10 +377,10 @@ def weapons():
                 fsize = {"silenced_pistol": 1.5, "silenced_uzi": 1.5, "magnum": 4.2, "shotgun": 4.4, "double_barrel": 4.4,
                          "uzi": 2.8, "mp5": 3.0}.get(gid, 3.4)
                 models_flash.add_flash(fire, models_guns.MUZZLE[gid], fsize)
-                save_model_arms("weapon", gid + "_fp_fire", fire, {"firstperson_righthand": d}, arms)
+                save_model_arms("weapon", gid + "_fp_fire", fire, {"firstperson_righthand": d}, arms, comp=True)
                 frames.append((th, gid + "_fp_fire"))
             else:
-                write_arms_frame(f"{gid}_fp_r{i}", fp_mj, {"firstperson_righthand": d}, arms)
+                write_arms_frame(f"{gid}_fp_r{i}", fp_mj, {"firstperson_righthand": d}, arms, comp=True)
                 frames.append((th, f"{gid}_fp_r{i}"))
         # 탄 궤적 시작점: 1인칭 총구의 시점 좌표 (블록, 오른쪽·위·앞(-z)). 플러그인이 쏜 사람에게만 이 자리에서 궤적을 그림
         import fp_sim
@@ -390,13 +391,14 @@ def weapons():
         tfire = make()
         models_flash.add_flash(tfire, models_guns.MUZZLE[gid], {"silenced_pistol": 1.5, "silenced_uzi": 1.5, "magnum": 4.2, "shotgun": 4.4,
                                                                  "double_barrel": 4.4, "uzi": 2.8, "mp5": 3.0}.get(gid, 3.4))
-        save_model("weapon", gid + "_tp_fire", tfire, {**M.GUN_DISPLAY, "thirdperson_righthand": tp_kick(right, 1.0),
-                                                        "thirdperson_lefthand": tp_kick(right, 1.0)})
+        save_model("weapon", gid + "_tp_fire", tfire, {**M.GUN_DISPLAY, "thirdperson_righthand": tp_kick(right, 1.0, ITEM_ARM),
+                                                        "thirdperson_lefthand": tp_kick(right, 1.0, ITEM_ARM)})
+        rec_arm = ITEM_ARM if T <= 4 else CROSSBOW_HOLD_ARM   # 연사 총은 쏘는 동안 계속 '휘두르는 중
         tp_frames = [(ths[0], gid + "_tp_fire")]
         for i in range(1, len(ths)):
             k = max(0.0, 1.0 - i / max(1, len(ths) - 1))
             write(os.path.join(NS, "models", "item", "weapon", f"{gid}_tp_r{i}.json"),
-                  {"parent": "violence:item/weapon/" + gid, "display": {"thirdperson_righthand": tp_kick(right, k), "thirdperson_lefthand": tp_kick(right, k)}})
+                  {"parent": "violence:item/weapon/" + gid, "display": {"thirdperson_righthand": tp_kick(right, k, rec_arm), "thirdperson_lefthand": tp_kick(right, k, rec_arm)}})
             tp_frames.append((ths[i], f"{gid}_tp_r{i}"))
         write(os.path.join(NS, "models", "item", "weapon", f"{gid}_tp_self.json"),
               {"parent": "violence:item/weapon/" + gid, "display": {"thirdperson_righthand": tp_kick(right, 0.0), "thirdperson_lefthand": tp_kick(right, 0.0)}})
@@ -499,14 +501,14 @@ def weapons():
 FP_MUZZLES = {}
 
 
-def self_tp_display(R_world, grip, scale, back=0.0):
+def self_tp_display(R_world, grip, scale, back=0.0, arm=(-math.pi / 10, 0.0)):
     """F5 로 보는 자기 모습: 무기를 든 오른팔은 바닐라 '아이템 든 팔'(조금 앞으로 내린 팔)이고 공격 동작은 끔.
     무기 모델 축의 개체 공간 방향 R_world (열 = 모델 x,y,z) 와 손잡이(모델 px)가 오른손 주먹에 오도록 3인칭 표시 변환을 푼다.
     back: 반동으로 뒤로 밀리는 거리 (블록)"""
     import numpy as np
     import melee_tp as MT
     import tp_sim as T
-    ra = T.entity_root(0) @ T.part(-5, 2, 0, -math.pi / 10, 0, 0)
+    ra = T.entity_root(0) @ T.part(-5, 2, 0, arm[0], arm[1], 0)
     H = ra @ T.rx(math.radians(-90)) @ T.ry(math.radians(180)) @ T.tr(1 / 16, 0.125, -0.625)
     A = H[:3, :3].T @ R_world
     hand = (ra @ np.array([-1 / 16, 9 / 16, 0, 1]))[:3] - np.array([0, 0, back])
@@ -522,9 +524,33 @@ def _rx(a):
     return np.array([[1, 0, 0], [0, c, -s_], [0, s_, c]])
 
 
-def tp_kick(grip, k):
-    """F5 자기 모습의 총: 앞을 겨눈 총 (총열 = 개체 앞), 반동 k=1 쏜 순간 → 0: 총구가 들리고 뒤로 밀림"""
-    return self_tp_display(_rx(-math.radians(16) * k), grip, M.GUN_DISPLAY["thirdperson_righthand"]["scale"][0], back=0.09 * k)
+# 총은 손에 "장전된 석궁"으로 들려 있어 자기 몸도 바닐라 석궁 조준 자세(두 팔을 앞으로)가 된다 (animateCrossbowHold)
+CROSSBOW_HOLD_ARM = (-math.pi / 2 + 0.1, -0.3)
+
+
+# 왼클릭(쏘기)할 때마다 바닐라가 '휘두르는 중'으로 바꾸는 틱에는 석궁 조준 자세가 풀려 '아이템 든 팔'(조금 앞으로 내린 팔)이 된다.
+# 쏜 틱(화염 프레임)과 연사 중 프레임은 그 팔에 맞춰 풀어서 총이 계속 정면을 향하게 한다.
+ITEM_ARM = (-math.pi / 10, 0.0)
+
+
+def tp_kick(grip, k, arm=CROSSBOW_HOLD_ARM):
+    """F5 자기 모습의 총: 오른손에 쥐고 정면을 겨눔, 반동 k=1 쏜 순간 → 0: 총구가 들리고 뒤로 밀림"""
+    return self_tp_display(_rx(-math.radians(16) * k), grip, M.GUN_DISPLAY["thirdperson_righthand"]["scale"][0],
+                           back=0.09 * k, arm=arm)
+
+
+def crossbow_comp(fr):
+    """1인칭에서 장전된 석궁을 주 손에 들면 바닐라가 표시 변환 전에 x -0.641864 블록 이동 + y 10° 회전을 더한다
+    (ItemInHandRenderer). 그만큼 거꾸로 돌려 놓아 화면에 보이는 자리는 그대로 둔다."""
+    import numpy as np
+    import melee_tp as MT
+    a = math.radians(-10)
+    Ry = np.array([[math.cos(a), 0, math.sin(a)], [0, 1, 0], [-math.sin(a), 0, math.cos(a)]])
+    r = [math.radians(v) for v in fr["rotation"]]
+    R = _rx(r[0]) @ np.array([[math.cos(r[1]), 0, math.sin(r[1])], [0, 1, 0], [-math.sin(r[1]), 0, math.cos(r[1])]]) @ \
+        np.array([[math.cos(r[2]), -math.sin(r[2]), 0], [math.sin(r[2]), math.cos(r[2]), 0], [0, 0, 1]])
+    t = np.array(fr["translation"], float) - np.array([-0.641864 * 16, 0, 0])
+    return {"rotation": MT.euler_xyz(Ry @ R), "translation": [round(float(v), 3) for v in Ry @ t], "scale": fr["scale"]}
 
 
 TP_SWING_N = 10
