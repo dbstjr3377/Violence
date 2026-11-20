@@ -37,21 +37,36 @@ class Atlas:
         return self._c
 
 
-def star_tile(n, spikes=8, inner=0.32, seed=0, ring=True):
-    """정면 별 화염 (픽셀아트, 반투명 없음)"""
+def star_tile(n, spikes=6, inner=0.34, seed=0, ring=True):
+    """정면 화염 (픽셀아트, 반투명 없음): 바늘 5~6개, 길이·간격·굵기가 제각각인 비대칭 별"""
+    import random
+    rnd = random.Random(seed * 7 + n)
     im = Image.new("RGBA", (n, n), CLEAR); d = ImageDraw.Draw(im); c = n / 2
+    a = rnd.uniform(0, math.tau)
     for i in range(spikes):
-        a = i * math.tau / spikes + 0.3 + seed * 0.17
-        ln = c * (0.98 if i % 2 == 0 else 0.62)
-        w = 0.32 if i % 2 == 0 else 0.4
+        a += math.tau / spikes * rnd.uniform(0.7, 1.3)
+        ln = c * rnd.uniform(0.55, 0.98)
+        w = rnd.uniform(0.26, 0.45)
         d.polygon([(c, c), (c + math.cos(a - w) * c * inner, c + math.sin(a - w) * c * inner),
                    (c + math.cos(a) * ln, c + math.sin(a) * ln), (c + math.cos(a + w) * c * inner, c + math.sin(a + w) * c * inner)], fill=EDGE)
-        ln2 = ln * 0.72
+        ln2 = ln * 0.7
         d.polygon([(c, c), (c + math.cos(a - w * 0.6) * c * inner * 0.8, c + math.sin(a - w * 0.6) * c * inner * 0.8),
                    (c + math.cos(a) * ln2, c + math.sin(a) * ln2), (c + math.cos(a + w * 0.6) * c * inner * 0.8, c + math.sin(a + w * 0.6) * c * inner * 0.8)], fill=MID)
-    r1, r2 = c * 0.42, c * 0.22
-    d.ellipse([c - r1, c - r1, c + r1, c + r1], fill=HOT)
+    r1, r2 = c * 0.4, c * 0.2
+    d.ellipse([c - r1, c - r1 * 0.85, c + r1, c + r1 * 0.85], fill=HOT)
     d.ellipse([c - r2, c - r2, c + r2, c + r2], fill=CORE)
+    return despeck(im)
+
+
+def despeck(im):
+    """네 이웃이 모두 같은 색인 외톨이 픽셀을 이웃 색으로 (잡티 검사 통과)"""
+    px = im.load(); W, H = im.size
+    for _ in range(2):
+        for y in range(1, H - 1):
+            for x in range(1, W - 1):
+                nb = [px[x + 1, y], px[x - 1, y], px[x, y + 1], px[x, y - 1]]
+                if all(q == nb[0] for q in nb) and px[x, y] != nb[0]:
+                    px[x, y] = nb[0]
     return im
 
 
@@ -77,21 +92,19 @@ def P(frm, to, rot=None, origin=None, name="fx"):
 
 
 def muzzle_fp(at):
-    """1인칭 화염: 정면 별 2장(엇갈림) + 앞으로 뻗는 십자 불꽃 판 2장 + 옆으로 튀는 작은 불꽃 4장"""
+    """1인칭 화염: 비대칭 정면 별 2장(엇갈림, 크기 다름) + 별 앞에서 시작해 앞으로 뻗는 십자 불꽃 판 2장"""
     parts, uvs = [], {}
-    st = at.add(star_tile(32)); st2 = at.add(star_tile(24, spikes=6, seed=3)); fl = at.add(flame_tile(32, 16)); sm = at.add(flame_tile(16, 8))
+    st = at.add(star_tile(32, seed=2)); st2 = at.add(star_tile(24, spikes=5, seed=5)); fl = at.add(flame_tile(32, 16))
     clr = at.clear_uv()
     def add(p, faceuv):
         uvs[len(parts)] = {f: faceuv.get(f, clr) for f in FACES}; parts.append(p)
     s = 3.4
     add(P([-s, -s, 0.3], [s, s, 0.32], name="star"), {"north": st, "south": st})
-    s2 = 2.4
+    s2 = 2.2
     add(P([-s2, -s2, 0.9], [s2, s2, 0.92], rot=[0, 0, 22.5], origin=[0, 0, 0.91], name="star2"), {"north": st2, "south": st2})
     L, H = 6.0, 2.8
-    add(P([-0.01, -H / 2, 0.0], [0.01, H / 2, L], name="flame_v"), {"east": fl, "west": [fl[2], fl[1], fl[0], fl[3]]})
-    add(P([-H / 2, -0.01, 0.0], [H / 2, 0.01, L], name="flame_h"), {"up": rot_uv(fl), "down": rot_uv(fl)})
-    for k, ang in enumerate((45, 135, 225, 315)):   # 옆으로 튀는 작은 불꽃 (총구 앞 45° 방향)
-        add(P([-0.01, -0.7, 0.2], [0.01, 0.7, 2.4], rot=[0, 0, ang - 90 if ang > 90 else ang], origin=[0, 0, 0.2], name="spark"), {"east": sm, "west": sm})
+    add(P([-0.01, -H / 2, 0.35], [0.01, H / 2, L], name="flame_v"), {"east": fl, "west": [fl[2], fl[1], fl[0], fl[3]]})
+    add(P([-H / 2, -0.01, 0.35], [H / 2, 0.01, L], name="flame_h"), {"up": fl, "down": fl})
     return parts, uvs
 
 
@@ -107,17 +120,37 @@ def muzzle_3p(at):
     return parts, uvs
 
 
+def streak_tile(w, h):
+    """세로가 길이 방향(위 = +z 탄두). 탄두는 흰 심이 굵고, 꼬리로 갈수록 가늘어지며 노랑 → 주황으로 식음"""
+    im = Image.new("RGBA", (w, h), CLEAR); px = im.load(); cx = (w - 1) / 2
+    for y in range(h):
+        t = 1 - y / (h - 1)                # 0 = 탄두(위), 1 = 꼬리(아래)
+        half = (w / 2) * (1 - 0.75 * t)
+        for x in range(w):
+            o = abs(x - cx)
+            if o > half:
+                continue
+            core = o <= half * 0.4
+            if t < 0.2:
+                px[x, y] = CORE if core else HOT
+            elif t < 0.55:
+                px[x, y] = HOT if core else MID
+            else:
+                px[x, y] = MID if core else EDGE
+    return despeck(im)
+
+
 def tracer(at):
-    """머리(+z) 쪽이 굵고 밝으며 꼬리 쪽으로 가늘어지고 주황으로 식는 줄기. 단면은 정사각형 (어느 쪽에서 봐도 같은 폭)"""
+    """탄 궤적: 가운데에서 엇갈린 십자 판 2장 (어느 방향에서 봐도 줄기), 길이 방향으로 탄두 흰색 → 꼬리 주황"""
     parts, uvs = [], {}
-    segs = [(0.0, 4.0, 2.4, EDGE), (3.8, 9.0, 3.6, MID), (8.8, 14.0, 5.0, HOT), (13.8, 16.0, 6.0, CORE)]
-    for z0, z1, w, col in segs:
-        t = Image.new("RGBA", (4, 4), col); d = ImageDraw.Draw(t)
-        if col != CORE:
-            d.rectangle([1, 0, 2, 3], fill=HOT if col != HOT else CORE)   # 가운데 밝은 심 (길이 방향)
-        uv = at.add(t)
-        uvs[len(parts)] = {f: uv for f in FACES}
-        parts.append(P([8 - w / 2, 8 - w / 2, z0], [8 + w / 2, 8 + w / 2, z1], name="tracer"))
+    vt = streak_tile(8, 32)
+    tl = at.add(vt.transpose(Image.FLIP_TOP_BOTTOM))  # 위·아래 면: v=0 이 z=0(북쪽) → 탄두(+z)가 그림 아래로
+    th = at.add(vt.rotate(90, expand=True))           # 옆면(동·서): u=0 이 z=16 → 탄두(위)를 왼쪽으로 돌린 그림
+    clr = at.clear_uv()
+    uvs[0] = {f: clr for f in FACES}; uvs[0]["east"] = th; uvs[0]["west"] = th
+    parts.append(P([7.99, 0, 0], [8.01, 16, 16], name="tracer_v"))
+    uvs[1] = {f: clr for f in FACES}; uvs[1]["up"] = tl; uvs[1]["down"] = tl
+    parts.append(P([0, 7.99, 0], [16, 8.01, 16], name="tracer_h"))
     return parts, uvs
 
 

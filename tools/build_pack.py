@@ -359,7 +359,10 @@ def weapons():
             d = recoil[i]
             if i == 0:
                 fire = make()
-                models_flash.add_flash(fire, models_guns.MUZZLE[gid], 2.6 if "silenced" in gid else 3.4)
+                # 총마다 화염 크기: 소음기는 작게, 매그넘·산탄총은 크게
+                fsize = {"silenced_pistol": 1.5, "silenced_uzi": 1.5, "magnum": 4.2, "shotgun": 4.4, "double_barrel": 4.4,
+                         "uzi": 2.8, "mp5": 3.0}.get(gid, 3.4)
+                models_flash.add_flash(fire, models_guns.MUZZLE[gid], fsize)
                 save_model_arms("weapon", gid + "_fp_fire", fire, {"firstperson_righthand": d}, arms)
                 frames.append((th, gid + "_fp_fire"))
             else:
