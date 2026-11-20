@@ -41,8 +41,9 @@ def add_flash(m, muzzle, size=3.2):
     """블록벤치 MCP 로 만든 화염(tools/loop/fx/out/muzzle_fp)이 있고 모델이 블록벤치 모델이면 그것을 붙임"""
     if hasattr(m, "attach") and os.path.exists(os.path.join(FX, "muzzle_fp.json")):
         k = size / 3.4
-        kz = min(k, (31.8 - muzzle[2]) / 6.0)     # 원소 좌표 한계(z ≤ 32) 안으로 불꽃 길이만 줄임
-        m.attach(os.path.join(FX, "muzzle_fp.json"), os.path.join(FX, "muzzle_fp.png"), muzzle, (k, k, max(0.25, kz)))
+        at = (muzzle[0], muzzle[1], min(muzzle[2] + 0.8, 31.0))   # 총구 끝보다 조금 앞: 총열이 화염 흰 심을 가리지 않게
+        kz = min(k, (31.8 - at[2]) / 6.0)          # 원소 좌표 한계(z ≤ 32) 안으로 불꽃 길이만 줄임
+        m.attach(os.path.join(FX, "muzzle_fp.json"), os.path.join(FX, "muzzle_fp.png"), at, (k, k, max(0.2, kz)))
         return
     x, y, z = muzzle
     length = min(6.5, 31.8 - z)

@@ -38,21 +38,24 @@ class Atlas:
 
 
 def star_tile(n, spikes=6, inner=0.34, seed=0, ring=True):
-    """정면 화염 (픽셀아트, 반투명 없음): 바늘 5~6개, 길이·간격·굵기가 제각각인 비대칭 별"""
+    """정면 화염 (픽셀아트, 반투명 없음): 길이가 제각각인 큰 갈래 3~4개 + 짧은 갈래 2~3개, 간격도 불규칙 (반짝이 아이콘처럼 고르지 않게)"""
     import random
     rnd = random.Random(seed * 7 + n)
     im = Image.new("RGBA", (n, n), CLEAR); d = ImageDraw.Draw(im); c = n / 2
+    big = rnd.choice((3, 4)); small = rnd.choice((2, 3))
+    kinds = ["big"] * big + ["small"] * small
+    rnd.shuffle(kinds)
     a = rnd.uniform(0, math.tau)
-    for i in range(spikes):
-        a += math.tau / spikes * rnd.uniform(0.7, 1.3)
-        ln = c * rnd.uniform(0.55, 0.98)
-        w = rnd.uniform(0.26, 0.45)
+    for k in kinds:
+        a += math.tau / len(kinds) * rnd.uniform(0.6, 1.4)
+        ln = c * (rnd.uniform(0.78, 1.0) if k == "big" else rnd.uniform(0.38, 0.55))
+        w = rnd.uniform(0.22, 0.32) if k == "big" else rnd.uniform(0.3, 0.42)
         d.polygon([(c, c), (c + math.cos(a - w) * c * inner, c + math.sin(a - w) * c * inner),
                    (c + math.cos(a) * ln, c + math.sin(a) * ln), (c + math.cos(a + w) * c * inner, c + math.sin(a + w) * c * inner)], fill=EDGE)
-        ln2 = ln * 0.7
+        ln2 = ln * 0.68
         d.polygon([(c, c), (c + math.cos(a - w * 0.6) * c * inner * 0.8, c + math.sin(a - w * 0.6) * c * inner * 0.8),
                    (c + math.cos(a) * ln2, c + math.sin(a) * ln2), (c + math.cos(a + w * 0.6) * c * inner * 0.8, c + math.sin(a + w * 0.6) * c * inner * 0.8)], fill=MID)
-    r1, r2 = c * 0.4, c * 0.2
+    r1, r2 = c * 0.38, c * 0.2
     d.ellipse([c - r1, c - r1 * 0.85, c + r1, c + r1 * 0.85], fill=HOT)
     d.ellipse([c - r2, c - r2, c + r2, c + r2], fill=CORE)
     return despeck(im)
@@ -125,12 +128,12 @@ def streak_tile(w, h):
     im = Image.new("RGBA", (w, h), CLEAR); px = im.load(); cx = (w - 1) / 2
     for y in range(h):
         t = 1 - y / (h - 1)                # 0 = 탄두(위), 1 = 꼬리(아래)
-        half = (w / 2) * (1 - 0.75 * t)
+        half = (w / 2) * (1 - 0.33 * t)       # 탄두 폭은 꼬리의 1.5배 이내
         for x in range(w):
             o = abs(x - cx)
             if o > half:
                 continue
-            core = o <= half * 0.4
+            core = o <= max(1.0, half * 0.5)      # 흰 심은 2px 이상
             if t < 0.2:
                 px[x, y] = CORE if core else HOT
             elif t < 0.55:
