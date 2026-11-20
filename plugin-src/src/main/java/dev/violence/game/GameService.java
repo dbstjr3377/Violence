@@ -267,6 +267,12 @@ public final class GameService {
                 p.setSpectatorTarget(body);
             }
             if (plugin.now() % 10 == 0) p.sendActionBar(Component.text("관전: " + watched.name() + " (강화 NPC)  " + watched.kills + "킬", NamedTextColor.GOLD));
+            if (plugin.getConfig().getBoolean("debug.watch", false) && plugin.now() % 40 == 0) {
+                org.bukkit.entity.Entity tg = p.getSpectatorTarget();
+                plugin.getLogger().info(String.format("[watch] target=%s same=%s dist=%.2f state=%s valid=%s pworld=%s",
+                        tg == null ? "null" : tg.getType(), tg == body, p.getLocation().distance(body.getLocation()),
+                        watched.state, body.isValid(), p.getWorld().getName()));
+            }
         }
     }
 

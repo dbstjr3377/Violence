@@ -164,6 +164,7 @@ public final class NpcCombatant extends Combatant {
         Location l = new Location(body.getWorld(), pos.x(), pos.y(), pos.z(), yaw, pitch);
         body.teleport(l);
         body.setBodyYaw(yaw);
+        body.setRotation(yaw, pitch);   // 머리 방향도 (관전 카메라는 머리 방향을 따라감)
     }
 
     @Override
