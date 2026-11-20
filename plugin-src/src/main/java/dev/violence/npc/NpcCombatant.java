@@ -54,7 +54,9 @@ public final class NpcCombatant extends Combatant {
     final java.util.Map<dev.violence.arena.GroundWeapon, Long> ignoreWeapons = new java.util.HashMap<>();
     dev.violence.arena.GroundWeapon weaponGoal;
     long weaponGoalSince;
-    final double skill;
+    double skill;
+    /** 관전용 강화 NPC: 반응이 빠르고 조준·이동·무기 선택이 공격적 */
+    public boolean elite;
     /** 한 팔 조준 자세 패킷을 보낸 상태인지 */
     public boolean poseSent;
 

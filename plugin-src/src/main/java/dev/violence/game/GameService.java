@@ -48,6 +48,12 @@ public final class GameService {
     private String mapId;
     /** 게임을 열 때마다 증가. 지난 판의 콜백/예약 작업이 새 판을 건드리지 못하게 한다 */
     private int generation;
+    /** 관전 판: 플레이어 없이 NPC 끼리, 강화 NPC 하나를 뒤에서 따라가는 카메라로 본다 */
+    private boolean watchMode;
+    private final List<java.util.UUID> watchers = new ArrayList<>();
+    private NpcCombatant watched;
+    private org.bukkit.entity.ItemDisplay watchCam;
+    private Vec3 camPos;
 
     public GameService(ViolencePlugin plugin) {
         this.plugin = plugin;
@@ -72,6 +78,15 @@ public final class GameService {
      * @param npcCount NPC 수 (-1 이면 총원 50 - 플레이어 수)
      */
     public boolean start(CommandSender sender, String map, int npcCount, int kills, int seconds) {
+        return start(sender, map, npcCount, kills, seconds, false);
+    }
+
+    /** NPC 끼리만 하는 판을 열고, 온라인 플레이어는 강화 NPC 하나를 관전한다 (/violence watch) */
+    public boolean watch(CommandSender sender, String map) {
+        return start(sender, map, -1, -1, -1, true);
+    }
+
+    public boolean start(CommandSender sender, String map, int npcCount, int kills, int seconds, boolean watch) {
         if (state != State.IDLE) {
             dev.violence.chat.NoChat.tell(sender, Component.text("이미 게임이 진행 중입니다.", NamedTextColor.RED));
             return false;
@@ -80,9 +95,12 @@ public final class GameService {
             dev.violence.chat.NoChat.tell(sender, Component.text("컷씬이 진행 중입니다. 컷씬이 끝난 뒤 시작하세요.", NamedTextColor.RED));
             return false;
         }
-        List<Player> players = new ArrayList<>(plugin.lobby().participants());
+        List<Player> players = watch ? new ArrayList<>() : new ArrayList<>(plugin.lobby().participants());
         int total = plugin.getConfig().getInt("game.total-entities", 50);
-        int minPlayers = plugin.getConfig().getInt("game.min-players", 1);
+        int minPlayers = watch ? 0 : plugin.getConfig().getInt("game.min-players", 1);
+        watchMode = watch;
+        watchers.clear();
+        if (watch) for (Player p : plugin.getServer().getOnlinePlayers()) watchers.add(p.getUniqueId());
         if (players.size() < minPlayers) {
             dev.violence.chat.NoChat.tell(sender, Component.text("참가 플레이어가 부족합니다 (최소 " + minPlayers + "명).", NamedTextColor.RED));
             return false;
@@ -188,13 +206,19 @@ public final class GameService {
         plugin.clubBeams().start(a);   // 클럽: 쉐이더와 맞춘 공중 빛줄기
         // 플레이어 참가 (맵을 준비하는 동안 들어온 사람도 포함)
         java.util.LinkedHashSet<Player> joining = new java.util.LinkedHashSet<>(players);
-        joining.addAll(plugin.lobby().participants());
+        if (!watchMode) joining.addAll(plugin.lobby().participants());
         for (Player p : joining) {
             if (!p.isOnline() || a.players.containsKey(p.getUniqueId())) continue;
             addPlayer(a, p);
         }
         plugin.npcs().spawn(a, npcs);
         spawnWeapons(a);
+        if (watchMode && !a.npcs.isEmpty()) {
+            watched = a.npcs.get(plugin.random().nextInt(a.npcs.size()));
+            plugin.npcs().makeElite(watched);
+            plugin.getLogger().info("관전 대상 (강화 NPC): " + watched.name());
+            startWatchCam(a);
+        }
         // 카운트다운
         state = State.COUNTDOWN;
         long now = plugin.now();
@@ -217,6 +241,55 @@ public final class GameService {
                     Component.text(plugin.maps().displayName(map)).font(Glyphs.PROMPT), 0, 20, 10);
             for (Combatant c : a.combatants.values()) c.applyStateVisuals();
         });
+    }
+
+    // ───────── 관전 카메라 ─────────
+
+    private void startWatchCam(Arena a) {
+        Vec3 want = watchCamTarget(a);
+        camPos = want;
+        Location l = new Location(a.world, want.x(), want.y(), want.z());
+        watchCam = plugin.camera().spawnCamera(l, 2);
+        for (java.util.UUID id : watchers) {
+            Player p = plugin.getServer().getPlayer(id);
+            if (p == null) continue;
+            p.setGameMode(org.bukkit.GameMode.SPECTATOR);
+            p.teleport(l);
+            plugin.later(5, () -> { if (p.isOnline() && watchCam != null) p.setSpectatorTarget(watchCam); });
+        }
+    }
+
+    /** 강화 NPC 뒤 위쪽 (벽에 막히면 당겨 옴) */
+    private Vec3 watchCamTarget(Arena a) {
+        NpcCombatant n = watched;
+        Vec3 head = n.feet().add(0, 1.7, 0);
+        Vec3 back = Vec3.fromYawPitch(n.yaw(), 0).horizontal().normalize().mul(-1);
+        double dist = 3.6;
+        Vec3 best = head.add(0, 0.6, 0);
+        for (double d = dist; d >= 0.8; d -= 0.4) {
+            Vec3 c = head.add(back.mul(d)).add(0, 0.9, 0);
+            if (plugin.combat().lineOfSight(a, head, c)) { best = c; break; }
+        }
+        return best;
+    }
+
+    private void tickWatchCam(Arena a) {
+        if (watched == null || watchCam == null || !watchCam.isValid()) return;
+        Vec3 want = watchCamTarget(a);
+        camPos = camPos == null ? want : camPos.add(want.sub(camPos).mul(0.35));   // 부드럽게 따라감
+        Vec3 look = watched.feet().add(0, 1.3, 0).sub(camPos);
+        Location l = new Location(a.world, camPos.x(), camPos.y(), camPos.z(), (float) look.yaw(), (float) look.pitch());
+        watchCam.teleport(l);
+        for (java.util.UUID id : watchers) {
+            Player p = plugin.getServer().getPlayer(id);
+            if (p == null || !p.isOnline()) continue;
+            if (p.getGameMode() != org.bukkit.GameMode.SPECTATOR) p.setGameMode(org.bukkit.GameMode.SPECTATOR);
+            if (p.getSpectatorTarget() != watchCam) {
+                if (!p.getWorld().equals(a.world)) p.teleport(l);
+                p.setSpectatorTarget(watchCam);
+            }
+            if (plugin.now() % 10 == 0) p.sendActionBar(Component.text("관전: " + watched.name() + " (강화 NPC)  " + watched.kills + "킬", NamedTextColor.GOLD));
+        }
     }
 
     private void addPlayer(Arena a, Player p) {
@@ -263,7 +336,8 @@ public final class GameService {
     public void tick(long now) {
         Arena a = plugin.arena();
         if (a == null) return;
-        if ((state == State.RUNNING || state == State.COUNTDOWN) && a.players.isEmpty()
+        if (watchMode) tickWatchCam(a);
+        if (!watchMode && (state == State.RUNNING || state == State.COUNTDOWN) && a.players.isEmpty()
                 && plugin.getConfig().getBoolean("game.end-when-empty", true)) {
             // 플레이어가 모두 나가면 NPC 끼리 10분을 채우지 않고 정리
             plugin.getLogger().info("플레이어가 모두 나가 게임을 정리합니다.");
@@ -607,6 +681,17 @@ public final class GameService {
         // 단계마다 따로 보호: 하나가 실패해도 아레나 해제, 월드 제거, 상태 초기화는 반드시 실행
         safe("붙여넣기 중단", () -> plugin.maps().cancelPaste(w));
         safe("카메라 복구", () -> plugin.camera().resetAll());
+        safe("관전 정리", () -> {
+            for (java.util.UUID id : watchers) {
+                Player p = plugin.getServer().getPlayer(id);
+                if (p != null && p.getGameMode() == org.bukkit.GameMode.SPECTATOR) p.setSpectatorTarget(null);
+            }
+            watchers.clear();
+            watchMode = false;
+            watched = null;
+            watchCam = null;
+            camPos = null;
+        });
         try {
             if (a != null) {
                 for (PlayerCombatant pc : new ArrayList<>(a.players.values())) {

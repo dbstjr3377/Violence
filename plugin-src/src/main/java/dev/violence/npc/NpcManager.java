@@ -164,7 +164,7 @@ public final class NpcManager {
         applySlide(a, n);
         if (now >= n.nextThink) {
             think(a, n, now);
-            n.nextThink = now + 4;
+            n.nextThink = now + (n.elite ? 1 : 4);
         }
         act(a, n, now);
         n.sync();
@@ -208,7 +208,8 @@ public final class NpcManager {
         if (best != null) {
             if (n.target != best || now - n.targetSeenAt > 40) {
                 // 처음 발견하면 반응 시간
-                n.reactionUntil = now + (long) (6 + (1 - n.skill) * 14 + plugin.random().nextInt(5));
+                n.reactionUntil = n.elite ? now + 1 + plugin.random().nextInt(2)
+                        : now + (long) (6 + (1 - n.skill) * 14 + plugin.random().nextInt(5));
             }
             n.target = best;
             n.targetSeenAt = now;
@@ -264,7 +265,7 @@ public final class NpcManager {
                 case GUN -> {
                     if (n.weapon.hasAmmo()) {
                         if (dist > 26) moveToward(a, n, tgt.feet(), now);
-                        else if (dist < 4 && n.skill > 0.6) strafe(a, n, tgt);
+                        else if (n.elite ? dist < 14 : dist < 4 && n.skill > 0.6) strafe(a, n, tgt);   // 강화: 쏘면서 계속 옆걸음
                         aimAndFire(a, n, tgt, t, now, dist);
                     } else if (dist < 13) {
                         // 빈 총: 바로 앞이어도 던진다 (줍기만 기다리다 맞기만 하지 않게)
@@ -282,16 +283,16 @@ public final class NpcManager {
                 }
                 case MELEE, FIST -> {
                     // 무기 없이 멀리 있는 적이면 근처 무기부터
-                    if (t.isFist() && dist > 8) {
-                        GroundWeapon g = reachableWeapon(a, n, 10, now);
+                    if (t.isFist() && (dist > 8 || n.elite && dist > 3)) {
+                        GroundWeapon g = reachableWeapon(a, n, n.elite ? 16 : 10, now);
                         if (g != null) {
                             moveToward(a, n, g.pos, now);
                             return;
                         }
                     }
-                    double reach = t.meleeRange() - 0.3;
+                    double reach = t.meleeRange() - (n.elite ? 0.1 : 0.3);
                     if (dist <= reach) {
-                        face(n, tgt.feet().add(0, 1.0, 0), 45);
+                        face(n, tgt.feet().add(0, 1.0, 0), n.elite ? 90 : 45);
                         if (now >= n.reactionUntil) plugin.combat().trigger(n, now, true, false);
                     } else {
                         moveToward(a, n, tgt.feet(), now);
@@ -304,9 +305,34 @@ public final class NpcManager {
 
         // 2) 적이 안 보임
         if (n.weapon == null || (n.weapon.type().isGun() && !n.weapon.hasAmmo())) {
-            GroundWeapon g = reachableWeapon(a, n, 18, now);
+            GroundWeapon g = reachableWeapon(a, n, n.elite ? 32 : 18, now);
             if (g != null) {
                 moveToward(a, n, g.pos, now);
+                return;
+            }
+        } else if (n.elite && !n.weapon.type().isGun()) {
+            // 강화: 근접무기를 들고 있어도 가까운 총이 있으면 바꿔 듦
+            GroundWeapon g = plugin.ground().nearest(a, n.pos, 12, false);
+            if (g != null && g.weapon.type().isGun() && g.weapon.hasAmmo()) {
+                moveToward(a, n, g.pos, now);
+                if (n.pos.distance(g.pos) < 1.4 && n.canAct(now)) {
+                    plugin.combat().throwWeapon(n, now);
+                    plugin.combat().pickUp(n, g);
+                }
+                return;
+            }
+        }
+        if (n.elite && n.target == null && n.noisePos == null) {
+            // 강화: 가만히 배회하지 않고 가장 가까운 적을 찾아감 (벽 너머라도 대략 위치로)
+            Combatant prey = null;
+            double best = 1e9;
+            for (Combatant c : a.combatants.values()) {
+                if (c == n || !c.isAlive()) continue;
+                double d = c.feet().distanceSq(n.pos);
+                if (d < best) { best = d; prey = c; }
+            }
+            if (prey != null) {
+                moveToward(a, n, prey.feet(), now);
                 return;
             }
         }
@@ -331,8 +357,9 @@ public final class NpcManager {
 
     private void aimAndFire(Arena a, NpcCombatant n, Combatant tgt, WeaponType t, long now, double dist) {
         // 머리 대신 주로 몸통을 노리고, 거리가 멀수록 부정확
-        Vec3 aim = tgt.state.isDownedLike() ? tgt.feet().add(0, 0.3, 0) : tgt.feet().add(0, plugin.random().nextDouble() < 0.2 ? 1.55 : 1.1, 0);
-        face(n, aim, 18 + n.skill * 20);
+        double head = n.elite ? 0.5 : 0.2;
+        Vec3 aim = tgt.state.isDownedLike() ? tgt.feet().add(0, 0.3, 0) : tgt.feet().add(0, plugin.random().nextDouble() < head ? 1.55 : 1.1, 0);
+        face(n, aim, n.elite ? 75 : 18 + n.skill * 20);
         if (now < n.reactionUntil || !n.canAct(now)) return;
         Vec3 want = aim.sub(n.eye()).normalize();
         if (want.angleTo(n.look()) > 6) return;
@@ -341,7 +368,7 @@ public final class NpcManager {
             if (now <= n.burstUntil) plugin.combat().trigger(n, now, false, true);
         } else if (now >= n.nextShotAt) {
             plugin.combat().trigger(n, now, true, false);
-            n.nextShotAt = now + 6 + (long) ((1 - n.skill) * 12) + plugin.random().nextInt(6);
+            n.nextShotAt = n.elite ? now + 4 + plugin.random().nextInt(2) : now + 6 + (long) ((1 - n.skill) * 12) + plugin.random().nextInt(6);
         }
     }
 
@@ -399,8 +426,15 @@ public final class NpcManager {
         return best;
     }
 
+    /** 관전용 강화 NPC 로 만든다 */
+    public void makeElite(NpcCombatant n) {
+        n.elite = true;
+        n.skill = 1.0;
+    }
+
     private double speed(NpcCombatant n) {
         double s = n.heavy ? HEAVY_SPEED : SPEED;
+        if (n.elite) s *= 1.12;
         if (plugin.now() < n.speedBoostUntil) s *= dev.violence.mask.Mask.GRAHAM.speedMultiplier();   // 문 발차기 뒤
         return s;
     }

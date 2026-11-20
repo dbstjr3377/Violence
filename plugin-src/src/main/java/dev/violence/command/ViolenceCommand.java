@@ -70,6 +70,7 @@ public final class ViolenceCommand implements TabExecutor {
                 return onCommand(target, command, label, java.util.Arrays.copyOfRange(args, 2, args.length));
             }
             case "start" -> plugin.game().start(sender, args.length > 1 ? args[1] : null, intArg(args, 2, -1), intArg(args, 3, -1), intArg(args, 4, -1));
+            case "watch" -> plugin.game().watch(sender, args.length > 1 ? args[1] : null);   // NPC 끼리 + 강화 NPC 관전
             case "stop" -> plugin.game().stop(sender);
             case "cutscene" -> cutscene(sender, args);
             case "award", "combobonus" -> {
