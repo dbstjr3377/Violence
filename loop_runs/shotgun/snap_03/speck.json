@@ -1,0 +1,78 @@
+{
+  "pass": true,
+  "limits": {
+    "speck_ratio": 0.004,
+    "pinhole": 0,
+    "semi_alpha_ratio": 0.001,
+    "near_dup_ratio": 0.3,
+    "noisy_face_ratio": 0.12
+  },
+  "files": [
+    {
+      "file": "tools/loop/guns/out/shotgun/shotgun.png",
+      "model": "tools/loop/guns/out/shotgun/shotgun.json",
+      "size": [
+        256,
+        256
+      ],
+      "faces": 2112,
+      "pixels": 13870,
+      "speck": 9,
+      "speck_ratio": 0.00065,
+      "pinhole": 0,
+      "semi_alpha": 0,
+      "semi_alpha_ratio": 0.0,
+      "near_dup_ratio": 0.0,
+      "noisy_face_ratio": 0.0028,
+      "examples": [
+        [
+          "speck",
+          89,
+          55
+        ],
+        [
+          "speck",
+          89,
+          57
+        ],
+        [
+          "speck",
+          215,
+          44
+        ],
+        [
+          "speck",
+          227,
+          46
+        ],
+        [
+          "speck",
+          169,
+          44
+        ],
+        [
+          "speck",
+          167,
+          55
+        ],
+        [
+          "speck",
+          41,
+          55
+        ],
+        [
+          "speck",
+          57,
+          55
+        ],
+        [
+          "speck",
+          222,
+          70
+        ]
+      ],
+      "fails": [],
+      "pass": true
+    }
+  ]
+}

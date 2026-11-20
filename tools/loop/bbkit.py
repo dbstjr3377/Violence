@@ -138,6 +138,8 @@ def _hash(*a):
 
 
 DOT_MOD = 10
+DOT_MODE = "pair"   # pair: 해시 2텍셀 묶음 / cell: 4x2 칸마다 점 하나
+DOT_P = 0.55
 
 
 def atlas(parts, palette, density=2, painter=None, style="tacz2", topline=("steel",), step=7):
@@ -192,8 +194,17 @@ def atlas(parts, palette, density=2, painter=None, style="tacz2", topline=("stee
                             st_ = min(10, max(7, round(step * max(c) / 70)))   # 점 세기: 밝기에 비례, 7~10 (밝은 강철·나무가 지저분해지지 않게)
                             if max(tw, th) >= 8:
                                 off += st_ if t >= 0.5 else 0    # 긴 면만 2단 그라데이션 (TACZ 중앙 0.014 V)
-                            r_ = _hash(pi, fi, (i + (j % 2)) // 2, j) % DOT_MOD   # TACZ식 드문 점 얼룩: 가로 2텍셀 묶음 2/DOT_MOD 만 ±st_ (1텍셀 고립 점 = 잡티 방지)
-                            off += -st_ if r_ == 0 else (st_ if r_ == DOT_MOD - 1 else 0)
+                            if DOT_MODE == "cell":
+                                # 4x2 칸마다 가로 2텍셀 점 하나(확률 DOT_P) — 점끼리 붙어 사각 덩어리가 되지 않게
+                                ci, cj = i // 4, j // 2
+                                hh = _hash(pi, fi, ci, cj, 7)
+                                if hh % 100 < DOT_P * 100:
+                                    di, dj = (hh >> 8) % 3, (hh >> 12) % 2
+                                    if j == cj * 2 + dj and ci * 4 + di <= i <= ci * 4 + di + 1:
+                                        off += -st_ if (hh >> 16) % 2 else st_
+                            else:
+                                r_ = _hash(pi, fi, (i + (j % 2)) // 2, j) % DOT_MOD   # TACZ식 드문 점 얼룩: 가로 2텍셀 묶음 2/DOT_MOD 만 ±st_ (1텍셀 고립 점 = 잡티 방지)
+                                off += -st_ if r_ == 0 else (st_ if r_ == DOT_MOD - 1 else 0)
                             if side and j == 0 and mat in topline:
                                 off += int(step * 2.5)
                         col = tuple(max(0, min(255, v + off)) for v in c)

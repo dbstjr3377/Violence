@@ -63,10 +63,8 @@ def mag_curve(b, x0, x1, top, z0, z1, segs, mat="mag", floor="poly", ribs=True):
 def m16(b):
     # A2 고정 개머리: 윗선 직선, 아랫선 사선 (덩어리 하나 + 아래 쐐기) — 버퍼 튜브는 안에 숨김
     b.chamfer_box([7.1, 8.0, -7.6], [8.9, 10.35, 2.1], 0.35, "poly", name="stock")
-    b.chamfer_box([7.12, 6.2, -7.6], [8.88, 8.3, -2.0], 0.3, "poly", Xf.rot("x", -16, (8, 8.3, -7.6)), name="stock_belly")
-    b.chamfer_box([7.0, 5.6, -8.25], [9.0, 10.6, -7.55], 0.15, "rubber", name="butt_pad")
-    b.chamfer_box([7.2, 9.6, -7.5], [8.8, 10.4, -6.6], 0.1, "steel_b", name="butt_door")
-    b.chamfer_box([7.75, 6.3, -6.3], [8.25, 6.9, -5.3], 0.08, "steel_b", name="sling")
+    b.chamfer_box([7.12, 5.6, -7.6], [8.88, 7.9, 1.5], 0.3, "poly", Xf.rot("x", -15, (8, 5.6, -7.6)), name="stock_wedge")
+    b.chamfer_box([7.0, 5.4, -8.25], [9.0, 10.6, -7.55], 0.15, "rubber", name="butt_pad")
     # 하부 리시버 + 탄창 삽입구
     b.chamfer_box([7.1, 7.4, 2.0], [8.9, 9.55, 10.6], 0.2, "lo", name="lower")
     b.chamfer_box([7.05, 6.4, 6.9], [8.95, 7.6, 10.4], 0.15, "lo", name="magwell")
@@ -77,13 +75,15 @@ def m16(b):
         b.oct("x", y, z, 0.16, 7.05, 8.95, "steel_l", name="pin")
     # 상부 리시버 + 배출구 덮개 + 탄피받이 + 포워드 어시스트 + 장전 손잡이
     b.chamfer_box([7.2, 9.5, 2.0], [8.8, 11.0, 11.2], 0.22, "rec", name="upper")
-    b.put([8.8, 9.75, 5.8], [8.92, 10.65, 8.8], "steel_b", name="port_cover")
+    b.put([8.8, 9.75, 5.8], [8.92, 10.65, 8.8], "rec_t", name="port_cover")
     b.chamfer_box([8.75, 9.5, 5.2], [9.3, 10.2, 5.8], 0.08, "rec", name="deflector")
     b.oct("z", 8.95, 10.3, 0.32, 8.3, 9.7, "steel_b", name="forward_assist")
     b.chamfer_box([7.4, 10.6, 1.4], [8.6, 11.0, 2.05], 0.08, "steel_b", name="charging_handle")
     # 운반 손잡이 (옆판 일체) + 가늠자 드럼
     b.chamfer_box([7.4, 10.9, 2.6], [8.6, 12.4, 4.3], 0.2, "rec", name="handle_rear")
-    b.chamfer_box([7.45, 10.9, 8.5], [8.55, 12.3, 9.7], 0.2, "rec", name="handle_front")
+    b.chamfer_box([7.45, 10.9, 8.0], [8.55, 12.3, 9.0], 0.15, "rec", name="handle_front")
+    b.chamfer_box([7.45, 10.6, 8.6], [8.55, 12.0, 9.6], 0.15, "rec", Xf.rot("x", -35, (8, 12.0, 8.6)), name="handle_slope")
+    b.chamfer_box([7.42, 10.95, 4.2], [8.58, 11.35, 8.2], 0.1, "rec", name="handle_rail")
     b.chamfer_box([7.35, 12.25, 2.6], [8.65, 12.95, 9.8], 0.2, "rec_t", name="carry_handle")
     b.oct("x", 12.7, 3.3, 0.38, 7.2, 8.8, "steel_b", name="rear_drum")
     b.chamfer_box([7.6, 12.95, 2.8], [8.4, 13.5, 3.9], 0.08, "rec", name="rear_ears")
@@ -104,12 +104,13 @@ def m16(b):
     b.oct("z", 8.0, 9.5, 1.2, 10.9, 11.5, "steel_b", name="delta_ring")
     b.oct("z", 8.0, 9.5, 1.08, 11.5, 18.6, "poly", name="handguard")
     for k in range(8):
-        b.put([7.9, 9.5 + 0.98, 11.7], [8.1, 9.5 + 1.2, 18.4], "poly_t", Xf.rot("z", k * 45 + 22.5, (8, 9.5, 0)), name="hg_rib")
+        b.put([7.88, 9.5 + 0.95, 11.7], [8.12, 9.5 + 1.3, 18.4], "poly_t", Xf.rot("z", k * 45 + 22.5, (8, 9.5, 0)), name="hg_rib")
     b.oct("z", 8.0, 9.5, 0.98, 18.6, 19.1, "steel_b", name="hg_cap")
     # A2 삼각 가늠쇠 받침 (뒤 사선 + 앞 수직) + 보호 날개 + 대검 꽂이
     b.oct("z", 8.0, 9.6, 0.62, 19.2, 20.9, "rec", name="fsb_ring")
-    b.chamfer_box([7.55, 9.6, 19.5], [8.45, 12.3, 20.9], 0.1, "rec", name="fsb_front")
-    b.chamfer_box([7.55, 9.6, 18.6], [8.45, 12.0, 19.7], 0.1, "rec", Xf.rot("x", -28, (8, 9.6, 19.7)), name="fsb_back")
+    b.chamfer_box([7.55, 9.6, 19.0], [8.45, 10.6, 20.9], 0.1, "rec", name="fsb_step1")
+    b.chamfer_box([7.58, 10.5, 19.5], [8.42, 11.4, 20.9], 0.1, "rec", name="fsb_step2")
+    b.chamfer_box([7.6, 11.3, 19.9], [8.4, 12.2, 20.9], 0.1, "rec", name="fsb_step3")
     for sx in (7.5, 8.32):
         b.chamfer_box([sx, 12.0, 19.75], [sx + 0.18, 13.1, 20.7], 0.04, "rec", name="fs_ear")
     b.put([7.92, 12.2, 20.05], [8.08, 13.0, 20.35], "steel_l", name="fs_post")
@@ -133,6 +134,12 @@ def mp5(b):
     for sx in (7.1, 8.85):
         b.put([sx, 9.5, 3.0], [sx + 0.06, 9.75, 13.8], "steel_d", name="press_line")
     b.put([8.84, 9.85, 6.6], [8.92, 10.6, 9.4], "bore", name="port")
+    for (y0, y1) in ((9.7, 9.85), (10.6, 10.75)):
+        b.put([8.8, y0, 6.4], [8.95, y1, 9.6], "rec_t", name="port_rim")
+    for z0 in (6.45, 9.4):
+        b.put([8.8, 9.7, z0], [8.95, 10.75, z0 + 0.15], "rec_t", name="port_rim")
+    for sx in (7.08, 8.86):
+        b.put([sx, 8.7, 3.0], [sx + 0.06, 8.9, 13.8], "rec_t", name="press_rib")
     # 드럼 가늠자 (받침 위)
     b.chamfer_box([7.3, 11.2, 2.6], [8.7, 11.75, 3.9], 0.1, "rec", name="drum_base")
     b.oct("x", 12.05, 3.25, 0.6, 7.15, 8.85, "steel_b", name="rear_drum")
@@ -140,10 +147,9 @@ def mp5(b):
     b.oct("z", 8.0, 10.5, 0.55, 14.4, 19.0, "rec", name="cocking_tube")
     b.chamfer_box([7.5, 9.3, 18.0], [8.5, 10.6, 19.0], 0.12, "rec", name="tube_bridge")
     b.chamfer_box([7.25, 10.6, 17.3], [8.75, 11.4, 18.7], 0.15, "rec", name="hood_base")
-    for sx in (7.38, 8.62):
-        b.chamfer_box([sx - 0.15, 11.3, 17.4], [sx + 0.15, 12.3, 18.6], 0.06, "steel_b", name="hood_side")
-    b.chamfer_box([7.25, 12.1, 17.4], [8.75, 12.45, 18.6], 0.1, "steel_b", name="hood_top")
-    b.put([7.92, 11.3, 17.85], [8.08, 11.85, 18.15], "steel_l", name="fs_post")
+    for k in range(8):   # 팔각 고리 후드 (가운데 구멍 + 기둥)
+        b.put([7.72, 11.95 + 0.62, 17.5], [8.28, 11.95 + 0.82, 18.5], "steel_b", Xf.rot("z", k * 45, (8, 11.95, 0)), name="hood_ring")
+    b.put([7.92, 11.3, 17.85], [8.08, 12.0, 18.15], "steel_l", name="fs_post")
     b.chamfer_box([6.55, 10.15, 15.0], [7.5, 10.6, 15.6], 0.08, "steel_l", name="cocking_handle")
     # 핸드가드 (아래 45° 깎음 + 손가락 홈)
     b.chamfer_box([7.0, 7.6, 12.4], [9.0, 10.0, 17.6], 0.45, "poly", name="handguard")
@@ -209,18 +215,22 @@ def shotgun(b):
     b.chamfer_box([7.1, 7.9, 2.6], [8.9, 11.0, 10.6], 0.25, "blued", name="receiver")
     b.chamfer_box([7.12, 7.4, 9.4], [8.88, 8.4, 11.2], 0.2, "blued", Xf.rot("x", 30, (8, 8.4, 10.6)), name="rec_slope")
     b.put([8.82, 9.2, 4.4], [8.95, 10.4, 7.8], "bore", name="port")
+    for (y0, y1) in ((9.0, 9.2), (10.4, 10.6)):
+        b.put([8.85, y0, 4.2], [9.0, y1, 8.0], "rec_t", name="port_rim")
     b.chamfer_box([7.35, 10.95, 3.0], [8.65, 11.25, 10.4], 0.1, "rec_t", name="top_groove")
     for (y, z) in ((7.6, 3.6), (7.6, 8.0)):
         b.oct("x", y, z, 0.16, 7.05, 8.95, "steel_l", name="pin")
     # 방아쇠 뭉치 + 방아쇠울 (앞뒤 고정 고리) + 방아쇠 + 안전 버튼
     b.chamfer_box([7.3, 7.0, 3.0], [8.7, 8.0, 8.6], 0.15, "lo", name="trigger_group")
-    b.chamfer_box([7.55, 6.05, 4.4], [8.45, 6.4, 7.6], 0.08, "lo", name="guard")
-    b.chamfer_box([7.55, 6.1, 7.25], [8.45, 7.1, 7.6], 0.08, "lo", name="guard_front")
-    b.chamfer_box([7.55, 6.1, 4.2], [8.45, 7.1, 4.55], 0.08, "lo", Xf.rot("x", 20, (8, 7.1, 4.4)), name="guard_back")
+    b.chamfer_box([7.55, 6.05, 4.9], [8.45, 6.45, 7.1], 0.1, "lo", name="guard")
+    b.chamfer_box([7.55, 6.6, 7.35], [8.45, 7.2, 7.75], 0.1, "lo", name="guard_front")
+    b.chamfer_box([7.55, 6.6, 4.2], [8.45, 7.2, 4.6], 0.1, "lo", name="guard_back")
+    for (z, a) in ((7.1, 45), (4.9, -45)):
+        b.chamfer_box([7.55, 6.1, z - 0.2], [8.45, 6.85, z + 0.2], 0.08, "lo", Xf.rot("x", a, (8, 6.45, z)), name="guard_corner")
     b.chamfer_box([7.86, 6.5, 5.35], [8.14, 7.05, 5.75], 0.05, "steel_l", Xf.rot("x", 12, (8, 7.05, 5.55)), name="trigger")
     b.oct("x", 7.6, 4.0, 0.2, 7.2, 8.8, "red", name="safety")
     # 총열 + 튜브 탄창 + 고정 링 + 마개 + 가늠쇠 구슬
-    b.oct("z", 8.0, 10.3, 0.46, 10.6, 30.0, "steel_b", name="barrel")
+    b.oct("z", 8.0, 10.3, 0.46, 10.6, 30.0, "barrel_c", name="barrel")
     b.oct("z", 8.0, 10.3, 0.26, 29.98, 30.02, "bore", name="bore")
     b.oct("z", 8.0, 9.03, 0.42, 10.6, 26.6, "blued", name="mag_tube")
     b.oct("z", 8.0, 9.03, 0.55, 26.6, 27.6, "rec", name="tube_cap")
@@ -237,8 +247,7 @@ def shotgun(b):
 # ───────────────────────── 더블배럴 ─────────────────────────
 def double_barrel(b):
     sx = stock_drop(b, 7.15, 8.85, 10.1, 3.3, -9.2, 2.5, 5.0, 1.5)
-    for k, z in enumerate((0.6, 1.3, 2.0, 2.7)):        # 손목 체크링 홈
-        b.put([7.1, 8.3, z], [8.9, 9.5, z + 0.2], "wood_d", sx, name="checker")
+
     # 박스 락 (어두운 블루드) + 톱 레버 + 힌지 핀 + 측판 선
     b.chamfer_box([7.0, 7.8, 3.0], [9.0, 11.0, 8.2], 0.25, "blued", name="action")
     b.chamfer_box([7.05, 7.4, 3.4], [8.95, 8.2, 8.0], 0.2, "blued", Xf.rot("x", -10, (8, 8.2, 3.4)), name="action_belly")
@@ -248,13 +257,14 @@ def double_barrel(b):
     b.oct("x", 9.6, 4.2, 0.18, 6.95, 9.05, "steel_l", name="pin")
     # 쌍열 총열 + 리브 + 구슬
     for cx in (7.33, 8.67):
-        b.oct("z", cx, 9.88, 0.66, 8.2, 29.0, "steel_b", name="barrel")
+        b.oct("z", cx, 9.88, 0.66, 8.2, 29.0, "barrel_c", name="barrel")
         b.oct("z", cx, 9.88, 0.42, 28.98, 29.02, "bore", name="bore")
     b.chamfer_box([7.7, 10.35, 8.2], [8.3, 10.85, 29.0], 0.08, "blued", name="rib")
     b.oct("y", 8.0, 28.45, 0.15, 10.85, 11.1, "brass", name="bead")
     b.chamfer_box([7.6, 9.0, 8.2], [8.4, 9.6, 29.0], 0.06, "blued", name="under_rib")
     # 앞나무 (총열 아래에 붙음) + 고정쇠
-    b.chamfer_box([6.9, 8.0, 8.4], [9.1, 9.6, 16.6], 0.35, "wood", name="forend")
+    b.chamfer_box([6.9, 8.0, 8.4], [9.1, 9.6, 15.8], 0.45, "wood", name="forend")
+    b.chamfer_box([6.95, 8.2, 15.0], [9.05, 9.6, 16.8], 0.4, "wood", Xf.rot("x", -25, (8, 9.6, 15.0)), name="forend_tip")
     b.chamfer_box([7.5, 7.75, 15.6], [8.5, 8.1, 16.4], 0.08, "steel_b", name="forend_latch")
     # 방아쇠 두 개 + 방아쇠울 (팔각 고리)
     b.chamfer_box([7.55, 5.95, 4.3], [8.45, 6.3, 6.6], 0.08, "blued", name="guard")
@@ -278,8 +288,8 @@ def magnum(b):
     # 총열 (밝은 단) + 통풍 리브 + 언더러그 (어두운 단)
     b.chamfer_box([7.5, 9.6, 11.2], [8.5, 10.85, 21.6], 0.2, "stain_l", name="barrel")
     b.chamfer_box([7.75, 10.8, 11.2], [8.25, 11.35, 21.6], 0.06, "stain", name="vent_rib")
-    for z in range(12, 21, 2):
-        b.put([7.72, 10.95, z], [8.28, 11.36, z + 0.6], "steel_d", name="vent")
+    for z in (11.8, 13.6, 15.4, 17.2, 19.0):
+        b.put([7.84, 10.95, z], [8.16, 11.36, z + 1.1], "steel_d", name="vent")
     b.chamfer_box([7.55, 8.45, 11.2], [8.45, 9.65, 21.6], 0.25, "stain_d", name="underlug")
     b.oct("z", 8.0, 10.2, 0.26, 21.58, 21.62, "bore", name="bore")
     b.chamfer_box([7.7, 11.3, 20.3], [8.3, 12.1, 21.4], 0.06, "stain", Xf.rot("x", -10, (8, 11.3, 20.8)), name="front_sight")
@@ -303,10 +313,8 @@ def magnum(b):
     b.chamfer_box([7.2, 5.2, 4.0], [8.8, 8.2, 6.8], 0.35, "wood", g1, name="grip")
     g2 = Xf.rot("x", 26, (8, 5.4, 4.75))
     b.chamfer_box([7.2, 3.0, 3.5], [8.8, 5.8, 6.1], 0.35, "wood", g2, name="grip_low")
-    for y, g in ((6.6, g1), (5.6, g1), (4.4, g2)):
-        b.chamfer_box([7.25, y, 6.0 if g is g1 else 5.85], [8.75, y + 0.35, 6.9 if g is g1 else 6.2], 0.1, "wood_d", g, name="finger")
     for sx in (7.13, 8.8):
-        b.oct("x", 6.3, 5.0, 0.28, sx, sx + 0.07, "brass", g1, name="medallion")
+        b.oct("x", 6.6, 5.1, 0.2, sx, sx + 0.07, "brass", g1, name="medallion")
 
 
 # ───────────────────────── 소음기 권총 ─────────────────────────
@@ -335,13 +343,12 @@ def silenced_pistol(b):
     # 손잡이 (15°, 윗부분이 프레임 안으로) + 결 + 탄창 바닥
     gx = Xf.rot("x", 15, (8, 8.6, 5.6))
     b.chamfer_box([7.25, 3.8, 4.0], [8.75, 9.2, 6.8], 0.3, "poly", gx, name="grip")
-    for y in (4.4, 5.2, 6.0, 6.8):
-        for sx in (7.2, 8.74):
-            b.put([sx, y, 4.6], [sx + 0.06, y + 0.4, 6.3], "poly_t", gx, name="stipple")
+    for sx in (7.18, 8.76):
+        b.chamfer_box([sx, 4.6, 4.5], [sx + 0.06, 7.6, 6.4], 0.02, "poly_t", gx, name="grip_panel")
     b.chamfer_box([7.3, 3.35, 4.0], [8.7, 3.9, 6.8], 0.1, "mag", gx, name="mag_base")
     # 방아쇠울 + 방아쇠
-    b.chamfer_box([7.55, 7.15, 6.8], [8.45, 7.5, 9.6], 0.08, "lo", name="guard")
-    b.chamfer_box([7.55, 7.2, 9.25], [8.45, 8.7, 9.6], 0.08, "lo", name="guard_front")
+    b.chamfer_box([7.5, 7.0, 6.8], [8.5, 7.5, 9.7], 0.12, "lo", name="guard")
+    b.chamfer_box([7.5, 7.1, 9.2], [8.5, 8.7, 9.7], 0.12, "lo", name="guard_front")
     b.chamfer_box([7.86, 7.6, 7.4], [8.14, 8.6, 7.8], 0.05, "steel_l", Xf.rot("x", 12, (8, 8.6, 7.6)), name="trigger")
     for (y, z) in ((9.1, 7.0), (9.1, 11.6)):
         b.oct("x", y, z, 0.18, 7.25, 8.75, "steel_l", name="pin")
@@ -358,21 +365,22 @@ def silenced_pistol(b):
 GUNS = {"m16": m16, "mp5": mp5, "shotgun": shotgun, "double_barrel": double_barrel,
         "magnum": magnum, "silenced_pistol": silenced_pistol}
 PAL_EXTRA = {"poly_t": (38, 38, 41), "red": (170, 40, 36), "white": (196, 196, 192), "sil": (44, 45, 48),
-             "stain_d": (70, 72, 77), "stain_l": (96, 98, 104)}
+             "stain_d": (70, 72, 77), "stain_l": (96, 98, 104), "barrel_c": (56, 58, 62)}
 # 총마다 부품 명도 단계 조정 (2회차~): 리시버 > 총열덮개·개머리 > 탄창 단계가 0.03 V 이상 벌어지게
 GUN_PAL = {
-    "m16": {"rec": (60, 61, 66), "rec_t": (74, 75, 80), "lo": (48, 49, 53), "poly": (30, 30, 32), "poly_t": (42, 42, 45), "mag": (40, 41, 44)},
-    "mp5": {"rec": (58, 59, 64), "rec_t": (72, 73, 78), "poly": (30, 30, 32), "poly_t": (42, 42, 45), "mag": (40, 41, 44)},
-    "shotgun": {"blued": (46, 47, 50), "lo": (38, 39, 42), "rec": (58, 59, 63), "wood": (88, 52, 38), "wood_d": (66, 38, 28)},
-    "double_barrel": {"blued": (54, 55, 60), "steel_b": (78, 80, 86), "wood": (88, 52, 38), "wood_d": (66, 38, 28)},
-    "magnum": {"stain": (76, 78, 84), "stain_d": (60, 62, 67), "stain_l": (92, 94, 100)},
-    "silenced_pistol": {"rec": (66, 67, 72), "lo": (46, 46, 50), "poly": (38, 38, 41), "poly_t": (50, 50, 54), "mag": (44, 45, 48)},
+    "m16": {"rec": (66, 67, 72), "rec_t": (80, 81, 86), "lo": (52, 53, 57), "poly": (27, 27, 29), "poly_t": (40, 40, 43), "mag": (40, 41, 44), "steel_b": (100, 102, 108)},
+    "mp5": {"rec": (52, 53, 58), "lo": (44, 45, 48), "rec_t": (72, 73, 78), "poly": (30, 30, 32), "poly_t": (42, 42, 45), "mag": (40, 41, 44)},
+    "shotgun": {"blued": (54, 55, 59), "barrel_c": (40, 41, 45), "lo": (38, 39, 42), "rec": (58, 59, 63), "wood": (88, 52, 38), "wood_d": (66, 38, 28)},
+    "double_barrel": {"blued": (62, 63, 69), "barrel_c": (46, 47, 53), "steel_b": (78, 80, 86), "wood": (88, 52, 38), "wood_d": (66, 38, 28)},
+    "magnum": {"stain": (64, 66, 71), "stain_d": (48, 49, 53), "stain_l": (80, 82, 88), "steel_b": (90, 92, 98)},
+    "silenced_pistol": {"rec": (50, 51, 55), "lo": (66, 67, 71), "poly": (36, 36, 39), "poly_t": (46, 46, 50), "mag": (44, 45, 48), "sil": (60, 61, 64)},
 }
-GUN_TOPLINE = {"magnum": ("stain", "stain_l", "stain_d"), "double_barrel": ("rec", "rec_t", "blued", "steel_b")}
+GUN_TOPLINE = {"magnum": ("stain_l", "stain"), "double_barrel": ("rec", "rec_t", "blued", "steel_b")}
 
 
 def build(gun, render_dir=None, stem=None):
     bbkit.DOT_MOD = 14   # 2회차~: 점 얼룩 20% → 14% (사각 패치처럼 보인다는 지적)
+    bbkit.DOT_MODE = "cell"   # 3회차~: 점이 서로 붙어 2~4텍셀 사각 덩어리가 되던 것 → 4x2 칸마다 하나
     b = Builder()
     GUNS[gun](b)
     out = os.path.join(HERE, "out", gun); os.makedirs(out, exist_ok=True)

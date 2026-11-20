@@ -1,0 +1,48 @@
+{
+  "pass": true,
+  "limits": {
+    "speck_ratio": 0.004,
+    "pinhole": 0,
+    "semi_alpha_ratio": 0.001,
+    "near_dup_ratio": 0.3,
+    "noisy_face_ratio": 0.12
+  },
+  "files": [
+    {
+      "file": "tools/loop/guns/out/double_barrel/double_barrel.png",
+      "model": "tools/loop/guns/out/double_barrel/double_barrel.json",
+      "size": [
+        256,
+        256
+      ],
+      "faces": 1878,
+      "pixels": 16504,
+      "speck": 3,
+      "speck_ratio": 0.00018,
+      "pinhole": 0,
+      "semi_alpha": 0,
+      "semi_alpha_ratio": 0.0,
+      "near_dup_ratio": 0.0,
+      "noisy_face_ratio": 0.0032,
+      "examples": [
+        [
+          "speck",
+          19,
+          61
+        ],
+        [
+          "speck",
+          73,
+          68
+        ],
+        [
+          "speck",
+          235,
+          79
+        ]
+      ],
+      "fails": [],
+      "pass": true
+    }
+  ]
+}

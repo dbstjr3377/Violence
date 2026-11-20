@@ -359,10 +359,16 @@ def silenced_pistol():
     return m
 
 
+from bb_adapter import BlockbenchModel  # noqa: E402
+
+# 블록벤치 MCP 원본 tools/blockbench/<총>/<총>.bbmodel (총기 루프 최고 스냅샷: m16·mp5·shotgun·double_barrel·magnum=snap_03, silenced_pistol=snap_02)
+BB_GUNS = ("m16", "mp5", "shotgun", "double_barrel", "magnum", "silenced_pistol")
 GUNS = {
     "m16": m16, "uzi": lambda: uzi(False), "silenced_uzi": lambda: uzi(True), "mp5": mp5,
     "shotgun": shotgun, "double_barrel": double_barrel, "magnum": magnum, "silenced_pistol": silenced_pistol,
 }
+for _g in BB_GUNS:
+    GUNS[_g] = (lambda n: lambda: BlockbenchModel(n))(_g)
 
 # 그립(오른손) / 앞손(왼손) 위치: (x, y, z) 모델 좌표
 HAND_POS = {
