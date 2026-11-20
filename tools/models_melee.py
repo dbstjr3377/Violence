@@ -1,4 +1,5 @@
 """근접/투척 무기 모델. 좌표: 손잡이가 아래(y 0~8), 날/머리가 +Y. 중심 x=8, z=8."""
+from bb_adapter import BlockbenchModel
 from voxel import Model, disc, flat, octagon_rod, rot
 
 def rod(m, y0, y1, r, mat, painter=None, x=8, z=8):
@@ -80,23 +81,6 @@ def golf_club():
     m.box([7.2, 24.2, 3.2], [8.8, 26.6, 9.0], "chrome", rot=rot("x", -22.5, [8, 24.5, 8]),
           painter=lambda f, p, u, v: (60, 62, 68) if f in ("east",) and int(p[1] * 4) % 2 == 0 else None)
     return m.mirror_z()
-
-
-class BlockbenchModel:
-    """블록벤치 MCP 로 만든 모델: tools/blockbench/<name>/<name>.json (bbmodel_export_java_block 결과) + .png (bbmodel 텍스처).
-    voxel.Model 과 같은 build(tex_ref) → (모델 JSON, 텍스처) 를 제공한다."""
-    def __init__(self, name):
-        import os
-        self.dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "blockbench", name)
-        self.name = name
-
-    def build(self, tex_ref):
-        import json, os
-        from PIL import Image
-        with open(os.path.join(self.dir, self.name + ".json"), encoding="utf-8") as f:
-            mj = json.load(f)
-        mj = {"textures": {k: tex_ref for k in mj["textures"]}, "elements": mj["elements"]}
-        return mj, Image.open(os.path.join(self.dir, self.name + ".png")).convert("RGBA")
 
 
 def fire_axe():

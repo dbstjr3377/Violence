@@ -186,10 +186,10 @@ def atlas(parts, palette, density=2, painter=None, style="tacz2", topline=("stee
                         if big:
                             # 긴 방향을 따라 (TACZ: 대부분 가로 그라데이션)
                             t = (i / max(1, tw - 1)) if tw >= th else (j / max(1, th - 1))   # 세로로 긴 면은 아래로 갈수록 밝게 (윗줄 밝은 선과 섞이지 않게)
-                            st_ = max(7, round(step * max(c) / 70))   # 점 세기를 밝기에 비례 (어두운 그립에서 고대비 위장무늬 방지), 최소 7
+                            st_ = min(10, max(7, round(step * max(c) / 70)))   # 점 세기: 밝기에 비례, 7~10 (밝은 강철·나무가 지저분해지지 않게)
                             if max(tw, th) >= 8:
                                 off += st_ if t >= 0.5 else 0    # 긴 면만 2단 그라데이션 (TACZ 중앙 0.014 V)
-                            r_ = _hash(pi, fi, i, j) % 10        # TACZ식 드문 점 얼룩: 텍셀 20% 만 ±st_ (얼룩 σ ≈ 0.013 V)
+                            r_ = _hash(pi, fi, (i + (j % 2)) // 2, j) % 10   # TACZ식 드문 점 얼룩: 가로 2텍셀 묶음 20% 만 ±st_ (1텍셀 고립 점 = 잡티 방지)
                             off += -st_ if r_ == 0 else (st_ if r_ == 9 else 0)
                             if side and j == 0 and mat in topline:
                                 off += int(step * 2.5)
