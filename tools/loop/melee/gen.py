@@ -13,7 +13,7 @@ import bbkit  # noqa: E402
 from bbkit import Builder, Xf, atlas, build_bbmodel, export_java, validate, render_views  # noqa: E402
 
 PAL = {
-    "wood":    (92, 58, 38),   "wood_l": (106, 70, 44), "wood_d": (70, 44, 28), "maple": (140, 110, 72), "wood_raw": (166, 136, 94),
+    "wood":    (92, 58, 38),   "wood_l": (106, 70, 44), "wood_d": (70, 44, 28), "maple": (124, 96, 62), "wood_raw": (166, 136, 94),
     "rubber":  (30, 30, 32),   "rubber_t": (42, 42, 45), "tape": (40, 40, 44), "tape_d": (28, 28, 31),
     "steel":   (86, 90, 98),   "steel_d": (52, 54, 58),  "steel_l": (108, 112, 120), "steel_k": (44, 46, 50),
     "blade":   (78, 82, 90),   "blade_d": (62, 66, 74), "edge": (118, 122, 132),
@@ -151,11 +151,11 @@ def katana(b):
         if k:
             xf = xf * Xf.rot("x", 2.5, (8, y, 8.0))
         b.put([7.8, y - 0.25, 7.3], [8.2, y + L, 8.75], "blade", xf, name="blade")
-        b.put([7.83, y - 0.25, 7.22], [8.17, y + L, 7.55], "hone", xf, name="hamon")
+        b.put([7.79, y - 0.25, 7.22], [8.21, y + L, 7.5], "hone", xf, name="hamon")
         b.put([7.78, y - 0.25, 8.55], [8.22, y + L, 8.78], "blade_d", xf, name="mune")
         y += L
     # 킷사키: 칼등(z+)은 곧게 이어지고, 날(z−) 쪽이 사선으로 올라가 칼등과 만남 (사선 판이 채움보다 두꺼움)
-    b.put([7.78, y - 0.08, 8.55], [8.22, y + 2.0, 8.78], "blade_d", xf, name="mune_tip")
+    b.put([7.78, y - 0.08, 8.55], [8.22, y + 1.0, 8.78], "blade_d", xf, name="mune_tip")
     T = math.tan(math.radians(36)); yy = y - 0.05
     while yy < y + 2.0:
         z0 = 7.3 + T * (yy + 0.3 - y) + 0.08
@@ -185,7 +185,7 @@ def baton(b):
     rod(b, 7.9, 8.4, 0.7, "steel_d", name="collar1")
     rod(b, 8.0, 16.0, 0.55, "black_t", name="tube1")
     rod(b, 15.9, 16.3, 0.5, "steel", name="collar2")
-    rod(b, 16.0, 23.0, 0.42, "steel_l", name="tube2")
+    rod(b, 16.0, 23.0, 0.42, "steel", name="tube2")
     rod(b, 22.8, 23.2, 0.5, "steel", name="tip_neck")
     rod(b, 23.1, 24.1, 0.7, "chrome", name="tip")
     rod(b, 22.9, 24.3, 0.45, "chrome", name="tip")
@@ -217,16 +217,15 @@ def golf_club(b):
         rod(b, y, y + 0.06, 0.82, "rubber_t", name="grip_line")
     rod(b, 7.9, 8.4, 0.55, "black", name="ferrule")
     taper(b, 8.2, 23.0, 0.42, 0.32, "chrome", name="shaft")
-    taper(b, 22.6, 25.0, 0.34, 0.5, "steel", name="hosel")
-    # 아이언 헤드: 얇은 판(두께 0.8), 토(z+)가 둥글게 높아짐, 앞(+x) 면에 그루브, 로프트 10°
-    hx = Xf.rot("z", -10, (8, 24.2, 8)) * Xf.rot("x", 8, (8, 24.2, 7.6))
-    b.put([7.6, 24.1, 7.4], [8.4, 25.8, 12.4], "steel", hx, name="head")
-    b.put([7.6, 25.0, 10.6], [8.4, 26.3, 12.4], "steel", hx * Xf.rot("x", 22.5, (8, 26.3, 12.4)), name="toe")
-    b.put([7.5, 24.0, 7.5], [8.5, 24.35, 12.3], "steel_d", hx, name="sole")
+    taper(b, 22.6, 25.0, 0.34, 0.48, "steel", name="hosel")
+    # 아이언 헤드: 회전 없는 얇은 판(두께 0.6) — 힐(z−)은 낮고 토(z+)가 둥글게 높아지는 윤곽, 앞(+x) 면 그루브, 바닥 솔
+    b.chamfer_box([7.7, 24.0, 7.5], [8.3, 25.7, 12.6], 0.12, "steel", name="head")
+    b.chamfer_box([7.7, 25.5, 10.4], [8.3, 26.3, 12.6], 0.25, "steel", name="toe")
+    b.chamfer_box([7.62, 23.8, 7.7], [8.38, 24.2, 12.4], 0.1, "steel_d", name="sole")
     for k in range(5):
-        y = 24.55 + k * 0.28
-        b.put([8.38, y, 8.0], [8.43, y + 0.08, 11.6], "steel_d", hx, name="groove")
-    b.put([7.56, 24.6, 9.0], [7.6, 25.5, 11.8], "steel_l", hx, name="cavity")
+        y = 24.4 + k * 0.28
+        b.put([8.29, y, 8.3], [8.33, y + 0.08, 11.8], "steel_d", name="groove")
+    b.put([7.66, 24.5, 9.2], [7.7, 25.4, 11.9], "steel_l", name="cavity")
 
 
 def crowbar(b):
@@ -261,10 +260,10 @@ def hammer(b, top=15.0, short=False):
     # 노루발: 머리에서 이어져 두 마디로 아래로 휨, 두 갈래가 V 로 벌어지며 끝으로 얇아지는 쐐기
     c1 = Xf.rot("x", -15, (8, top + 1.8, 6.2))
     c2 = c1 * Xf.rot("x", -20, (8, top + 1.6, 4.4))
-    for sx, sg in ((7.2, 1), (8.3, -1)):
-        sp = Xf.rot("y", sg * 6, (sx + 0.25, 0, 6.2))
-        b.chamfer_box([sx, top + 0.2, 4.3], [sx + 0.5, top + 1.9, 6.4], 0.15, "steel_d", c1 * sp, name="claw")
-        b.chamfer_box([sx + 0.08, top + 0.6, 2.6], [sx + 0.42, top + 1.6, 4.5], 0.1, "steel_d", c2 * sp, name="claw_tip")
+    # 노루발 한 덩어리 쐐기 (가운데 홈은 얇은 어두운 띠로)
+    b.chamfer_box([7.25, top + 0.2, 4.3], [8.75, top + 1.9, 6.4], 0.2, "steel_d", c1, name="claw")
+    b.chamfer_box([7.35, top + 0.6, 2.6], [8.65, top + 1.6, 4.5], 0.15, "steel_d", c2, name="claw_tip")
+    b.put([7.94, top + 0.15, 2.5], [8.06, top + 1.0, 6.0], "bore", c2, name="claw_slot")
 
 
 def sledgehammer(b):
@@ -345,10 +344,11 @@ def pool_cue(b, short=False):
         # 부러진 큐대 한 자루: 샤프트가 비스듬히 꺾여 부러진 끝. 쪼가리는 샤프트 굵기 안에서만 들쭉날쭉 (펼쳐진 막대 묶음 X)
         rod(b, 13.6, 15.6, 0.56, "maple", name="shaft")
         r = 0.5
-        for (x0, x1, z0, z1, top) in ((7.5, 8.0, 7.5, 8.0, 16.9), (8.0, 8.5, 7.5, 8.0, 16.3), (7.5, 8.0, 8.0, 8.5, 16.1), (8.0, 8.5, 8.0, 8.5, 15.8)):
+        for (x0, x1, z0, z1, top) in ((7.5, 8.0, 7.5, 8.0, 16.3), (8.0, 8.5, 7.5, 8.0, 16.05), (7.5, 8.0, 8.0, 8.5, 15.95), (8.0, 8.5, 8.0, 8.5, 15.75)):
             b.put([x0, 15.5, z0], [x1, top, z1], "maple", name="break_part")
             b.put([x0 + 0.03, top - 0.12, z0 + 0.03], [x1 - 0.03, top, z1 - 0.03], "wood_raw", name="break_end")
-        b.put([7.55, 16.8, 7.55], [7.8, 17.5, 7.8], "wood_raw", Xf.rot("z", -8, (7.67, 16.8, 7.67)), name="splinter_tip")
+        for (x0, z0, h, ang) in ((7.55, 7.55, 1.1, -6), (7.75, 7.6, 0.7, 4), (8.05, 7.6, 0.5, 8)):   # 위 끝에 남은 가는 쪼가리
+            b.put([x0, 16.1, z0], [x0 + 0.18, 16.1 + h, z0 + 0.18], "wood_raw", Xf.rot("z", ang, (x0 + 0.09, 16.1, z0)), name="splinter_tip")
     else:
         taper(b, 13.6, 30.5, 0.58, 0.42, "maple", name="shaft")
         rod(b, 30.5, 31.2, 0.45, "white", name="ferrule")
@@ -430,7 +430,7 @@ def pick_topline(parts):
     def run(sel):
         for pt in parts:
             base = pt.mat.split("@")[0]
-            pt.mat = base + "@t" if pt.name in sel else base
+            pt.mat = base + "@t" if (pt.name in sel and not pt.rot) else base   # 돌린 판의 윗줄은 면 한가운데를 사선으로 가로질러 보임 → 제외
         img, uvs = atlas(parts, PAL, density=2, painter=painter, style="tacz2", step=14, topline=TL)
         r = T.stats(T.rects_java(_fake_model(parts, uvs), *img.size), img)
         return r["topline_ratio"] or 0, img, uvs
@@ -458,7 +458,8 @@ def build(name, render_dir=None, stem=None):
     bbkit.ROT_NORMALIZE = True   # 3회차~: 45° 넘는 한 축 회전은 90° 배수를 상자 크기 교환으로 (프라이팬 테두리 튀어나옴)
     bbkit.TOPLINE_WIDE_ONLY = True   # 4회차~: 세로 막대 마디마다 밝은 가로 띠 방지
     bbkit.DOT_MIX = True   # 3회차~: 점 모양 가로2·가로3·세로2 섞기 (같은 크기 사각 반복 지적)
-    bbkit.DOT_P = 0.35   # 작은 막대 면이 많아 점이 촘촘하면 얼룩이 TACZ보다 세짐
+    bbkit.DOT_P = 0.25   # 5회차: 0.35 → 0.25, 어두운 점 위주 (밝은 사각 점 반복이 벽돌·위장무늬로 보인다는 지적)
+    bbkit.DOT_NEG = 0.75
     b = Builder()
     bbkit.GRAD = False if name in ("briefcase", "pot", "frying_pan") else "jag"   # 넓고 둥근/큰 판은 명암 경계가 반으로 갈라 보임
     WEAPONS[name](b)

@@ -1,0 +1,43 @@
+{
+  "pass": true,
+  "limits": {
+    "speck_ratio": 0.004,
+    "pinhole": 0,
+    "semi_alpha_ratio": 0.001,
+    "near_dup_ratio": 0.3,
+    "noisy_face_ratio": 0.12
+  },
+  "files": [
+    {
+      "file": "tools/loop/melee/out/katana/katana.png",
+      "model": "tools/loop/melee/out/katana/katana.json",
+      "size": [
+        128,
+        128
+      ],
+      "faces": 522,
+      "pixels": 3684,
+      "speck": 2,
+      "speck_ratio": 0.00054,
+      "pinhole": 0,
+      "semi_alpha": 0,
+      "semi_alpha_ratio": 0.0,
+      "near_dup_ratio": 0.0,
+      "noisy_face_ratio": 0.0,
+      "examples": [
+        [
+          "speck",
+          48,
+          19
+        ],
+        [
+          "speck",
+          52,
+          20
+        ]
+      ],
+      "fails": [],
+      "pass": true
+    }
+  ]
+}

@@ -160,6 +160,7 @@ OCT_STAGGER = False
 ROT_NORMALIZE = False
 TOPLINE_WIDE_ONLY = False   # 윗줄은 가로로 긴 면에만 (세로 막대 마디마다 밝은 가로 띠가 생기는 것 방지)
 DOT_MIX = False
+DOT_NEG = 0.5   # 점 중 어두운 점 비율 (밝은 사각 점이 튀어 보인다는 지적 → 근접 5회차 0.75)
 GRAD = True   # 긴 면 2단 그라데이션 (반쪽이 통째로 밝아져 큰 두 톤 면으로 보임 — 근접 2회차~ 끔)
 DOT_MOD = 10
 DOT_MODE = "pair"   # pair: 해시 2텍셀 묶음 / cell: 4x2 칸마다 점 하나
@@ -238,7 +239,7 @@ def atlas(parts, palette, density=2, painter=None, style="tacz2", topline=("stee
                                     else:
                                         hit = j == cj * 2 + dj and ci * 4 + di <= i <= ci * 4 + di + (2 if shp == 1 else 1)
                                     if hit:
-                                        off += -st_ if (hh >> 16) % 2 else st_
+                                        off += -st_ if (hh >> 16) % 100 < DOT_NEG * 100 else st_
                             else:
                                 r_ = _hash(pi, fi, (i + (j % 2)) // 2, j) % DOT_MOD   # TACZ식 드문 점 얼룩: 가로 2텍셀 묶음 2/DOT_MOD 만 ±st_ (1텍셀 고립 점 = 잡티 방지)
                                 off += -st_ if r_ == 0 else (st_ if r_ == DOT_MOD - 1 else 0)
