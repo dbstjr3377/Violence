@@ -1,0 +1,38 @@
+{
+  "pass": true,
+  "limits": {
+    "speck_ratio": 0.004,
+    "pinhole": 0,
+    "semi_alpha_ratio": 0.001,
+    "near_dup_ratio": 0.3,
+    "noisy_face_ratio": 0.12
+  },
+  "files": [
+    {
+      "file": "tools/loop/guns/out/silenced_pistol/silenced_pistol.png",
+      "model": "tools/loop/guns/out/silenced_pistol/silenced_pistol.json",
+      "size": [
+        128,
+        128
+      ],
+      "faces": 1596,
+      "pixels": 6476,
+      "speck": 1,
+      "speck_ratio": 0.00015,
+      "pinhole": 0,
+      "semi_alpha": 0,
+      "semi_alpha_ratio": 0.0,
+      "near_dup_ratio": 0.0,
+      "noisy_face_ratio": 0.0038,
+      "examples": [
+        [
+          "speck",
+          8,
+          36
+        ]
+      ],
+      "fails": [],
+      "pass": true
+    }
+  ]
+}
