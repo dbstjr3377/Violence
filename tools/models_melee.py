@@ -82,15 +82,26 @@ def golf_club():
     return m.mirror_z()
 
 
+class BlockbenchModel:
+    """블록벤치 MCP 로 만든 모델: tools/blockbench/<name>/<name>.json (bbmodel_export_java_block 결과) + .png (bbmodel 텍스처).
+    voxel.Model 과 같은 build(tex_ref) → (모델 JSON, 텍스처) 를 제공한다."""
+    def __init__(self, name):
+        import os
+        self.dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "blockbench", name)
+        self.name = name
+
+    def build(self, tex_ref):
+        import json, os
+        from PIL import Image
+        with open(os.path.join(self.dir, self.name + ".json"), encoding="utf-8") as f:
+            mj = json.load(f)
+        mj = {"textures": {k: tex_ref for k in mj["textures"]}, "elements": mj["elements"]}
+        return mj, Image.open(os.path.join(self.dir, self.name + ".png")).convert("RGBA")
+
+
 def fire_axe():
-    m = Model("fire_axe", seed=105, auto_round=0.16)
-    rod(m, 0, 26, 0.75, "red_paint")
-    rod(m, 0, 4.5, 0.9, "rubber")
-    m.box([7.3, 21, 3.6], [8.7, 26.2, 9.4], "red_paint")                      # 도끼 머리
-    m.box([7.45, 20.2, 1.6], [8.55, 27.0, 3.6], "steel", painter=edge_line(("east", "west"), (235, 238, 245), 0.0, 0.3))
-    m.box([7.5, 22.6, 9.4], [8.5, 24.6, 13.2], "red_paint")                   # 뒤쪽 뿔
-    m.box([7.65, 22.9, 13.2], [8.35, 24.3, 14.4], "steel")
-    return m.mirror_z()
+    """소방도끼: 블록벤치 MCP 원본 tools/blockbench/fire_axe/fire_axe.bbmodel (루프 snap_20 → 블록벤치로 가져와 정리·내보냄)"""
+    return BlockbenchModel("fire_axe")
 
 
 def machete():

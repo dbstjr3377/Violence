@@ -15,6 +15,11 @@ description: 사용자가 "루프로 진행해줘"(또는 "루프로 해줘", "�
 3. 기준 문서 `docs/TACZ_STYLE.md`를 읽는다. 대상이 총기·근접무기가 아니면(맵, 이미지 등)
    TACZ 화풍 항목 중 적용 가능한 것(텍셀 밀도, 단색 면, 면 방향 명암, 팔레트, 노이즈 금지)으로 판정한다.
 
+## 도구 규칙
+- 모델 작업(제작·수정·검사·렌더·내보내기)은 **블록벤치 MCP(blockbench-headless)** 로만 한다.
+  원본은 `loop_runs/<slug>` 스냅샷에 `.bbmodel` 로 남기고, 심사용 렌더는 `bbmodel_render`/`bbmodel_contact_sheet`,
+  검사는 `bbmodel_validate`, 팩용 JSON 은 `bbmodel_export_java_block` 으로 만든다.
+
 ## 회차 N (1~20) — 매 회차 동일
 0. **제작/수정**: 1회차는 새로 만든다. 2회차부터는 "지금까지 종합점수(TACZ−AI)가 가장 높은 스냅샷"을
    출발점으로 삼아(필요하면 `restore`) 직전 심사의 `top_fixes`와 잡티 불합격 항목을 고친다.
