@@ -286,6 +286,11 @@ MELEE = {
     "baton": baton, "hammer": lambda: hammer(), "briefcase": briefcase, "pool_cue": lambda: pool_cue(False),
     "pool_cue_short": lambda: pool_cue(True), "cleaver": cleaver, "sledgehammer": sledgehammer,
 }
+# 블록벤치 MCP 원본 tools/blockbench/<무기>/<무기>.bbmodel (근접무기 루프 5회차, 무기마다 최고 점수 스냅샷 — loop_runs/melee-<무기>/)
+BB_MELEE = ('fire_axe', 'dagger', 'bat', 'pipe', 'golf_club', 'machete', 'pot', 'frying_pan', 'crowbar', 'katana', 'baton', 'hammer', 'briefcase', 'pool_cue', 'pool_cue_short', 'cleaver', 'sledgehammer')
+for _w in BB_MELEE:
+    MELEE[_w] = (lambda n: lambda: BlockbenchModel(n))(_w)
+
 THROWABLES = {
     "small_hammer": lambda: hammer("small_hammer", True), "bottle": bottle, "throwing_knife": throwing_knife,
     "dart": dart, "brick": brick, "scissors": scissors,

@@ -1,0 +1,43 @@
+{
+  "pass": true,
+  "limits": {
+    "speck_ratio": 0.004,
+    "pinhole": 0,
+    "semi_alpha_ratio": 0.001,
+    "near_dup_ratio": 0.3,
+    "noisy_face_ratio": 0.12
+  },
+  "files": [
+    {
+      "file": "tools/loop/melee/out/bat/bat.png",
+      "model": "tools/loop/melee/out/bat/bat.json",
+      "size": [
+        128,
+        128
+      ],
+      "faces": 432,
+      "pixels": 7144,
+      "speck": 2,
+      "speck_ratio": 0.00028,
+      "pinhole": 0,
+      "semi_alpha": 0,
+      "semi_alpha_ratio": 0.0,
+      "near_dup_ratio": 0.0073,
+      "noisy_face_ratio": 0.0926,
+      "examples": [
+        [
+          "speck",
+          25,
+          7
+        ],
+        [
+          "speck",
+          59,
+          25
+        ]
+      ],
+      "fails": [],
+      "pass": true
+    }
+  ]
+}
