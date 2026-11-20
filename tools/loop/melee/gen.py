@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""근접무기 16종 루프 제작물 (블록벤치 MCP 로 생성). docs/TACZ_STYLE.md 2판 기준.
+"""근접무기 17종(소방도끼 포함) 루프 제작물 (블록벤치 MCP 로 생성). docs/TACZ_STYLE.md 2판 기준.
 좌표는 기존 팩(tools/models_melee.py)과 같다: 손잡이가 아래(y 0~8), 날/머리가 +Y, 중심 x=8, z=8.
 GRIP(쥐는 자리)과 날 방향을 그대로 지킨다.
 
@@ -13,19 +13,20 @@ import bbkit  # noqa: E402
 from bbkit import Builder, Xf, atlas, build_bbmodel, export_java, validate, render_views  # noqa: E402
 
 PAL = {
-    "wood":    (110, 72, 44),  "wood_l": (128, 88, 56), "wood_d": (80, 50, 30),
+    "wood":    (100, 64, 40),  "wood_l": (114, 76, 48), "wood_d": (74, 46, 28),
     "rubber":  (30, 30, 32),   "rubber_t": (42, 42, 45), "tape": (40, 40, 44), "tape_d": (28, 28, 31),
     "steel":   (86, 90, 98),   "steel_d": (52, 54, 58),  "steel_l": (108, 112, 120),
-    "blade":   (118, 122, 130), "blade_d": (88, 92, 100), "edge": (150, 154, 164),
-    "black":   (30, 30, 32),   "black_t": (44, 44, 47),
+    "blade":   (90, 94, 102), "blade_d": (72, 76, 84), "edge": (126, 130, 140),
+    "black":   (40, 40, 43),   "black_t": (54, 54, 57),
     "chrome":  (112, 116, 124), "gold": (150, 118, 52), "gold_d": (112, 86, 38),
     "cloth":   (34, 34, 38),   "ito": (120, 30, 34),
-    "foam":    (36, 36, 38),   "red": (128, 38, 34), "red_d": (96, 28, 26), "rust": (110, 62, 36),
-    "leather": (96, 60, 38),   "leather_d": (66, 40, 26), "brass": (150, 118, 52),
+    "foam":    (44, 44, 47),   "red": (92, 30, 28), "red_d": (72, 24, 22), "rust": (110, 62, 36),
+    "leather": (86, 54, 34),   "leather_d": (66, 40, 26), "brass": (150, 118, 52),
     "ivory":   (188, 178, 156), "white": (196, 196, 192), "chalk": (60, 92, 150),
-    "anod":    (44, 44, 48),   "pan_in": (30, 30, 32), "bore": (10, 10, 11),
+    "glass":   (46, 48, 52),   "ground": (128, 134, 144),
+    "anod":    (58, 58, 63),   "pan_in": (40, 40, 43), "bore": (10, 10, 11),
 }
-TOPLINE = ("steel", "steel_d", "wood", "wood_l", "black", "leather", "red", "anod", "blade_d")
+TOPLINE = ()   # 세로로 쥐는 물건이라 옆면 '윗줄'은 막대 끝 단면 쪽이 됨 → 칠하지 않음
 
 
 def rod(b, y0, y1, r, mat, x=8, z=8, name="rod"):
@@ -82,10 +83,10 @@ def cleaver(b):
     b.chamfer_box([7.4, 5.8, 7.3], [8.6, 7.0, 8.7], 0.15, "steel", name="bolster")
     # 날판 (가운데 구멍은 판을 네 조각으로 둘러 만듦): x 두께, z 6.2~11.6, y 6.6~16
     hz0, hz1, hy0, hy1 = 9.1, 10.1, 14.1, 15.1
-    b.put([7.68, 6.6, 6.2], [8.32, 16.0, hz0], "blade", name="blade")
-    b.put([7.68, 6.6, hz1], [8.32, 16.0, 11.6], "blade", name="blade")
-    b.put([7.68, 6.6, hz0], [8.32, hy0, hz1], "blade", name="blade")
-    b.put([7.68, hy1, hz0], [8.32, 16.0, hz1], "blade", name="blade")
+    b.put([7.68, 6.6, 6.2], [8.32, 16.0, hz0], "blade_d", name="blade")
+    b.put([7.68, 6.6, hz1], [8.32, 16.0, 11.6], "blade_d", name="blade")
+    b.put([7.68, 6.6, hz0], [8.32, hy0, hz1], "blade_d", name="blade")
+    b.put([7.68, hy1, hz0], [8.32, 16.0, hz1], "blade_d", name="blade")
     b.put([7.65, 6.6, 11.1], [8.35, 16.0, 11.6], "edge", name="edge")
     b.chamfer_box([7.6, 6.6, 5.6], [8.4, 16.0, 6.25], 0.1, "blade_d", name="spine")
 
@@ -267,7 +268,34 @@ def pool_cue(b, short=False):
         rod(b, 31.2, 31.6, 0.42, "chalk", name="tip")
 
 
+def fire_axe(b):
+    """소방도끼: 손잡이 +Y (y 0~28), 날은 −z, 곡괭이 뿔은 +z, 두께 x (기존 팩과 같은 방향)"""
+    rod(b, 0.0, 0.3, 1.0, "steel_d", name="cap")
+    rod(b, 0.3, 0.8, 1.14, "rubber", name="swell")
+    rod(b, 0.8, 7.6, 0.92, "rubber", name="grip")
+    rings(b, 1.6, 7.0, 6, 1.0, "rubber_t", name="grip_rib")
+    rod(b, 7.6, 7.95, 1.0, "rubber_t", name="grip_end")
+    rod(b, 7.9, 25.0, 0.8, "glass", name="haft")
+    rod(b, 20.1, 20.85, 0.92, "steel", name="collar")
+    # 눈 (자루 끼우는 통) + 쐐기
+    b.chamfer_box([7.1, 20.8, 6.9], [8.9, 25.2, 9.1], 0.25, "red", name="eye")
+    b.chamfer_box([7.84, 25.0, 7.35], [8.16, 25.35, 8.65], 0.06, "steel", name="wedge")
+    # 날 (−z): 가운데 판 + 위/아래로 벌어지는 판, 날 쪽은 연마면, 끝은 칼날선
+    secs = ((Xf(), 21.7, 24.3), (Xf.rot("x", 14, (8, 24.3, 7.0)), 23.5, 24.7), (Xf.rot("x", -14, (8, 21.7, 7.0)), 21.3, 22.5))
+    for xf, y0, y1 in secs:
+        b.put([7.72, y0, 4.4], [8.28, y1, 7.2], "red", xf, name="cheek")
+        b.put([7.8, y0, 3.1], [8.2, y1, 4.5], "ground", xf, name="bevel")
+        b.put([7.88, y0, 2.7], [8.12, y1, 3.15], "edge", xf, name="edge")
+    # 곡괭이 뿔 (+z, 11.25° 아래로) : 세 마디로 가늘어짐
+    pk = Xf.rot("x", 11.25, (8, 23.0, 9.0))
+    b.chamfer_box([7.55, 22.3, 8.8], [8.45, 23.7, 11.6], 0.2, "red", pk, name="pick")
+    b.chamfer_box([7.65, 22.5, 11.5], [8.35, 23.5, 12.9], 0.15, "ground", pk, name="pick_tip")
+    b.chamfer_box([7.75, 22.7, 12.8], [8.25, 23.3, 13.8], 0.1, "ground", pk, name="pick_point")
+    b.put([7.05, 22.4, 7.4], [7.1, 23.6, 8.6], "white", name="label")
+
+
 WEAPONS = {
+    "fire_axe": fire_axe,
     "dagger": dagger, "bat": bat, "pipe": pipe, "golf_club": golf_club, "machete": machete, "pot": pot,
     "frying_pan": frying_pan, "crowbar": crowbar, "katana": katana, "baton": baton, "hammer": hammer,
     "briefcase": briefcase, "pool_cue": pool_cue, "pool_cue_short": lambda b: pool_cue(b, True),
@@ -277,6 +305,8 @@ WEAPONS = {
 
 def build(name, render_dir=None, stem=None):
     bbkit.DOT_MODE = "cell"
+    bbkit.GRAD = False
+    bbkit.DOT_P = 0.35   # 작은 막대 면이 많아 점이 촘촘하면 얼룩이 TACZ보다 세짐
     b = Builder()
     WEAPONS[name](b)
     out = os.path.join(HERE, "out", name); os.makedirs(out, exist_ok=True)
