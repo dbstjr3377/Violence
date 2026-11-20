@@ -216,9 +216,20 @@ def lengths(disps_hands, side):
 
 def straight_arm(disp, side, a_cam, b_cam, thick=THICK):
     """원본(TACZ/LRTactical) 1인칭 팔 그대로: 몸 쪽 끝 a → 손 끝 b 를 곧은 팔로 (위·아래 마디는 반씩)"""
-    mid = _mul(_add(a_cam, b_cam), 0.5)
-    out = []
-    for layer in ("base", "over"):
-        out.append(_segment(disp, a_cam, mid, thick, side, (0, 6), "up", layer))
-        out.append(_segment(disp, mid, b_cam, thick, side, (6, 12), "down", layer))
-    return out
+    def build(a):
+        mid = _mul(_add(a, b_cam), 0.5)
+        out = []
+        for layer in ("base", "over"):
+            out.append(_segment(disp, a, mid, thick, side, (0, 6), "up", layer))
+            out.append(_segment(disp, mid, b_cam, thick, side, (6, 12), "down", layer))
+        return out
+
+    def fits(els):
+        return all(-16 <= v <= 32 for e in els for v in e["from"] + e["to"])
+
+    # 모델 원소는 -16~32 안이어야 한다 (넘으면 모델이 통째로 안 읽힘): 넘으면 몸 쪽 끝을 손 쪽으로 줄임 (화면 밖 부분)
+    for f in (1.0, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3):
+        els = build(_add(b_cam, _mul(_sub(a_cam, b_cam), f)))
+        if fits(els):
+            return els
+    return []
