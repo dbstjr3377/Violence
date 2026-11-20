@@ -301,13 +301,9 @@ def arm_specs(disps, hands):
 
 
 def select_by_context(fp_model, other_model):
-    """1인칭 / 그 밖(3인칭·바닥·GUI). 공격 인형이 실제 몸 대신 보이는 동안(custom_model_data 플래그 0) 손의 3인칭 모습은 빈 모델"""
     return {"model": {
         "type": "minecraft:select", "property": "minecraft:display_context",
-        "cases": [{"when": ["firstperson_righthand", "firstperson_lefthand"], "model": fp_model},
-                  {"when": ["thirdperson_righthand", "thirdperson_lefthand"],
-                   "model": {"type": "minecraft:condition", "property": "minecraft:custom_model_data", "index": 0,
-                             "on_true": ref("violence:misc/blank"), "on_false": other_model}}],
+        "cases": [{"when": ["firstperson_righthand", "firstperson_lefthand"], "model": fp_model}],
         "fallback": other_model,
     }}
 
@@ -467,10 +463,8 @@ def weapons():
                 tp_model = tp_swing(wid, "a", "STAB" if wid in STAB_WEAPONS else "A")
                 if wid not in STAB_WEAPONS:
                     item_b = json.load(open(os.path.join(NS, "items", "weapon", wid + "_b.json"), encoding="utf-8"))
-                    tb = tp_swing(wid, "b", "B")
-                    nb = select_by_context(item_b["model"]["cases"][0]["model"], tb)
-                    nb["hand_animation_on_swap"] = item_b.get("hand_animation_on_swap", False)
-                    write(os.path.join(NS, "items", "weapon", wid + "_b.json"), nb)
+                    item_b["model"]["fallback"] = tp_swing(wid, "b", "B")
+                    write(os.path.join(NS, "items", "weapon", wid + "_b.json"), item_b)
             item = select_by_context(fp_model, tp_model)
             if animated:
                 # 오→왼 / 왼→오 아이템을 바꿔 낄 때 손이 내려갔다 올라오지 않게

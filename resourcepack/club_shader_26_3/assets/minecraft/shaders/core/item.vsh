@@ -8,7 +8,6 @@
 #include <minecraft:projection.glsl>
 #include <minecraft:sample_lightmap.glsl>
 #include <minecraft:violence_flash.glsl>  // VIOLENCE
-#include <minecraft:violence_skin.glsl>  // VIOLENCE: 공격 인형 무기 (1인칭 자기 인형 숨김, 밝기)
 
 layout(location = 0) in vec3 Position;
 layout(location = 1) in vec4 Color;
@@ -50,7 +49,7 @@ void main() {
     #endif
     vertexColor = minecraft_mix_light(Light0_Direction, Light1_Direction, Normal, Color);
     #ifndef OIT_ALPHA_ONLY
-    lightMapColor = sample_lightmap(Sampler2, violence_skin_light(UV2));  // VIOLENCE: 인형 표시 번호를 뺀 밝기
+    lightMapColor = sample_lightmap(Sampler2, UV2);
     overlayColor = texelFetch(Sampler1, UV1, 0);
     violenceFlash = violence_flash_state(Sampler2, ProjMat);  // VIOLENCE
     #else
@@ -58,7 +57,6 @@ void main() {
     #endif
 
     texCoord0 = UV0;
-    if (violencePersp > 0.5 && violence_puppet_hidden(UV2, Position)) gl_Position = vec4(0.0, 0.0, 2.0, 1.0);  // VIOLENCE: 1인칭 자기 인형 숨김
     #ifdef GLINT
     #ifdef GLINT_SPECIAL
     texCoordGlint = (TextureMat * vec4(UV3, 0.0, 1.0)).xy;

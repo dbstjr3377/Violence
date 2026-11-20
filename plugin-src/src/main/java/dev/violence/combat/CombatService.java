@@ -146,8 +146,6 @@ public final class CombatService {
         }
         // 총구 화염: 다른 사람에게는 3인칭 총구 자리에 1틱 (쏜 사람은 1인칭 총 모델의 화염 프레임)
         plugin.fx().muzzle(a, tpMuzzle, dir, silenced, pellets > 1, c instanceof PlayerCombatant shooter ? shooter.player() : null);
-        // 3인칭(다른 사람·자기 F5): 인형이 두 손으로 겨누고 반동 (연사 중엔 이어짐)
-        if (!leftHand) plugin.falls().attackPose(c, t, "FIRE", 0);
         if (c instanceof PlayerCombatant pcs && !leftHand) {
             // 1인칭: 총구 화염 → 반동 → 반동 잡기 키프레임 (조준점은 움직이지 않음)
             pcs.playAnim(WeaponItems.GUNFIRE, t.fireAnimTicks());
@@ -309,8 +307,6 @@ public final class CombatService {
         if (swings) plugin.game().tpSwing(c, t, backhand, now);
         else c.entity().swingMainHand();
         int animTicks = Math.max(8, Math.min(10, t.meleeCooldown() + 2));   // 1인칭 휘두르기가 프레임이 낮아도 보이게 조금 길게
-        // 3인칭(다른 사람·자기 F5): 인형이 상체로 휘두르기·찌르기
-        if (t.isMelee()) plugin.falls().attackPose(c, t, swings ? (backhand ? "B" : "A") : "STAB", animTicks);
         if (c instanceof PlayerCombatant pcm) {
             if (swings) {
                 pcm.setBackhand(backhand);

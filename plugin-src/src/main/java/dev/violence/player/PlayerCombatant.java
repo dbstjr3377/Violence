@@ -205,28 +205,9 @@ public final class PlayerCombatant extends Combatant {
         plugin().later(1, () -> { if (player.isOnline()) plugin().camera().hideHands(player); });
     }
 
-    /** 공격 인형이 실제 몸 대신 보이는 중: 손 아이템의 3인칭(F5) 모습을 숨김 (인형이 무기를 듦) */
-    private boolean puppetHands;
-
-    public void setPuppetHands(boolean on) {
-        if (on == puppetHands) return;
-        puppetHands = on;
-        if (player.isOnline()) {
-            player.getInventory().setItem(0, handItem());
-            rehideHands();
-        }
-    }
-
     /** 주 손 아이템. 맨손이면 비워 둬서 1인칭에 플레이어 스킨의 팔이 그대로 보이게 함 */
     private org.bukkit.inventory.ItemStack handItem() {
-        if (weapon == null) return null;
-        org.bukkit.inventory.ItemStack it = WeaponItems.create(weapon.type(), weapon.ammo(), backhand);
-        if (puppetHands) {
-            // 리소스팩 아이템 정의: custom_model_data 플래그 0 이 켜지면 3인칭 손 표시는 빈 모델 (1인칭은 그대로)
-            it.setData(io.papermc.paper.datacomponent.DataComponentTypes.CUSTOM_MODEL_DATA,
-                    io.papermc.paper.datacomponent.item.CustomModelData.customModelData().addFlag(true).build());
-        }
-        return it;
+        return weapon == null ? null : WeaponItems.create(weapon.type(), weapon.ammo(), backhand);
     }
 
     /** 1인칭 키프레임 애니메이션 재생 (해당 쿨다운 그룹에 짧은 쿨다운) */

@@ -40,7 +40,6 @@ import org.bukkit.FluidCollisionMode;
 import org.bukkit.util.RayTraceResult;
 import org.bukkit.util.Transformation;
 import org.bukkit.util.Vector;
-import org.joml.Quaterniond;
 import org.joml.Quaternionf;
 import org.joml.Vector3d;
 import org.joml.Vector3f;
@@ -121,229 +120,6 @@ public final class FallService {
     /** 넘어지는 중인 시체 */
     private final List<Lying> falling = new ArrayList<>();
 
-    // ───────── 공격 상체 인형 ─────────
-    // 바닐라는 서버가 플레이어 팔 각도를 정할 수 없어서, 공격하는 동안만 실제 몸을 숨기고(투명 상태 값, 포션 아님)
-    // 같은 자리에 10부위 스킨 인형을 세워 상체 동작(총 조준·반동, 휘두르기, 찌르기)을 한다.
-    // 다리는 실제 몸의 걸음(이동 거리)으로, 머리는 시선으로 틱마다 덮어쓰고, 총은 팔과 함께 시선 높이를 따라 든다.
-    // 자기 인형은 자기 화면에도 보내지만, 1인칭 카메라 둘레(자기 몸 자리)에 있는 인형 부위는 entity 쉐이더가 그리지 않는다
-    // (violence_skin.glsl) → 1인칭은 원래 손 모델 그대로, F5(2·3인칭)에서는 인형이 보인다.
-    private final AttackAnims attackAnims;
-    private final Map<UUID, AttackAct> attacks = new HashMap<>();
-    /** 공격 인형 무기·가면 표시: 쉐이더가 인형으로 알아보는 밝기 (블록 15, 하늘 11) */
-    private static final org.bukkit.entity.Display.Brightness PUPPET_ITEM_LIGHT = new org.bukkit.entity.Display.Brightness(15, 11);
-    /** 총을 쏜 뒤 인형으로 겨눈 채 남는 틱 (연사 중엔 계속 이어짐) */
-    private static final int GUN_HOLD = 14;
-    /** 동시에 띄우는 NPC 공격 인형 수 (플레이어는 제한 없음) */
-    private static final int MAX_NPC_ATTACKS = 10;
-
-    private static final class AttackAct {
-        final Combatant c;
-        final Arena arena;
-        final Lying puppet;
-        final dev.violence.weapon.WeaponType type;
-        ItemDisplay weapon;
-        AttackAnims.Clip clip;
-        /** 동작 진행 (프레임) 과 틱당 진행량 */
-        double frame;
-        double speed = 1;
-        /** 남은 틱 (0 이 되면 실제 몸으로 돌아감) */
-        int left;
-        Location last;
-        double walkPos;
-        /** 실제 몸의 손 아이템 (바뀌면 서버가 보는 사람들에게 다시 보내므로 다시 숨김) */
-        ItemStack hand;
-        ItemStack off;
-        int age;
-
-        AttackAct(Combatant c, Arena arena, Lying puppet, dev.violence.weapon.WeaponType type) {
-            this.c = c;
-            this.arena = arena;
-            this.puppet = puppet;
-            this.type = type;
-        }
-    }
-
-    /**
-     * 공격 상체 동작 시작/다시 시작.
-     * @param kind 근접: A(오→왼) / B(왼→오) / STAB, 총은 무시
-     * @param ticks 근접 동작 길이(틱). 총은 반동 8틱 + 겨눈 채 GUN_HOLD 틱
-     */
-    public void attackPose(Combatant c, dev.violence.weapon.WeaponType t, String kind, int ticks) {
-        if (attackAnims == null || t == null || t.isFist() || t.isThrowable()) return;
-        if (!plugin.getConfig().getBoolean("fx.attack-puppet", true)) return;
-        Arena a = plugin.arena();
-        LivingEntity e = c.entity();
-        if (a == null || e == null || !e.isValid() || c.state != CombatState.ALIVE || c.execution != null) return;
-        if (downed.containsKey(c.id) || acting.containsKey(c.id) || execs.containsKey(c.id)) return;
-        AttackAnims.Clip clip = t.isGun() ? attackAnims.gun(t.id()) : attackAnims.melee(t.id(), kind);
-        if (clip == null) return;
-        AttackAct act = attacks.get(c.id);
-        if (act != null && act.type != t) {
-            endAttack(act);
-            act = null;
-        }
-        if (act == null) {
-            if (!(c instanceof PlayerCombatant)) {
-                long npcs = attacks.values().stream().filter(x -> !(x.c instanceof PlayerCombatant)).count();
-                if (npcs >= MAX_NPC_ATTACKS || !nearPlayer(a, e.getLocation(), 40)) return;
-            }
-            float yaw = bodyYaw(e);
-            Lying l = new Lying(c, a, FallPose.Kind.KICK, clip.track().pose(), yaw, yaw);
-            l.start = l.end = feet(e.getLocation());
-            if (!spawnPuppet(a, c, l)) return;
-            act = new AttackAct(c, a, l, t);
-            try {
-                act.weapon = a.track(a.world.spawn(l.start, ItemDisplay.class, d -> {
-                    setup(d, dev.violence.weapon.WeaponItems.create(t, 0));
-                    d.setBrightness(PUPPET_ITEM_LIGHT);
-                }));
-            } catch (RuntimeException ignored) {
-                act.weapon = null;
-            }
-            if (l.mask != null) l.mask.setBrightness(PUPPET_ITEM_LIGHT);
-            act.last = e.getLocation();
-            attacks.put(c.id, act);
-            e.setInvisible(true);
-            sendEquipment(a, c, true);
-            if (c instanceof PlayerCombatant pc) pc.setPuppetHands(true);
-        }
-        act.clip = clip;
-        act.frame = 0;
-        if (t.isGun()) {
-            act.speed = 1;
-            act.left = clip.length() + GUN_HOLD;
-        } else {
-            int len = Math.max(4, ticks);
-            act.speed = (clip.length() - 1) / (double) len;
-            act.left = len + 1;
-        }
-        placeAttack(act, false);
-    }
-
-    private static boolean nearPlayer(Arena a, Location at, double r) {
-        for (PlayerCombatant p : a.players.values()) {
-            Player pl = p.player();
-            if (pl.isOnline() && pl.getWorld() == at.getWorld() && pl.getLocation().distanceSquared(at) < r * r) return true;
-        }
-        return false;
-    }
-
-    private static float bodyYaw(LivingEntity e) {
-        return e.getBodyYaw();
-    }
-
-    private void tickAttacks() {
-        for (AttackAct act : new ArrayList<>(attacks.values())) {
-            LivingEntity e = act.c.entity();
-            boolean gone = e == null || !e.isValid() || plugin.arena() != act.arena || !act.arena.combatants.containsKey(act.c.id);
-            if (gone || act.c.state != CombatState.ALIVE || act.c.execution != null
-                    || act.c.weaponType(plugin.weapons().fist()) != act.type || --act.left <= 0) {
-                endAttack(act);
-                continue;
-            }
-            act.frame = Math.min(act.clip.length() - 1, act.frame + act.speed);
-            // 손 아이템이 바뀌면(왼→오 아이템, 탄수 등) 서버가 실제 아이템을 보는 사람에게 보내므로 다시 숨김. 처음 1틱도 한 번 더
-            EntityEquipment eq = e.getEquipment();
-            ItemStack h = eq == null ? null : eq.getItemInMainHand();
-            ItemStack o = eq == null ? null : eq.getItemInOffHand();
-            if (++act.age == 1 || !same(h, act.hand) || !same(o, act.off)) {
-                act.hand = h == null ? null : h.clone();
-                act.off = o == null ? null : o.clone();
-                sendEquipment(act.arena, act.c, true);
-            }
-            placeAttack(act, true);
-        }
-    }
-
-    /** 공격 인형을 실제 몸 자리·방향으로: 상체는 동작 프레임, 다리는 걸음, 머리는 시선 */
-    private void placeAttack(AttackAct act, boolean animate) {
-        LivingEntity e = act.c.entity();
-        if (e == null) return;
-        Lying l = act.puppet;
-        Location now = e.getLocation();
-        Location at = feet(now);
-        float yaw = bodyYaw(e);
-        int fi = (int) Math.round(act.frame);
-        FallPose.Frame src = act.clip.track().pose().frame(fi);
-        Map<FallPose.Part, double[]> j = new EnumMap<>(FallPose.Part.class);
-        j.putAll(src.joints());
-        // 걸음: 바닐라처럼 이동 거리로 다리를 앞뒤로 흔듦
-        double dx = now.getX() - act.last.getX(), dz = now.getZ() - act.last.getZ();
-        double amt = Math.min(1.0, Math.sqrt(dx * dx + dz * dz) * 4.0);
-        act.walkPos += amt;
-        act.last = now;
-        double leg = Math.toDegrees(Math.cos(act.walkPos * 0.6662) * 1.0 * amt);
-        j.put(FallPose.Part.LEG_R, new double[] {leg, 0, 0});
-        j.put(FallPose.Part.LEG_L, new double[] {-leg, 0, 0});
-        j.put(FallPose.Part.SHIN_R, new double[] {0, 0, 0});
-        j.put(FallPose.Part.SHIN_L, new double[] {0, 0, 0});
-        // 머리: 시선 (몸 기준 좌우는 머리 방향 - 몸 방향)
-        float pitch = Math.max(-80, Math.min(80, now.getPitch()));
-        double headYaw = ((now.getYaw() - yaw) % 360 + 540) % 360 - 180;
-        j.put(FallPose.Part.HEAD, new double[] {pitch, -headYaw, 0});
-        FallPose fp = new FallPose(java.util.List.of(new FallPose.Frame(0, 0, 0, 1, j)), 0);
-        // 팔·무기는 시선 높이를 따라 어깨를 축으로 들고 내림 (총은 그대로, 근접은 절반)
-        double lift = act.type.isGun() ? pitch : pitch * 0.5;
-        Quaterniond aim = new Quaterniond().rotationX(Math.toRadians(lift));
-        Vector3d shoulder = new Vector3d(0, 22 * FallPose.PX * l.scale, 0);
-        for (FallPose.Part part : FallPose.Part.values()) {
-            ItemDisplay d = part == FallPose.Part.HEAD && l.mask != null ? l.mask : l.parts.get(part);
-            if (d == null || !d.isValid()) continue;
-            FallPose.Placement p = fp.place(0, part, l.scale);
-            Vector3d c0 = p.center();
-            Quaterniond r0 = p.rotation();
-            if (part.root() == FallPose.Part.ARM_R || part.root() == FallPose.Part.ARM_L) {
-                c0 = aim.transform(new Vector3d(c0).sub(shoulder)).add(shoulder);
-                r0 = new Quaterniond(aim).mul(r0);
-            }
-            Vector3d c = FallPose.toWorld(c0, yaw);
-            Quaternionf r = new Quaternionf(FallPose.toWorld(r0, yaw));
-            if (d.getLocation().distanceSquared(at) > 1e-4) d.teleport(at);
-            if (d == l.mask) {
-                float sc = (float) (FallPose.PX * 16 * l.scale) * MASK_SCALE;
-                d.setTransformation(new Transformation(new Vector3f((float) c.x, (float) c.y, (float) c.z), r,
-                        new Vector3f(sc, sc, sc), new Quaternionf()));
-            } else {
-                d.setTransformation(SkinPuppet.transform(part, c, r, l.scale));
-                SkinPuppet.mark(d, part);
-            }
-            if (animate) d.setInterpolationDelay(0);
-        }
-        if (act.weapon != null && act.weapon.isValid()) {
-            FallPose.Placement w = ExecutionAnims.weapon(act.clip.track(), fi, l.scale, act.clip.grip());
-            if (w != null) {
-                Vector3d c0 = aim.transform(new Vector3d(w.center()).sub(shoulder)).add(shoulder);
-                Quaterniond r0 = new Quaterniond(aim).mul(w.rotation());
-                Vector3d c = FallPose.toWorld(c0, yaw);
-                // 디스플레이가 아이템을 Y180° 돌려 그리므로 미리 되돌림
-                Quaternionf r = new Quaternionf(FallPose.toWorld(r0, yaw)).rotateY((float) Math.PI);
-                float sc = (float) (ExecutionAnims.WEAPON_SCALE * l.scale);
-                if (act.weapon.getLocation().distanceSquared(at) > 1e-4) act.weapon.teleport(at);
-                act.weapon.setTransformation(new Transformation(new Vector3f((float) c.x, (float) c.y, (float) c.z), r,
-                        new Vector3f(sc, sc, sc), new Quaternionf()));
-                if (animate) act.weapon.setInterpolationDelay(0);
-            }
-        }
-    }
-
-    private static boolean same(ItemStack a, ItemStack b) {
-        if (a == null || a.getType().isAir()) return b == null || b.getType().isAir();
-        return a.equals(b);
-    }
-
-    private void endAttack(AttackAct act) {
-        attacks.remove(act.c.id);
-        removePuppet(act.puppet);
-        if (act.weapon != null && act.weapon.isValid()) act.weapon.remove();
-        LivingEntity e = act.c.entity();
-        boolean other = downed.containsKey(act.c.id) || acting.containsKey(act.c.id) || execs.containsKey(act.c.id);
-        if (e != null && e.isValid() && !other) {
-            e.setInvisible(false);
-            if (plugin.arena() == act.arena) sendEquipment(act.arena, act.c, false);
-        }
-        if (act.c instanceof PlayerCombatant pc) pc.setPuppetHands(false);
-    }
-
     private static final class Lying {
         final Combatant victim;
         final Arena arena;
@@ -420,21 +196,13 @@ public final class FallService {
             ea = null;
         }
         this.execAnims = ea;
-        AttackAnims aa;
-        try {
-            aa = AttackAnims.load();
-        } catch (RuntimeException e) {
-            plugin.getLogger().log(Level.WARNING, "attack.json 읽기 실패 - 공격 상체 동작 없이 진행합니다: " + e);
-            aa = null;
-        }
-        this.attackAnims = aa;
     }
 
     public ExecutionAnims execAnims() { return execAnims; }
 
     /** 실제 몸을 숨기고 대역(인형/마네킹)을 보여주는 중인지 (쓰러짐, 처형 발차기) */
     public boolean hiding(Combatant c) {
-        return downed.containsKey(c.id) || acting.containsKey(c.id) || execs.containsKey(c.id) || attacks.containsKey(c.id);
+        return downed.containsKey(c.id) || acting.containsKey(c.id) || execs.containsKey(c.id);
     }
 
     public FallPose pose(FallPose.Kind k) {
@@ -1010,7 +778,6 @@ public final class FallService {
     // ───────── 매 틱 ─────────
 
     public void tick() {
-        if (!attacks.isEmpty()) tickAttacks();
         if (!execs.isEmpty()) tickExecs();
         if (!downed.isEmpty()) {
             for (Lying l : new ArrayList<>(downed.values())) {
@@ -1200,8 +967,6 @@ public final class FallService {
 
     /** 아레나 정리 시: 모두 실제 몸으로 */
     public void clear() {
-        for (AttackAct act : new ArrayList<>(attacks.values())) endAttack(act);
-        attacks.clear();
         for (ExecAct act : new ArrayList<>(execs.values())) endExec(act);
         execs.clear();
         for (Lying l : new ArrayList<>(downed.values())) end(l, true);

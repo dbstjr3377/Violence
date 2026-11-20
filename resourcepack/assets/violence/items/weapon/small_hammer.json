@@ -12,25 +12,6 @@
      "type": "minecraft:model",
      "model": "violence:item/weapon/small_hammer_fp"
     }
-   },
-   {
-    "when": [
-     "thirdperson_righthand",
-     "thirdperson_lefthand"
-    ],
-    "model": {
-     "type": "minecraft:condition",
-     "property": "minecraft:custom_model_data",
-     "index": 0,
-     "on_true": {
-      "type": "minecraft:model",
-      "model": "violence:misc/blank"
-     },
-     "on_false": {
-      "type": "minecraft:model",
-      "model": "violence:item/weapon/small_hammer"
-     }
-    }
    }
   ],
   "fallback": {
