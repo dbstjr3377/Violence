@@ -1,0 +1,78 @@
+{
+  "pass": true,
+  "limits": {
+    "speck_ratio": 0.004,
+    "pinhole": 0,
+    "semi_alpha_ratio": 0.001,
+    "near_dup_ratio": 0.3,
+    "noisy_face_ratio": 0.12
+  },
+  "files": [
+    {
+      "file": "tools/loop/melee/out/pot/pot.png",
+      "model": "tools/loop/melee/out/pot/pot.json",
+      "size": [
+        128,
+        128
+      ],
+      "faces": 420,
+      "pixels": 7864,
+      "speck": 9,
+      "speck_ratio": 0.00114,
+      "pinhole": 0,
+      "semi_alpha": 0,
+      "semi_alpha_ratio": 0.0,
+      "near_dup_ratio": 0.0,
+      "noisy_face_ratio": 0.0167,
+      "examples": [
+        [
+          "speck",
+          13,
+          10
+        ],
+        [
+          "speck",
+          32,
+          28
+        ],
+        [
+          "speck",
+          55,
+          28
+        ],
+        [
+          "speck",
+          77,
+          28
+        ],
+        [
+          "speck",
+          118,
+          44
+        ],
+        [
+          "speck",
+          86,
+          28
+        ],
+        [
+          "speck",
+          77,
+          56
+        ],
+        [
+          "speck",
+          98,
+          10
+        ],
+        [
+          "speck",
+          103,
+          10
+        ]
+      ],
+      "fails": [],
+      "pass": true
+    }
+  ]
+}

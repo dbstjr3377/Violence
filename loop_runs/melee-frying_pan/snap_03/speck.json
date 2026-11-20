@@ -1,0 +1,63 @@
+{
+  "pass": true,
+  "limits": {
+    "speck_ratio": 0.004,
+    "pinhole": 0,
+    "semi_alpha_ratio": 0.001,
+    "near_dup_ratio": 0.3,
+    "noisy_face_ratio": 0.12
+  },
+  "files": [
+    {
+      "file": "tools/loop/melee/out/frying_pan/frying_pan.png",
+      "model": "tools/loop/melee/out/frying_pan/frying_pan.json",
+      "size": [
+        128,
+        128
+      ],
+      "faces": 282,
+      "pixels": 7230,
+      "speck": 6,
+      "speck_ratio": 0.00083,
+      "pinhole": 0,
+      "semi_alpha": 0,
+      "semi_alpha_ratio": 0.0,
+      "near_dup_ratio": 0.0,
+      "noisy_face_ratio": 0.0,
+      "examples": [
+        [
+          "speck",
+          84,
+          27
+        ],
+        [
+          "speck",
+          29,
+          12
+        ],
+        [
+          "speck",
+          111,
+          10
+        ],
+        [
+          "speck",
+          34,
+          65
+        ],
+        [
+          "speck",
+          6,
+          37
+        ],
+        [
+          "speck",
+          17,
+          37
+        ]
+      ],
+      "fails": [],
+      "pass": true
+    }
+  ]
+}
